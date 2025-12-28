@@ -2,149 +2,169 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Контра Сити (стиль)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Меню игры «Контра Сити»</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Arial', sans-serif;
-        }
-
-        body {
-            background: linear-gradient(to bottom, #1a2a6c, #b21f1f, #fdbb2d);
-            color: white;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .game-menu {
-            width: 400px;
-            background-color: rgba(0, 0, 0, 0.7);
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        }
-
-        .menu-header {
-            background: linear-gradient(to right, #ff6b6b, #556270);
+        #game-menu {
+            background: linear-gradient(135deg, #007bff, #0056b3);
             padding: 20px;
-            text-align: center;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            width: 80%;
+            margin: 50px auto;
+            position: relative; /* Для абсолютного позиционирования дочерних элементов */
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .level {
+            color: white;
+            font-size: 18px;
+            padding: 5px 10px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+        }
+
+        .username {
             font-size: 24px;
             font-weight: bold;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-        }
-
-        .menu-content {
-            padding: 20px;
-        }
-
-        .menu-btn {
-            display: block;
-            width: 100%;
-            padding: 15px 20px;
-            margin: 10px 0;
-            background: linear-gradient(to right, #4CAF50, #8BC34A);
             color: white;
+        }
+
+        .currency span {
+            color: gold;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .options .option-btn {
+            background: linear-gradient(45deg, #28a745, #218838);
             border: none;
             border-radius: 8px;
-            font-size: 16px;
+            padding: 10px 20px;
+            color: white;
             font-weight: bold;
+            margin: 5px 0;
             cursor: pointer;
-            transition: all 0.3s ease;
-            text-align: left;
-            position: relative;
-            overflow: hidden;
+            transition: transform 0.2s;
+            display: block;
+            width: 150px;
+            text-align: center;
         }
 
-        .menu-btn:hover {
-            background: linear-gradient(to right, #8BC34A, #4CAF50);
+        .option-btn:hover {
             transform: translateY(-2px);
         }
 
-        .menu-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 5px;
-            height: 100%;
-            background-color: #FFEB3B;
-            transition: width 0.3s ease;
+        .bottom-bar button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            margin: 0 10px;
+            cursor: pointer;
         }
 
-        .menu-btn:hover::before {
-            width: 100%;
-        }
-
-        .stats-bar {
+        #battle-btn {
+            background: linear-gradient(45deg, #ffc107, #ff9800);
+            border: none;
+            border-radius: 10px;
+            padding: 15px 30px;
+            color: white;
+            font-weight: bold;
+            font-size: 20px;
+            cursor: pointer;
+            display: block;
             margin-top: 20px;
-            padding: 15px;
-            background-color: rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
+            width: 150px;
             text-align: center;
         }
 
-        .stat {
-            display: inline-block;
-            margin: 0 15px;
-            font-size: 14px;
+        .bonus-box {
+            position: absolute;
+            top: 50px;
+            right: 20px;
+            background: #212529;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            text-align: center;
         }
 
-        .stat strong {
-            color: #FFEB3B;
+        .bonus-text {
+            color: white;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+
+        .announcement {
+            position: absolute;
+            bottom: 50px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+        }
+
+        .character {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
         }
     </style>
 </head>
 <body>
-    <div class="game-menu">
-        <div class="menu-header">
-            Контра Сити
-        </div>
-        <div class="menu-content">
-            <button class="menu-btn" onclick="startGame()">Начать игру</button>
-            <button class="menu-btn" onclick="openGarage()">Гараж</button>
-            <button class="menu-btn" onclick="showLeaderboard()">Рейтинг</button>
-            <button class="menu-btn" onclick="openSettings()">Настройки</button>
-            <button class="menu-btn" onclick="showHelp()">Помощь</button>
-
-            <div class="stats-bar">
-                <div class="stat">Уровень: <strong>15</strong></div>
-                <div class="stat">Деньги: <strong>$25 000</strong></div>
-                <div class="stat">Опыт: <strong>1 250/2 000</strong></div>
+    <div id="game-menu">
+        <div class="header">
+            <div class="level">40</div>
+            <div class="username">GARIK YO</div>
+            <div class="currency">
+                <span>505</span> <img src="coin.png" alt="монета">
+                <span>20</span> <img src="crystal.png" alt="кристалл">
             </div>
+        </div>
+        <div class="main-content">
+            <div class="character">
+                <img src="character.png" alt="персонаж">
+            </div>
+            <div class="options">
+                <button class="option-btn" data-id="weapons">ОРУЖИЕ</button>
+                <button class="option-btn" data-id="equipment">КИПИРОВКА</button>
+                <button class="option-btn" data-id="boosters">УСИЛИТЕЛИ</button>
+                <button class="option-btn" data-id="contracts">КОНТРАКТЫ</button>
+            </div>
+        </div>
+        <div class="bottom-bar">
+            <button class="settings">⚙</button>
+            <button class="journal">📘</button>
+            <button class="trophy">🏆</button>
+            <button class="social">👥</button>
+        </div>
+        <button id="battle-btn">В БОЙ!</button>
+        <div class="bonus-box">
+            <img src="chest.png" alt="сундук" style="width: 80px;">
+            <div class="bonus-text">ВЫГОДА! x2</div>
+            <div class="timer">2 Д 17 Ч 13 МИН</div>
+        </div>
+        <div class="announcement">
+            ЗАМАНЧИВЫЕ ПРЕДЛОЖЕНИЯ О ПОКУПКЕ КРИСТАЛЛОВ — ПОРА БРАТЬ В БАНКЕ!
         </div>
     </div>
 
     <script>
-        function startGame() {
-            alert('Игра началась!');
-            // Здесь будет логика запуска игры
-        }
-
-        function openGarage() {
-            alert('Гараж открыт!');
-            // Логика открытия гаража
-        }
-
-        function showLeaderboard() {
-            alert('Таблица лидеров показана!');
-            // Логика показа рейтинга
-        }
-
-        function openSettings() {
-            alert('Настройки открыты!');
-            // Логика настроек
-        }
-
-        function showHelp() {
-            alert('Помощь открыта!');
-            // Логика помощи
-        }
-    </script>
-</body>
-</html>
+        // Обработчик кликов по кнопкам опций
+        document.querySelectorAll('.option-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-id');
+                alert(`Вы выбрали: 
