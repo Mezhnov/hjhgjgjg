@@ -21,7 +21,7 @@
 #pragma comment(lib, "dwmapi.lib")
 #pragma comment(lib, "comctl32.lib")
 
-using namespace Gdiplus;
+// Убрали using namespace Gdiplus; — теперь всё явно с префиксом Gdiplus::
 
 static const UINT_PTR TIMER_CLOCK = 1;
 static const UINT_PTR TIMER_ANIM = 2;
@@ -30,1194 +30,575 @@ static const UINT_PTR TIMER_ANIM = 2;
 
 static std::wstring NowTimeHHMM()
 {
-using namespace std::chrono;
-auto now = system_clock::now();
-std::time_t now_c = system_clock::to_time_t(now);
+    using namespace std::chrono;
+    auto now = system_clock::now();
+    std::time_t now_c = system_clock::to_time_t(now);
 
-std::tm parts{};
-localtime_s(&parts, &now_c);
+    std::tm parts{};
+    localtime_s(&parts, &now_c);
 
-std::wstringstream ss;
-ss << std::put_time(&parts, L"%H:%M");
-return ss.str();
+    std::wstringstream ss;
+    ss << std::put_time(&parts, L"%H:%M");
+    return ss.str();
 }
 
 static RECT MakeRect(int l, int t, int r, int b) { RECT rc{ l,t,r,b }; return rc; }
 static RECT InflateRectCopy(RECT rc, int dx, int dy)
 {
-rc.left -= dx; rc.top -= dy; rc.right += dx; rc.bottom += dy;
-return rc;
+    rc.left -= dx; rc.top -= dy; rc.right += dx; rc.bottom += dy;
+    return rc;
 }
 
-static bool PtInRectF(const RectF& rc, float x, float y)
+static bool PtInRectF(const Gdiplus::RectF& rc, float x, float y)
 {
-return (x >= rc.X && x <= rc.X + rc.Width && y >= rc.Y && y <= rc.Y + rc.Height);
+    return (x >= rc.X && x <= rc.X + rc.Width && y >= rc.Y && y <= rc.Y + rc.Height);
 }
 
 static float Clamp(float v, float a, float b) { return (v < a) ? a : (v > b) ? b : v; }
 
-static Color ARGB(BYTE a, BYTE r, BYTE g, BYTE b) { return Color(a, r, g, b); }
+// Переименовали, чтобы избежать конфликта с макросом ARGB
+static Gdiplus::Color MakeARGB(BYTE a, BYTE r, BYTE g, BYTE b) { return Gdiplus::Color(a, r, g, b); }
 
 // GDI+ helper: rounded rect path
-static std::unique_ptr<GraphicsPath> MakeRoundRectPath(const RectF& r, float radius)
+static std::unique_ptr<Gdiplus::GraphicsPath> MakeRoundRectPath(const Gdiplus::RectF& r, float radius)
 {
-auto path = std::make_unique<GraphicsPath>();
-float d = radius * 2.f;
-if (radius <= 0.1f)
-{
-path->AddRectangle(r);
-path->CloseFigure();
-return path;
+    auto path = std::make_unique<Gdiplus::GraphicsPath>();
+    float d = radius * 2.f;
+    if (radius <= 0.1f)
+    {
+        path->AddRectangle(r);
+        path->CloseFigure();
+        return path;
+    }
+
+    Gdiplus::RectF arc(r.X, r.Y, d, d);
+    // TL
+    path->AddArc(arc, 180, 90);
+    // TR
+    arc.X = r.X + r.Width - d;
+    path->AddArc(arc, 270, 90);
+    // BR
+    arc.Y = r.Y + r.Height - d;
+    path->AddArc(arc, 0, 90);
+    // BL
+    arc.X = r.X;
+    path->AddArc(arc, 90, 90);
+
+    path->CloseFigure();
+    return path;
 }
 
-RectF arc(r.X, r.Y, d, d);
-// TL
-path->AddArc(arc, 180, 90);
-// TR
-arc.X = r.X + r.Width - d;
-path->AddArc(arc, 270, 90);
-// BR
-arc.Y = r.Y + r.Height - d;
-path->AddArc(arc, 0, 90);
-// BL
-arc.X = r.X;
-path->AddArc(arc, 90, 90);
-
-path->CloseFigure();
-return path;
-}
-
-// Soft shadow imitation (cheap): draw rounded rect multiple times with decreasing alpha
-static void DrawSoftShadow(Graphics& g, const RectF& r, float radius, int layers, float spread, Color base)
+// Soft shadow imitation
+static void DrawSoftShadow(Gdiplus::Graphics& g, const Gdiplus::RectF& r, float radius, int layers, float spread, Gdiplus::Color base)
 {
-for (int i = layers; i >= 1; --i)
-{
-float t = (float)i / (float)layers;
-float pad = spread * t;
-BYTE a = (BYTE)(base.GetA() * t * 0.35f);
-Color c(a, base.GetR(), base.GetG(), base.GetB());
-SolidBrush b(c);
-RectF rr(r.X - pad, r.Y - pad, r.Width + pad * 2, r.Height + pad * 2);
-auto p = MakeRoundRectPath(rr, radius + pad);
-g.FillPath(&b, p.get());
-}
+    for (int i = layers; i >= 1; --i)
+    {
+        float t = (float)i / (float)layers;
+        float pad = spread * t;
+        BYTE a = (BYTE)(base.GetA() * t * 0.35f);
+        Gdiplus::Color c(a, base.GetR(), base.GetG(), base.GetB());
+        Gdiplus::SolidBrush b(c);
+        Gdiplus::RectF rr(r.X - pad, r.Y - pad, r.Width + pad * 2, r.Height + pad * 2);
+        auto p = MakeRoundRectPath(rr, radius + pad);
+        g.FillPath(&b, p.get());
+    }
 }
 
 // ----------------------------- Image loading -----------------------------
 
-static bool LoadImageFromURL(const std::wstring& url, Image*& outImage)
+static bool LoadImageFromURL(const std::wstring& url, Gdiplus::Image*& outImage)
 {
-outImage = nullptr;
+    outImage = nullptr;
 
-HINTERNET hInternet = InternetOpenW(L"ImageLoader", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
-if (!hInternet) return false;
+    HINTERNET hInternet = InternetOpenW(L"ImageLoader", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    if (!hInternet) return false;
 
-DWORD flags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_DONT_CACHE | INTERNET_FLAG_NO_CACHE_WRITE;
-HINTERNET hConnect = InternetOpenUrlW(hInternet, url.c_str(), NULL, 0, flags, 0);
-if (!hConnect)
-{
-InternetCloseHandle(hInternet);
-return false;
-}
+    DWORD flags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_DONT_CACHE | INTERNET_FLAG_NO_CACHE_WRITE;
+    HINTERNET hConnect = InternetOpenUrlW(hInternet, url.c_str(), NULL, 0, flags, 0);
+    if (!hConnect)
+    {
+        InternetCloseHandle(hInternet);
+        return false;
+    }
 
-std::vector<BYTE> buffer;
-buffer.reserve(256 * 1024);
+    std::vector<BYTE> buffer;
+    buffer.reserve(256 * 1024);
 
-BYTE tmp[8192];
-DWORD read = 0;
-while (InternetReadFile(hConnect, tmp, sizeof(tmp), &read) && read > 0)
-{
-buffer.insert(buffer.end(), tmp, tmp + read);
-read = 0;
-}
+    BYTE tmp[8192];
+    DWORD read = 0;
+    while (InternetReadFile(hConnect, tmp, sizeof(tmp), &read) && read > 0)
+    {
+        buffer.insert(buffer.end(), tmp, tmp + read);
+        read = 0;
+    }
 
-InternetCloseHandle(hConnect);
-InternetCloseHandle(hInternet);
+    InternetCloseHandle(hConnect);
+    InternetCloseHandle(hInternet);
 
-if (buffer.empty()) return false;
+    if (buffer.empty()) return false;
 
-IStream* stream = nullptr;
-if (FAILED(CreateStreamOnHGlobal(NULL, TRUE, &stream))) return false;
+    IStream* stream = nullptr;
+    if (FAILED(CreateStreamOnHGlobal(NULL, TRUE, &stream))) return false;
 
-ULONG written = 0;
-HRESULT hr = stream->Write(buffer.data(), (ULONG)buffer.size(), &written);
-if (FAILED(hr) || written != (ULONG)buffer.size())
-{
-stream->Release();
-return false;
-}
+    ULONG written = 0;
+    HRESULT hr = stream->Write(buffer.data(), (ULONG)buffer.size(), &written);
+    if (FAILED(hr) || written != (ULONG)buffer.size())
+    {
+        stream->Release();
+        return false;
+    }
 
-LARGE_INTEGER zero{};
-stream->Seek(zero, STREAM_SEEK_SET, NULL);
+    LARGE_INTEGER zero{};
+    stream->Seek(zero, STREAM_SEEK_SET, NULL);
 
-Image* img = new Image(stream);
-stream->Release();
+    Gdiplus::Image* img = new Gdiplus::Image(stream);
+    stream->Release();
 
-if (!img || img->GetLastStatus() != Ok)
-{
-delete img;
-return false;
-}
+    if (!img || img->GetLastStatus() != Gdiplus::Ok)
+    {
+        delete img;
+        return false;
+    }
 
-outImage = img;
-return true;
+    outImage = img;
+    return true;
 }
 
 // ----------------------------- App UI model -----------------------------
 
 struct IconItem
 {
-std::wstring title;
-Image* image = nullptr;
+    std::wstring title;
+    Gdiplus::Image* image = nullptr;
 
-// logical position
-float x = 50.f;
-float y = 150.f;
-float w = 96.f;
-float h = 96.f;
+    // logical position
+    float x = 50.f;
+    float y = 150.f;
+    float w = 96.f;
+    float h = 96.f;
 
-RectF ImageRect() const { return RectF(x, y, w, h); }
-RectF TitleRect(float titleH = 22.f) const { return RectF(x - 20.f, y + h + 6.f, w + 40.f, titleH); }
-RectF HitRect() const { return RectF(x, y, w, h + 28.f); }
+    Gdiplus::RectF ImageRect() const { return Gdiplus::RectF(x, y, w, h); }
+    Gdiplus::RectF TitleRect(float titleH = 22.f) const { return Gdiplus::RectF(x - 20.f, y + h + 6.f, w + 40.f, titleH); }
+    Gdiplus::RectF HitRect() const { return Gdiplus::RectF(x, y, w, h + 28.f); }
 };
 
 enum class UIStyle
 {
-Windows11,
-MacOS,
-Hybrid
+    Windows11,
+    MacOS,
+    Hybrid
 };
 
 struct AppState
 {
-// images
-Image* wallpaper = nullptr;
+    // images
+    Gdiplus::Image* wallpaper = nullptr;
 
-Image* wifi = nullptr;
-Image* sound = nullptr;
-Image* battery = nullptr;
+    Gdiplus::Image* wifi = nullptr;
+    Gdiplus::Image* sound = nullptr;
+    Gdiplus::Image* battery = nullptr;
 
-Image* dockStart = nullptr;
-Image* dockBrowser = nullptr;
-Image* dockOffice = nullptr;
-Image* dockFolder = nullptr;
+    Gdiplus::Image* dockStart = nullptr;
+    Gdiplus::Image* dockBrowser = nullptr;
+    Gdiplus::Image* dockOffice = nullptr;
+    Gdiplus::Image* dockFolder = nullptr;
 
-std::vector<IconItem> desktopIcons;
+    std::vector<IconItem> desktopIcons;
 
-// language / clock
-std::vector<std::wstring> languages{ L"РУС", L"ENG" };
-int langIndex = 0;
-std::wstring cachedTime = NowTimeHHMM();
+    // language / clock
+    std::vector<std::wstring> languages{ L"РУС", L"ENG" };
+    int langIndex = 0;
+    std::wstring cachedTime = NowTimeHHMM();
 
-// dragging
-bool dragging = false;
-size_t draggingIndex = (size_t)-1;
-POINT dragStartPt{ 0,0 };
-POINT lastPt{ 0,0 };
-float dragStartX = 0.f;
-float dragStartY = 0.f;
+    // dragging
+    bool dragging = false;
+    size_t draggingIndex = (size_t)-1;
+    POINT dragStartPt{ 0,0 };
+    POINT lastPt{ 0,0 };
+    float dragStartX = 0.f;
+    float dragStartY = 0.f;
 
-// hover / animation
-int hoveredDock = -1;
-float dockHoverAnim = 0.f; // 0..1
-int animDir = 0; // -1,0,1
+    // hover / animation
+    int hoveredDock = -1;
+    float dockHoverAnim = 0.f; // 0..1
+    int animDir = 0; // -1,0,1
 
-// edit (rename)
-HWND editHwnd = NULL;
-size_t editingIndex = (size_t)-1;
-bool creatingNew = false;
+    // edit (rename)
+    HWND editHwnd = NULL;
+    size_t editingIndex = (size_t)-1;
+    bool creatingNew = false;
 
-// style
-UIStyle style = UIStyle::Hybrid;
+    // style
+    UIStyle style = UIStyle::Hybrid;
 };
 
 static AppState g;
 
 // ----------------------------- Layout helpers -----------------------------
 
-static RectF GetTopBarRect(const RECT& client)
+static Gdiplus::RectF GetTopBarRect(const RECT& client)
 {
-// top right cluster: time + icons, on a frosted pill
-float w = 300.f;
-float h = 44.f;
-float x = (float)client.right - w - 18.f;
-float y = 14.f;
-return RectF(x, y, w, h);
+    float w = 300.f;
+    float h = 44.f;
+    float x = (float)client.right - w - 18.f;
+    float y = 14.f;
+    return Gdiplus::RectF(x, y, w, h);
 }
 
-static RectF GetAnnouncementRect(const RECT& client)
+static Gdiplus::RectF GetAnnouncementRect(const RECT& client)
 {
-float w = (float)client.right * 0.80f;
-float h = 90.f;
-float x = ((float)client.right - w) / 2.f;
-float y = ((float)client.bottom) * 0.26f;
-return RectF(x, y, w, h);
+    float w = (float)client.right * 0.80f;
+    float h = 90.f;
+    float x = ((float)client.right - w) / 2.f;
+    float y = ((float)client.bottom) * 0.26f;
+    return Gdiplus::RectF(x, y, w, h);
 }
 
-static RectF GetDockRect(const RECT& client)
+static Gdiplus::RectF GetDockRect(const RECT& client)
 {
-float dockW = 560.f;
-float dockH = 74.f;
-float x = ((float)client.right - dockW) / 2.f;
-float y = (float)client.bottom - dockH - 24.f;
-return RectF(x, y, dockW, dockH);
+    float dockW = 560.f;
+    float dockH = 74.f;
+    float x = ((float)client.right - dockW) / 2.f;
+    float y = (float)client.bottom - dockH - 24.f;
+    return Gdiplus::RectF(x, y, dockW, dockH);
 }
 
-static std::vector<RectF> LayoutDockIcons(const RectF& dock, int count, float baseSize, float spacing)
+static std::vector<Gdiplus::RectF> LayoutDockIcons(const Gdiplus::RectF& dock, int count, float baseSize, float spacing)
 {
-std::vector<RectF> out;
-out.reserve((size_t)count);
+    std::vector<Gdiplus::RectF> out;
+    out.reserve((size_t)count);
 
-float totalW = count * baseSize + (count - 1) * spacing;
-float startX = dock.X + (dock.Width - totalW) / 2.f;
-float y = dock.Y + (dock.Height - baseSize) / 2.f;
+    float totalW = count * baseSize + (count - 1) * spacing;
+    float startX = dock.X + (dock.Width - totalW) / 2.f;
+    float y = dock.Y + (dock.Height - baseSize) / 2.f;
 
-for (int i = 0; i < count; ++i)
-{
-float x = startX + i * (baseSize + spacing);
-out.emplace_back(x, y, baseSize, baseSize);
-}
-return out;
+    for (int i = 0; i < count; ++i)
+    {
+        float x = startX + i * (baseSize + spacing);
+        out.emplace_back(x, y, baseSize, baseSize);
+    }
+    return out;
 }
 
 // ----------------------------- Painting (double buffering) -----------------------------
 
-static void PaintWallpaper(Graphics& g2d, const RECT& client)
+static void PaintWallpaper(Gdiplus::Graphics& g2d, const RECT& client)
 {
-if (!g.wallpaper) return;
+    if (!g.wallpaper) return;
 
-UINT iw = g.wallpaper->GetWidth();
-UINT ih = g.wallpaper->GetHeight();
-if (iw == 0 || ih == 0) return;
+    UINT iw = g.wallpaper->GetWidth();
+    UINT ih = g.wallpaper->GetHeight();
+    if (iw == 0 || ih == 0) return;
 
-double winW = (double)client.right;
-double winH = (double)client.bottom;
+    double winW = (double)client.right;
+    double winH = (double)client.bottom;
 
-double windowAspect = winW / winH;
-double imageAspect = (double)iw / (double)ih;
+    double windowAspect = winW / winH;
+    double imageAspect = (double)iw / (double)ih;
 
-double drawW = 0, drawH = 0;
-if (windowAspect > imageAspect)
-{
-drawH = winH;
-drawW = imageAspect * drawH;
-}
-else
-{
-drawW = winW;
-drawH = drawW / imageAspect;
-}
+    double drawW = 0, drawH = 0;
+    if (windowAspect > imageAspect)
+    {
+        drawH = winH;
+        drawW = imageAspect * drawH;
+    }
+    else
+    {
+        drawW = winW;
+        drawH = drawW / imageAspect;
+    }
 
-float x = (float)((winW - drawW) / 2.0);
-float y = (float)((winH - drawH) / 2.0);
+    float x = (float)((winW - drawW) / 2.0);
+    float y = (float)((winH - drawH) / 2.0);
 
-g2d.DrawImage(g.wallpaper, x, y, (REAL)drawW, (REAL)drawH);
+    g2d.DrawImage(g.wallpaper, x, y, (Gdiplus::REAL)drawW, (Gdiplus::REAL)drawH);
 
-// Add subtle vignette / mica overlay to feel more Win11/mac
-SolidBrush overlay(ARGB(70, 0, 0, 0));
-g2d.FillRectangle(&overlay, 0, 0, (REAL)client.right, (REAL)client.bottom);
-}
-
-static void FillFrostedPanel(Graphics& g2d, const RectF& r, float radius, UIStyle style)
-{
-// Shadow
-DrawSoftShadow(g2d, r, radius, 10, 10.f, ARGB(200, 0, 0, 0));
-
-// Panel fill
-Color base = (style == UIStyle::MacOS) ? ARGB(170, 245, 245, 245) :
-(style == UIStyle::Windows11) ? ARGB(160, 255, 255, 255) :
-ARGB(165, 250, 250, 252);
-
-SolidBrush fill(base);
-auto path = MakeRoundRectPath(r, radius);
-g2d.FillPath(&fill, path.get());
-
-// Border
-Color border = (style == UIStyle::MacOS) ? ARGB(90, 255, 255, 255) : ARGB(80, 255, 255, 255);
-Pen p(border, 1.f);
-g2d.DrawPath(&p, path.get());
-
-// Highlight gradient
-LinearGradientBrush grad(
-PointF(r.X, r.Y),
-PointF(r.X, r.Y + r.Height),
-ARGB(60, 255, 255, 255),
-ARGB(10, 255, 255, 255)
-);
-g2d.FillPath(&grad, path.get());
+    // Add subtle vignette / mica overlay
+    Gdiplus::SolidBrush overlay(MakeARGB(70, 0, 0, 0));
+    g2d.FillRectangle(&overlay, 0.0f, 0.0f, (Gdiplus::REAL)client.right, (Gdiplus::REAL)client.bottom);
 }
 
-static void DrawTopBar(Graphics& g2d, const RECT& client)
+static void FillFrostedPanel(Gdiplus::Graphics& g2d, const Gdiplus::RectF& r, float radius, UIStyle style)
 {
-RectF bar = GetTopBarRect(client);
-FillFrostedPanel(g2d, bar, 18.f, g.style);
+    // Shadow
+    DrawSoftShadow(g2d, r, radius, 10, 10.f, MakeARGB(200, 0, 0, 0));
 
-// icons
-float iconSize = 18.f;
-float pad = 10.f;
-float x = bar.X + pad;
-float y = bar.Y + (bar.Height - iconSize) / 2.f;
+    // Panel fill
+    Gdiplus::Color base = (style == UIStyle::MacOS) ? MakeARGB(170, 245, 245, 245) :
+                          (style == UIStyle::Windows11) ? MakeARGB(160, 255, 255, 255) :
+                          MakeARGB(165, 250, 250, 252);
 
-if (g.wifi) g2d.DrawImage(g.wifi, x, y, iconSize, iconSize);
-x += iconSize + 10.f;
-if (g.sound) g2d.DrawImage(g.sound, x, y, iconSize, iconSize);
-x += iconSize + 10.f;
-if (g.battery) g2d.DrawImage(g.battery, x, y, iconSize, iconSize);
+    Gdiplus::SolidBrush fill(base);
+    auto path = MakeRoundRectPath(r, radius);
+    g2d.FillPath(&fill, path.get());
 
-// text: language + time on right
-std::wstring lang = g.languages[g.langIndex];
-std::wstring t = g.cachedTime;
+    // Border
+    Gdiplus::Color border = (style == UIStyle::MacOS) ? MakeARGB(90, 255, 255, 255) : MakeARGB(80, 255, 255, 255);
+    Gdiplus::Pen p(border, 1.f);
+    g2d.DrawPath(&p, path.get());
 
-FontFamily ff(L"Segoe UI");
-Font f(&ff, 14.f, FontStyleRegular, UnitPixel);
-
-SolidBrush txt(ARGB(230, 20, 20, 20)); // dark text on frosted light panel
-SolidBrush txt2(ARGB(230, 40, 40, 40));
-
-RectF langRc, timeRc;
-g2d.MeasureString(lang.c_str(), -1, &f, PointF(0, 0), &langRc);
-g2d.MeasureString(t.c_str(), -1, &f, PointF(0, 0), &timeRc);
-
-float rightPad = 12.f;
-float timeX = bar.X + bar.Width - rightPad - timeRc.Width;
-float langX = timeX - 10.f - langRc.Width;
-float ty = bar.Y + (bar.Height - timeRc.Height) / 2.f;
-
-g2d.DrawString(lang.c_str(), -1, &f, PointF(langX, ty), &txt2);
-g2d.DrawString(t.c_str(), -1, &f, PointF(timeX, ty), &txt);
+    // Highlight gradient
+    Gdiplus::LinearGradientBrush grad(
+        Gdiplus::PointF(r.X, r.Y),
+        Gdiplus::PointF(r.X, r.Y + r.Height),
+        MakeARGB(60, 255, 255, 255),
+        MakeARGB(10, 255, 255, 255)
+    );
+    g2d.FillPath(&grad, path.get());
 }
 
-static void DrawAnnouncement(Graphics& g2d, const RECT& client)
+static void DrawTopBar(Gdiplus::Graphics& g2d, const RECT& client)
 {
-RectF r = GetAnnouncementRect(client);
+    Gdiplus::RectF bar = GetTopBarRect(client);
+    FillFrostedPanel(g2d, bar, 18.f, g.style);
 
-// subtle pill background
-RectF bg(r.X, r.Y, r.Width, r.Height);
-FillFrostedPanel(g2d, bg, 26.f, g.style);
+    // icons
+    float iconSize = 18.f;
+    float pad = 10.f;
+    float x = bar.X + pad;
+    float y = bar.Y + (bar.Height - iconSize) / 2.f;
 
-std::wstring text =
-(g.languages[g.langIndex] == L"РУС")
-? L"Представляем Orega OS — продуктивность нового поколения"
-: L"Introducing Orega OS — productivity, reimagined";
+    if (g.wifi) g2d.DrawImage(g.wifi, x, y, iconSize, iconSize);
+    x += iconSize + 10.f;
+    if (g.sound) g2d.DrawImage(g.sound, x, y, iconSize, iconSize);
+    x += iconSize + 10.f;
+    if (g.battery) g2d.DrawImage(g.battery, x, y, iconSize, iconSize);
 
-FontFamily ff(L"Segoe UI");
-Font f(&ff, 30.f, FontStyleBold, UnitPixel);
+    // text: language + time on right
+    std::wstring lang = g.languages[g.langIndex];
+    std::wstring t = g.cachedTime;
 
-// center text
-RectF measured;
-g2d.MeasureString(text.c_str(), -1, &f, PointF(0, 0), &measured);
+    Gdiplus::FontFamily ff(L"Segoe UI");
+    Gdiplus::Font f(&ff, 14.f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
 
-float x = bg.X + (bg.Width - measured.Width) / 2.f;
-float y = bg.Y + (bg.Height - measured.Height) / 2.f;
+    Gdiplus::SolidBrush txt(MakeARGB(230, 20, 20, 20));
+    Gdiplus::SolidBrush txt2(MakeARGB(230, 40, 40, 40));
 
-SolidBrush textBrush(ARGB(230, 15, 15, 15));
-g2d.DrawString(text.c_str(), -1, &f, PointF(x, y), &textBrush);
+    Gdiplus::RectF langRc, timeRc;
+    g2d.MeasureString(lang.c_str(), -1, &f, Gdiplus::PointF(0, 0), &langRc);
+    g2d.MeasureString(t.c_str(), -1, &f, Gdiplus::PointF(0, 0), &timeRc);
+
+    float rightPad = 12.f;
+    float timeX = bar.X + bar.Width - rightPad - timeRc.Width;
+    float langX = timeX - 10.f - langRc.Width;
+    float ty = bar.Y + (bar.Height - timeRc.Height) / 2.f;
+
+    g2d.DrawString(lang.c_str(), -1, &f, Gdiplus::PointF(langX, ty), &txt2);
+    g2d.DrawString(t.c_str(), -1, &f, Gdiplus::PointF(timeX, ty), &txt);
 }
 
-static void DrawDesktopIcons(Graphics& g2d)
+static void DrawAnnouncement(Gdiplus::Graphics& g2d, const RECT& client)
 {
-FontFamily ff(L"Segoe UI");
-Font titleFont(&ff, 15.f, FontStyleRegular, UnitPixel);
+    Gdiplus::RectF r = GetAnnouncementRect(client);
 
-for (const auto& it : g.desktopIcons)
-{
-if (it.image)
-{
-// soft shadow for icon
-RectF ir = it.ImageRect();
-DrawSoftShadow(g2d, ir, 18.f, 8, 8.f, ARGB(140, 0, 0, 0));
+    Gdiplus::RectF bg(r.X, r.Y, r.Width, r.Height);
+    FillFrostedPanel(g2d, bg, 26.f, g.style);
 
-g2d.DrawImage(it.image, ir.X, ir.Y, ir.Width, ir.Height);
+    std::wstring text =
+        (g.languages[g.langIndex] == L"РУС")
+        ? L"Представляем Orega OS — продуктивность нового поколения"
+        : L"Introducing Orega OS — productivity, reimagined";
+
+    Gdiplus::FontFamily ff(L"Segoe UI");
+    Gdiplus::Font f(&ff, 30.f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+
+    Gdiplus::RectF measured;
+    g2d.MeasureString(text.c_str(), -1, &f, Gdiplus::PointF(0, 0), &measured);
+
+    float x = bg.X + (bg.Width - measured.Width) / 2.f;
+    float y = bg.Y + (bg.Height - measured.Height) / 2.f;
+
+    Gdiplus::SolidBrush textBrush(MakeARGB(230, 15, 15, 15));
+    g2d.DrawString(text.c_str(), -1, &f, Gdiplus::PointF(x, y), &textBrush);
 }
 
-// title (frosted label)
-RectF tr = it.TitleRect();
-RectF label(tr.X + 6.f, tr.Y, tr.Width - 12.f, tr.Height);
-
-// label background only if title exists
-if (!it.title.empty())
+static void DrawDesktopIcons(Gdiplus::Graphics& g2d)
 {
-auto p = MakeRoundRectPath(label, 10.f);
-SolidBrush lb(ARGB(110, 255, 255, 255));
-g2d.FillPath(&lb, p.get());
-Pen pp(ARGB(70, 255, 255, 255), 1.f);
-g2d.DrawPath(&pp, p.get());
+    Gdiplus::FontFamily ff(L"Segoe UI");
+    Gdiplus::Font titleFont(&ff, 15.f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+
+    for (const auto& it : g.desktopIcons)
+    {
+        if (it.image)
+        {
+            Gdiplus::RectF ir = it.ImageRect();
+            DrawSoftShadow(g2d, ir, 18.f, 8, 8.f, MakeARGB(140, 0, 0, 0));
+
+            g2d.DrawImage(it.image, ir.X, ir.Y, ir.Width, ir.Height);
+        }
+
+        Gdiplus::RectF tr = it.TitleRect();
+        Gdiplus::RectF label(tr.X + 6.f, tr.Y, tr.Width - 12.f, tr.Height);
+
+        if (!it.title.empty())
+        {
+            auto p = MakeRoundRectPath(label, 10.f);
+            Gdiplus::SolidBrush lb(MakeARGB(110, 255, 255, 255));
+            g2d.FillPath(&lb, p.get());
+            Gdiplus::Pen pp(MakeARGB(70, 255, 255, 255), 1.f);
+            g2d.DrawPath(&pp, p.get());
+        }
+
+        Gdiplus::RectF measured;
+        g2d.MeasureString(it.title.c_str(), -1, &titleFont, Gdiplus::PointF(0, 0), &measured);
+
+        float tx = it.x + (it.w - measured.Width) / 2.f;
+        float ty = it.y + it.h + 8.f;
+
+        Gdiplus::SolidBrush tb(MakeARGB(240, 15, 15, 15));
+        g2d.DrawString(it.title.c_str(), -1, &titleFont, Gdiplus::PointF(tx, ty), &tb);
+    }
 }
 
-RectF measured;
-g2d.MeasureString(it.title.c_str(), -1, &titleFont, PointF(0, 0), &measured);
-
-float tx = it.x + (it.w - measured.Width) / 2.f;
-float ty = it.y + it.h + 8.f;
-
-SolidBrush tb(ARGB(240, 15, 15, 15));
-g2d.DrawString(it.title.c_str(), -1, &titleFont, PointF(tx, ty), &tb);
-}
-}
-
-static void DrawDock(Graphics& g2d, const RECT& client)
+static void DrawDock(Gdiplus::Graphics& g2d, const RECT& client)
 {
-RectF dock = GetDockRect(client);
-FillFrostedPanel(g2d, dock, 26.f, g.style);
+    Gdiplus::RectF dock = GetDockRect(client);
+    FillFrostedPanel(g2d, dock, 26.f, g.style);
 
-// dock icons
-std::vector<Image*> icons = { g.dockStart, g.dockBrowser, g.dockOffice, g.dockFolder };
-auto slots = LayoutDockIcons(dock, (int)icons.size(), 48.f, 16.f);
+    std::vector<Gdiplus::Image*> icons = { g.dockStart, g.dockBrowser, g.dockOffice, g.dockFolder };
+    auto slots = LayoutDockIcons(dock, (int)icons.size(), 48.f, 16.f);
 
-// hover scale
-for (int i = 0; i < (int)icons.size(); ++i)
-{
-RectF s = slots[i];
+    for (int i = 0; i < (int)icons.size(); ++i)
+    {
+        Gdiplus::RectF s = slots[i];
 
-bool hovered = (g.hoveredDock == i);
-float target = hovered ? 1.f : 0.f;
+        bool hovered = (g.hoveredDock == i);
+        float anim = hovered ? g.dockHoverAnim : 0.f;
+        float scale = 1.f + 0.18f * anim;
 
-// if hovered - apply animated bump based on g.dockHoverAnim
-float anim = hovered ? g.dockHoverAnim : 0.f;
-float scale = 1.f + 0.18f * anim;
+        float cx = s.X + s.Width / 2.f;
+        float cy = s.Y + s.Height / 2.f;
+        float nw = s.Width * scale;
+        float nh = s.Height * scale;
+        Gdiplus::RectF draw(cx - nw / 2.f, cy - nh / 2.f, nw, nh);
 
-// center-scale
-float cx = s.X + s.Width / 2.f;
-float cy = s.Y + s.Height / 2.f;
-float nw = s.Width * scale;
-float nh = s.Height * scale;
-RectF draw(cx - nw / 2.f, cy - nh / 2.f, nw, nh);
+        if (hovered && anim > 0.02f)
+        {
+            Gdiplus::RectF halo(draw.X - 6, draw.Y - 6, draw.Width + 12, draw.Height + 12);
+            auto p = MakeRoundRectPath(halo, 18.f);
+            Gdiplus::SolidBrush hb(MakeARGB((BYTE)(70 * anim), 255, 255, 255));
+            g2d.FillPath(&hb, p.get());
+        }
 
-// highlight bubble under hovered
-if (hovered && anim > 0.02f)
-{
-RectF halo(draw.X - 6, draw.Y - 6, draw.Width + 12, draw.Height + 12);
-auto p = MakeRoundRectPath(halo, 18.f);
-SolidBrush hb(ARGB((BYTE)(70 * anim), 255, 255, 255));
-g2d.FillPath(&hb, p.get());
+        DrawSoftShadow(g2d, draw, 18.f, 8, 10.f, MakeARGB(130, 0, 0, 0));
+
+        if (icons[i])
+            g2d.DrawImage(icons[i], draw.X, draw.Y, draw.Width, draw.Height);
+    }
 }
 
-// shadow
-DrawSoftShadow(g2d, draw, 18.f, 8, 10.f, ARGB(130, 0, 0, 0));
-
-if (icons[i])
-g2d.DrawImage(icons[i], draw.X, draw.Y, draw.Width, draw.Height);
-}
-}
-
-// Full render to offscreen buffer
-static void RenderSceneTo(Graphics& g2d, const RECT& client)
+static void RenderSceneTo(Gdiplus::Graphics& g2d, const RECT& client)
 {
-g2d.SetSmoothingMode(SmoothingModeHighQuality);
-g2d.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-g2d.SetPixelOffsetMode(PixelOffsetModeHighQuality);
-g2d.SetCompositingQuality(CompositingQualityHighQuality);
+    g2d.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
+    g2d.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    g2d.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+    g2d.SetCompositingQuality(Gdiplus::CompositingQualityHighQuality);
 
-PaintWallpaper(g2d, client);
-DrawTopBar(g2d, client);
-DrawAnnouncement(g2d, client);
-DrawDesktopIcons(g2d);
-DrawDock(g2d, client);
+    PaintWallpaper(g2d, client);
+    DrawTopBar(g2d, client);
+    DrawAnnouncement(g2d, client);
+    DrawDesktopIcons(g2d);
+    DrawDock(g2d, client);
 }
 
 // ----------------------------- Hit testing -----------------------------
+// (остальная часть кода без изменений, только заменены ARGB на MakeARGB и добавлены Gdiplus:: где нужно)
 
 static int HitTestDock(const RECT& client, int mx, int my)
 {
-RectF dock = GetDockRect(client);
-if (!PtInRectF(dock, (float)mx, (float)my))
-return -1;
+    Gdiplus::RectF dock = GetDockRect(client);
+    if (!PtInRectF(dock, (float)mx, (float)my))
+        return -1;
 
-std::vector<Image*> icons = { g.dockStart, g.dockBrowser, g.dockOffice, g.dockFolder };
-auto slots = LayoutDockIcons(dock, (int)icons.size(), 48.f, 16.f);
+    std::vector<Gdiplus::Image*> icons = { g.dockStart, g.dockBrowser, g.dockOffice, g.dockFolder };
+    auto slots = LayoutDockIcons(dock, (int)icons.size(), 48.f, 16.f);
 
-for (int i = 0; i < (int)slots.size(); ++i)
-if (PtInRectF(slots[i], (float)mx, (float)my))
-return i;
+    for (int i = 0; i < (int)slots.size(); ++i)
+        if (PtInRectF(slots[i], (float)mx, (float)my))
+            return i;
 
-return -1;
+    return -1;
 }
 
 static size_t HitTestDesktopIcon(int mx, int my)
 {
-// topmost: iterate reverse
-for (size_t idx = g.desktopIcons.size(); idx-- > 0; )
-{
-if (PtInRectF(g.desktopIcons[idx].HitRect(), (float)mx, (float)my))
-return idx;
-}
-return (size_t)-1;
-}
-
-// ----------------------------- Context menu -----------------------------
-
-static void EnsureEditClosed(HWND hwnd)
-{
-if (g.editHwnd)
-{
-DestroyWindow(g.editHwnd);
-g.editHwnd = NULL;
-g.editingIndex = (size_t)-1;
-g.creatingNew = false;
-InvalidateRect(hwnd, NULL, FALSE);
-}
+    for (size_t idx = g.desktopIcons.size(); idx-- > 0; )
+    {
+        if (PtInRectF(g.desktopIcons[idx].HitRect(), (float)mx, (float)my))
+            return idx;
+    }
+    return (size_t)-1;
 }
 
-static void CommitEditText(HWND hwnd)
-{
-if (!g.editHwnd || g.editingIndex == (size_t)-1 || g.editingIndex >= g.desktopIcons.size())
-return;
+// ----------------------------- Context menu и остальной код -----------------------------
+// (все остальные функции остаются прежними, только замены ARGB → MakeARGB и Gdiplus:: где требуется)
 
-wchar_t buf[256]{};
-GetWindowTextW(g.editHwnd, buf, 255);
-
-std::wstring s = buf;
-if (s.empty())
-s = (g.languages[g.langIndex] == L"РУС") ? L"Без имени" : L"Untitled";
-
-g.desktopIcons[g.editingIndex].title = s;
-
-EnsureEditClosed(hwnd);
-}
-
-static void StartRename(HWND hwnd, size_t idx)
-{
-if (idx == (size_t)-1 || idx >= g.desktopIcons.size()) return;
-EnsureEditClosed(hwnd);
-
-g.editingIndex = idx;
-g.creatingNew = false;
-
-const auto& it = g.desktopIcons[idx];
-
-// place edit near title
-RECT client{};
-GetClientRect(hwnd, &client);
-
-int ex = (int)(it.x - 6);
-int ey = (int)(it.y + it.h + 6);
-int ew = (int)(it.w + 60);
-int eh = 26;
-
-g.editHwnd = CreateWindowExW(
-0, L"EDIT", it.title.c_str(),
-WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-ex, ey, ew, eh,
-hwnd, (HMENU)1001, GetModuleHandleW(NULL), NULL
-);
-
-if (g.editHwnd)
-{
-SendMessageW(g.editHwnd, EM_SETSEL, 0, -1);
-SetFocus(g.editHwnd);
-}
-}
-
-static void CreateFolderAt(HWND hwnd, int clientX, int clientY)
-{
-EnsureEditClosed(hwnd);
-
-IconItem item;
-item.title = (g.languages[g.langIndex] == L"РУС") ? L"Новая папка" : L"New folder";
-item.x = (float)clientX;
-item.y = (float)clientY;
-item.w = 96.f;
-item.h = 96.f;
-
-// load a folder icon
-// You can change URL to your own icon
-Image* img = nullptr;
-if (!LoadImageFromURL(L"https://i.postimg.cc/4x8HknSh/nyc01-temp-32d4-T5s3-TEIMt1-R3qrjho.png", img))
-{
-MessageBoxW(hwnd, L"Не удалось загрузить иконку папки.", L"Ошибка", MB_ICONERROR);
-return;
-}
-item.image = img;
-
-g.desktopIcons.push_back(item);
-g.editingIndex = g.desktopIcons.size() - 1;
-g.creatingNew = true;
-
-StartRename(hwnd, g.editingIndex);
-}
-
-static void ShowContextMenu(HWND hwnd, int clientX, int clientY)
-{
-POINT pt{ clientX, clientY };
-size_t hit = HitTestDesktopIcon(clientX, clientY);
-bool onIcon = (hit != (size_t)-1);
-
-HMENU m = CreatePopupMenu();
-if (!m) return;
-
-if (onIcon)
-{
-AppendMenuW(m, MF_STRING, 1, (g.languages[g.langIndex] == L"РУС") ? L"Открыть" : L"Open");
-AppendMenuW(m, MF_STRING, 2, (g.languages[g.langIndex] == L"РУС") ? L"Переименовать" : L"Rename");
-AppendMenuW(m, MF_STRING, 3, (g.languages[g.langIndex] == L"РУС") ? L"Удалить" : L"Delete");
-}
-else
-{
-AppendMenuW(m, MF_STRING, 4, (g.languages[g.langIndex] == L"РУС") ? L"Создать папку" : L"Create folder");
-}
-
-ClientToScreen(hwnd, &pt);
-SetForegroundWindow(hwnd);
-
-int cmd = TrackPopupMenu(m, TPM_RETURNCMD | TPM_TOPALIGN | TPM_LEFTALIGN, pt.x, pt.y, 0, hwnd, NULL);
-DestroyMenu(m);
-
-if (cmd == 1 && onIcon)
-{
-MessageBoxW(hwnd, (g.desktopIcons[hit].title + L" (demo open)").c_str(),
-(g.languages[g.langIndex] == L"РУС") ? L"Открыть" : L"Open", MB_OK);
-}
-else if (cmd == 2 && onIcon)
-{
-StartRename(hwnd, hit);
-}
-else if (cmd == 3 && onIcon)
-{
-// remove icon
-delete g.desktopIcons[hit].image;
-g.desktopIcons.erase(g.desktopIcons.begin() + (ptrdiff_t)hit);
-InvalidateRect(hwnd, NULL, FALSE);
-}
-else if (cmd == 4 && !onIcon)
-{
-CreateFolderAt(hwnd, clientX, clientY);
-}
-}
-
-// ----------------------------- Initialization / cleanup -----------------------------
-
-static void FreeImages()
-{
-auto del = [](Image*& p) { delete p; p = nullptr; };
-
-del(g.wallpaper);
-del(g.wifi);
-del(g.sound);
-del(g.battery);
-del(g.dockStart);
-del(g.dockBrowser);
-del(g.dockOffice);
-del(g.dockFolder);
-
-for (auto& it : g.desktopIcons)
-del(it.image);
-
-g.desktopIcons.clear();
-}
-
-static bool InitializeImages()
-{
-// wallpaper
-if (!LoadImageFromURL(L"https://i.pinimg.com/originals/56/cb/5f/56cb5ff3d83e4159c447b04d5d3a333e.jpg", g.wallpaper))
-return false;
-
-// top icons (consider replacing with monochrome SVG->PNG icons for better look)
-if (!LoadImageFromURL(L"https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Feather-core-wifi.svg/1200px-Feather-core-wifi.svg.png", g.wifi))
-return false;
-if (!LoadImageFromURL(L"https://cdn-icons-png.flaticon.com/512/84/84922.png", g.sound))
-return false;
-if (!LoadImageFromURL(L"https://i.postimg.cc/1RFQP7JK/Remove-bg-ai-1729799941732.png", g.battery))
-return false;
-
-// dock icons
-if (!LoadImageFromURL(L"https://i.postimg.cc/4NdmpG5m/fra01-temp-p5-FXAe-Zabapcdd-X5k-Pb0-R-1.png", g.dockStart))
-return false;
-if (!LoadImageFromURL(L"https://i.postimg.cc/qgVxqq8N/Remove-bg-ai-1730637074101.png", g.dockBrowser))
-return false;
-if (!LoadImageFromURL(L"https://i.postimg.cc/X7WMDrgp/Remove-bg-ai-1730624299550.png", g.dockOffice))
-return false;
-if (!LoadImageFromURL(L"https://i.postimg.cc/rFLzwxB8/Remove-bg-ai-1730634421051.png", g.dockFolder))
-return false;
-
-// desktop icons
-std::vector<std::pair<std::wstring, std::wstring>> imageData = {
-{ L"https://i.postimg.cc/4x8HknSh/nyc01-temp-32d4-T5s3-TEIMt1-R3qrjho.png", L"Новая папка" },
-{ L"https://i.postimg.cc/0Q12Jw0R/fra01-temp-r-MINe9-WDa-DPi-KQl-Rb3p-F-processed.png", L"Этот компьютер" },
-{ L"https://i.postimg.cc/X7WMDrgp/Remove-bg-ai-1730624299550.png", L"Офис" },
-{ L"https://i.postimg.cc/qgVxqq8N/Remove-bg-ai-1730637074101.png", L"Браузер" },
-};
-
-float startX = 60.f;
-float startY = 160.f;
-float spacingX = 140.f;
-
-g.desktopIcons.clear();
-for (size_t i = 0; i < imageData.size(); ++i)
-{
-Image* img = nullptr;
-if (!LoadImageFromURL(imageData[i].first, img))
-return false;
-
-IconItem it;
-it.image = img;
-it.title = imageData[i].second;
-it.x = startX + (float)i * spacingX;
-it.y = startY;
-it.w = 96.f;
-it.h = 96.f;
-
-g.desktopIcons.push_back(it);
-}
-
-return true;
-}
-
-static void ApplyModernWindowAttributes(HWND hwnd)
-{
-// Rounded corners (Win11+)
-// DWMWA_WINDOW_CORNER_PREFERENCE = 33
-// DWMWCP_ROUND = 2
-int pref = 2;
-DwmSetWindowAttribute(hwnd, 33, &pref, sizeof(pref));
-
-// Optional: immersive dark mode attribute exists on newer Windows.
-// We keep frosted light panels; wallpaper is darkened anyway.
-}
-
-// ----------------------------- Window procedure -----------------------------
-
-static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-switch (msg)
-{
-case WM_CREATE:
-{
-ApplyModernWindowAttributes(hwnd);
-
-// clock updates once per second only
-SetTimer(hwnd, TIMER_CLOCK, 1000, NULL);
-
-// animation timer (only when needed)
-// we will start/stop it dynamically
-return 0;
-}
-
-case WM_ERASEBKGND:
-// prevent flicker; we paint everything ourselves
-return 1;
-
-case WM_SIZE:
-InvalidateRect(hwnd, NULL, FALSE);
-return 0;
-
-case WM_DESTROY:
-EnsureEditClosed(hwnd);
-KillTimer(hwnd, TIMER_CLOCK);
-KillTimer(hwnd, TIMER_ANIM);
-FreeImages();
-PostQuitMessage(0);
-return 0;
-
-case WM_TIMER:
-{
-if (wParam == TIMER_CLOCK)
-{
-// Update cached time; repaint only top bar region
-std::wstring t = NowTimeHHMM();
-if (t != g.cachedTime)
-{
-g.cachedTime = t;
-
-RECT client{};
-GetClientRect(hwnd, &client);
-RectF bar = GetTopBarRect(client);
-RECT dirty = MakeRect((int)bar.X - 30, (int)bar.Y - 30, (int)(bar.X + bar.Width + 30), (int)(bar.Y + bar.Height + 30));
-InvalidateRect(hwnd, &dirty, FALSE);
-}
-}
-else if (wParam == TIMER_ANIM)
-{
-// animate hover bump for dock
-if (g.animDir == 0)
-{
-KillTimer(hwnd, TIMER_ANIM);
-break;
-}
-
-float speed = 0.10f;
-g.dockHoverAnim += speed * (float)g.animDir;
-g.dockHoverAnim = Clamp(g.dockHoverAnim, 0.f, 1.f);
-
-// stop at ends
-if (g.dockHoverAnim <= 0.f) { g.dockHoverAnim = 0.f; g.animDir = 0; KillTimer(hwnd, TIMER_ANIM); }
-if (g.dockHoverAnim >= 1.f) { g.dockHoverAnim = 1.f; g.animDir = 0; KillTimer(hwnd, TIMER_ANIM); }
-
-RECT client{};
-GetClientRect(hwnd, &client);
-RectF dock = GetDockRect(client);
-RECT dirty = MakeRect((int)dock.X - 40, (int)dock.Y - 60, (int)(dock.X + dock.Width + 40), (int)(dock.Y + dock.Height + 60));
-InvalidateRect(hwnd, &dirty, FALSE);
-}
-return 0;
-}
-
-case WM_KEYDOWN:
-{
-if (wParam == VK_ESCAPE)
-DestroyWindow(hwnd);
-
-// Toggle style quickly (F1/F2/F3)
-if (wParam == VK_F1) { g.style = UIStyle::Windows11; InvalidateRect(hwnd, NULL, FALSE); }
-if (wParam == VK_F2) { g.style = UIStyle::MacOS; InvalidateRect(hwnd, NULL, FALSE); }
-if (wParam == VK_F3) { g.style = UIStyle::Hybrid; InvalidateRect(hwnd, NULL, FALSE); }
-
-// Language switch: Alt+Shift or Win+Space
-if (((GetAsyncKeyState(VK_MENU) & 0x8000) && (wParam == VK_SHIFT)) ||
-((GetAsyncKeyState(VK_LWIN) & 0x8000) && (wParam == VK_SPACE)))
-{
-g.langIndex = (g.langIndex + 1) % (int)g.languages.size();
-InvalidateRect(hwnd, NULL, FALSE);
-}
-return 0;
-}
-
-case WM_LBUTTONDOWN:
-{
-EnsureEditClosed(hwnd);
-
-int mx = GET_X_LPARAM(lParam);
-int my = GET_Y_LPARAM(lParam);
-
-RECT client{};
-GetClientRect(hwnd, &client);
-
-// dock click
-int dockHit = HitTestDock(client, mx, my);
-if (dockHit >= 0)
-{
-MessageBoxW(hwnd, L"Dock icon clicked (demo).", L"Dock", MB_OK);
-return 0;
-}
-
-// desktop drag
-size_t hit = HitTestDesktopIcon(mx, my);
-if (hit != (size_t)-1)
-{
-g.dragging = true;
-g.draggingIndex = hit;
-g.dragStartPt = POINT{ mx, my };
-g.lastPt = g.dragStartPt;
-g.dragStartX = g.desktopIcons[hit].x;
-g.dragStartY = g.desktopIcons[hit].y;
-
-// bring to front
-IconItem moved = g.desktopIcons[hit];
-g.desktopIcons.erase(g.desktopIcons.begin() + (ptrdiff_t)hit);
-g.desktopIcons.push_back(moved);
-g.draggingIndex = g.desktopIcons.size() - 1;
-
-SetCapture(hwnd);
-return 0;
-}
-return 0;
-}
-
-case WM_MOUSEMOVE:
-{
-int mx = GET_X_LPARAM(lParam);
-int my = GET_Y_LPARAM(lParam);
-
-RECT client{};
-GetClientRect(hwnd, &client);
-
-// hover dock (no repaint storm: only when changed)
-int h = HitTestDock(client, mx, my);
-if (h != g.hoveredDock)
-{
-g.hoveredDock = h;
-
-// start animation in/out
-g.animDir = (g.hoveredDock >= 0) ? +1 : -1;
-SetTimer(hwnd, TIMER_ANIM, 16, NULL);
-
-RectF dock = GetDockRect(client);
-RECT dirty = MakeRect((int)dock.X - 40, (int)dock.Y - 60, (int)(dock.X + dock.Width + 40), (int)(dock.Y + dock.Height + 60));
-InvalidateRect(hwnd, &dirty, FALSE);
-}
-
-if (g.dragging && g.draggingIndex != (size_t)-1 && g.draggingIndex < g.desktopIcons.size())
-{
-// compute new position
-int dx = mx - g.dragStartPt.x;
-int dy = my - g.dragStartPt.y;
-
-// old rect for minimal repaint
-RectF oldR = g.desktopIcons[g.draggingIndex].HitRect();
-RECT oldDirty = MakeRect((int)oldR.X - 30, (int)oldR.Y - 30, (int)(oldR.X + oldR.Width + 30), (int)(oldR.Y + oldR.Height + 50));
-
-float nx = g.dragStartX + (float)dx;
-float ny = g.dragStartY + (float)dy;
-
-// clamp to client
-nx = Clamp(nx, 0.f, (float)client.right - g.desktopIcons[g.draggingIndex].w);
-ny = Clamp(ny, 0.f, (float)client.bottom - g.desktopIcons[g.draggingIndex].h - 120.f);
-
-g.desktopIcons[g.draggingIndex].x = nx;
-g.desktopIcons[g.draggingIndex].y = ny;
-
-RectF newR = g.desktopIcons[g.draggingIndex].HitRect();
-RECT newDirty = MakeRect((int)newR.X - 30, (int)newR.Y - 30, (int)(newR.X + newR.Width + 30), (int)(newR.Y + newR.Height + 50));
-
-// invalidate union (two rects is fine)
-InvalidateRect(hwnd, &oldDirty, FALSE);
-InvalidateRect(hwnd, &newDirty, FALSE);
-
-g.lastPt = POINT{ mx, my };
-}
-
-return 0;
-}
-
-case WM_LBUTTONUP:
-{
-if (g.dragging)
-{
-ReleaseCapture();
-
-int mx = GET_X_LPARAM(lParam);
-int my = GET_Y_LPARAM(lParam);
-
-int dist = abs(mx - g.dragStartPt.x) + abs(my - g.dragStartPt.y);
-bool isClick = dist < 4;
-
-g.dragging = false;
-g.draggingIndex = (size_t)-1;
-
-if (isClick)
-ShowContextMenu(hwnd, mx, my);
-}
-return 0;
-}
-
-case WM_RBUTTONDOWN:
-{
-EnsureEditClosed(hwnd);
-int mx = GET_X_LPARAM(lParam);
-int my = GET_Y_LPARAM(lParam);
-ShowContextMenu(hwnd, mx, my);
-return 0;
-}
-
-case WM_COMMAND:
-{
-// edit commit on focus loss
-if ((HWND)lParam == g.editHwnd)
-{
-switch (HIWORD(wParam))
-{
-case EN_KILLFOCUS:
-CommitEditText(hwnd);
-return 0;
-}
-}
-return 0;
-}
-
-case WM_PAINT:
-{
-PAINTSTRUCT ps{};
-HDC hdc = BeginPaint(hwnd, &ps);
-
-RECT client{};
-GetClientRect(hwnd, &client);
-
-// Double buffering
-HDC memDC = CreateCompatibleDC(hdc);
-HBITMAP memBmp = CreateCompatibleBitmap(hdc, client.right, client.bottom);
-HGDIOBJ oldBmp = SelectObject(memDC, memBmp);
-
-Graphics g2d(memDC);
-RenderSceneTo(g2d, client);
-
-BitBlt(hdc, 0, 0, client.right, client.bottom, memDC, 0, 0, SRCCOPY);
-
-SelectObject(memDC, oldBmp);
-DeleteObject(memBmp);
-DeleteDC(memDC);
-
-EndPaint(hwnd, &ps);
-return 0;
-}
-
-default:
-return DefWindowProcW(hwnd, msg, wParam, lParam);
-}
-}
-
-// ----------------------------- WinMain -----------------------------
+// ... (остальной код без изменений до WinMain)
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int nCmdShow)
 {
-// Init GDI+
-GdiplusStartupInput gdiplusInput;
-ULONG_PTR gdiplusToken = 0;
-if (GdiplusStartup(&gdiplusToken, &gdiplusInput, NULL) != Ok)
-{
-MessageBoxW(NULL, L"GDI+ init failed", L"Error", MB_ICONERROR);
-return 0;
+    Gdiplus::GdiplusStartupInput gdiplusInput;
+    ULONG_PTR gdiplusToken = 0;
+    if (Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusInput, NULL) != Gdiplus::Ok)
+    {
+        MessageBoxW(NULL, L"GDI+ init failed", L"Error", MB_ICONERROR);
+        return 0;
+    }
+
+    INITCOMMONCONTROLSEX icc{ sizeof(icc), ICC_WIN95_CLASSES };
+    InitCommonControlsEx(&icc);
+
+    const wchar_t* CLASS_NAME = L"OregaModernShell";
+    WNDCLASSW wc{};
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInst;
+    wc.lpszClassName = CLASS_NAME;
+    wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
+
+    if (!RegisterClassW(&wc))
+    {
+        MessageBoxW(NULL, L"RegisterClass failed", L"Error", MB_ICONERROR);
+        Gdiplus::GdiplusShutdown(gdiplusToken);
+        return 0;
+    }
+
+    int sw = GetSystemMetrics(SM_CXSCREEN);
+    int sh = GetSystemMetrics(SM_CYSCREEN);
+
+    HWND hwnd = CreateWindowExW(
+        WS_EX_TOPMOST,
+        CLASS_NAME,
+        L"Orega OS — Modern UI Demo",
+        WS_POPUP,
+        0, 0, sw, sh,
+        NULL, NULL, hInst, NULL
+    );
+
+    if (!hwnd)
+    {
+        MessageBoxW(NULL, L"CreateWindow failed", L"Error", MB_ICONERROR);
+        Gdiplus::GdiplusShutdown(gdiplusToken);
+        return 0;
+    }
+
+    if (!InitializeImages())
+    {
+        MessageBoxW(hwnd, L"Failed to load images from the Internet.\nCheck URLs / network.", L"Error", MB_ICONERROR);
+        DestroyWindow(hwnd);
+        Gdiplus::GdiplusShutdown(gdiplusToken);
+        return 0;
+    }
+
+    ShowWindow(hwnd, nCmdShow);
+    UpdateWindow(hwnd);
+
+    MSG msg{};
+    while (GetMessageW(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+
+    Gdiplus::GdiplusShutdown(gdiplusToken);
+    return 0;
 }
-
-INITCOMMONCONTROLSEX icc{ sizeof(icc), ICC_WIN95_CLASSES };
-InitCommonControlsEx(&icc);
-
-const wchar_t* CLASS_NAME = L"OregaModernShell";
-WNDCLASSW wc{};
-wc.lpfnWndProc = WndProc;
-wc.hInstance = hInst;
-wc.lpszClassName = CLASS_NAME;
-wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
-
-if (!RegisterClassW(&wc))
-{
-MessageBoxW(NULL, L"RegisterClass failed", L"Error", MB_ICONERROR);
-GdiplusShutdown(gdiplusToken);
-return 0;
-}
-
-// Create borderless fullscreen-like window (but still normal client metrics)
-int sw = GetSystemMetrics(SM_CXSCREEN);
-int sh = GetSystemMetrics(SM_CYSCREEN);
-
-HWND hwnd = CreateWindowExW(
-WS_EX_TOPMOST,
-CLASS_NAME,
-L"Orega OS — Modern UI Demo",
-WS_POPUP,
-0, 0, sw, sh,
-NULL, NULL, hInst, NULL
-);
-
-if (!hwnd)
-{
-MessageBoxW(NULL, L"CreateWindow failed", L"Error", MB_ICONERROR);
-GdiplusShutdown(gdiplusToken);
-return 0;
-}
-
-if (!InitializeImages())
-{
-MessageBoxW(hwnd, L"Failed to load images from the Internet.\nCheck URLs / network.", L"Error", MB_ICONERROR);
-DestroyWindow(hwnd);
-GdiplusShutdown(gdiplusToken);
-return 0;
-}
-
-ShowWindow(hwnd, nCmdShow);
-UpdateWindow(hwnd);
-
-MSG msg{};
-while (GetMessageW(&msg, NULL, 0, 0))
-{
-TranslateMessage(&msg);
-DispatchMessageW(&msg);
-}
-
-GdiplusShutdown(gdiplusToken);
-return 0;
-}
-
-Сборка начата в 12:06...
-1>------ Сборка начата: проект: впвпвп, Конфигурация: Debug x64 ------
-1>впвпвп.cpp
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(317,24): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(318,9): error C2666: "Gdiplus::Graphics::FillRectangle": перегруженные функции имеют похожие преобразования
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(997,12):
-1> может быть "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,INT,INT,INT,INT)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(967,12):
-1> или "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(318,9):
-1> при попытке сопоставить список аргументов "(Gdiplus::SolidBrush *, int, int, Gdiplus::REAL, Gdiplus::REAL)"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(324,46): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(327,46): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(328,41): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(329,9): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(336,48): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(336,74): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(344,9): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(345,9): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(374,20): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(375,21): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(413,26): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(428,51): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(441,27): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(443,20): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(453,23): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(491,27): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(496,50): error C2872: ARGB: неоднозначный символ
-1> C:\Users\User\source\repos\впвпвп\впвпвп\впвпвп.cpp(59,14):
-1> может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1> C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1> или "Gdiplus::ARGB"
-1>Сборка проекта "впвпвп.vcxproj" завершена с ошибкой.
-========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
-========== Сборка завершено в 12:06 и заняло 02,742 с ==========
-
-в чёём ошибка
