@@ -2,9 +2,13 @@
 #include <gdiplus.h>
 #include <urlmon.h>
 #include <shellapi.h>
+#include <vector>
+#include <cmath>
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "urlmon.lib")
+
+using namespace Gdiplus;
 
 // ================= CONFIG =================
 const int WINDOW_WIDTH  = 1000;
@@ -17,7 +21,7 @@ const wchar_t* GTA_PATH = L"C:\\Games\\GTA5\\GTA5.exe";
 // =========================================
 
 ULONG_PTR gdiToken;
-Gdiplus::Image* background = nullptr;
+Image* background = nullptr;
 
 // ================= UI =================
 struct Button
@@ -28,67 +32,82 @@ struct Button
     bool isControl; // true для X, _, □
 };
 
+// Кнопки
 Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, false };
 Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, false };
 Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, false };
 
-// Верхние окна-кнопки управления
 Button btnClose     = { {960, 10, 990, 40}, L"X", false, true };
 Button btnMinimize  = { {910, 10, 940, 40}, L"_", false, true };
 Button btnMaximize  = { {860, 10, 890, 40}, L"□", false, true };
-// ======================================
 
-// Проверка попадания курсора в прямоугольник
+std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnDiscord, &btnClose, &btnMinimize, &btnMaximize };
+
+// ================= HELPERS =================
 bool InRect(const POINT& p, const RECT& r)
 {
     return p.x >= r.left && p.x <= r.right &&
            p.y >= r.top  && p.y <= r.bottom;
 }
 
-// Наложение затемнения
-void DrawOverlay(Gdiplus::Graphics& g)
+// ================= DRAW =================
+void DrawOverlay(Graphics& g)
 {
-    Gdiplus::SolidBrush overlay(Gdiplus::Color(120, 0, 0, 0));
-    g.FillRectangle(&overlay, 0.0f, 0.0f, (Gdiplus::REAL)WINDOW_WIDTH, (Gdiplus::REAL)WINDOW_HEIGHT);
+    SolidBrush overlay(Color(100, 0, 0, 0));
+    g.FillRectangle(&overlay, 0.0f, 0.0f, (REAL)WINDOW_WIDTH, (REAL)WINDOW_HEIGHT);
 }
 
-// Рисуем кнопку с градиентом
-void DrawButton(Gdiplus::Graphics& g, const Button& b)
+// Рисуем кнопку с градиентом и мягкой тенью
+void DrawButton(Graphics& g, const Button& b)
 {
-    Gdiplus::Color c1 = b.hover ? Gdiplus::Color(255, 255, 200, 0) : Gdiplus::Color(255, 180, 140, 0);
-    Gdiplus::Color c2 = b.hover ? Gdiplus::Color(255, 255, 150, 0) : Gdiplus::Color(255, 140, 80, 0);
+    RectF r((REAL)b.rect.left, (REAL)b.rect.top,
+            (REAL)(b.rect.right - b.rect.left),
+            (REAL)(b.rect.bottom - b.rect.top));
 
-    Gdiplus::RectF r(
-        (Gdiplus::REAL)b.rect.left,
-        (Gdiplus::REAL)b.rect.top,
-        (Gdiplus::REAL)(b.rect.right - b.rect.left),
-        (Gdiplus::REAL)(b.rect.bottom - b.rect.top)
-    );
+    // Градиент кнопки
+    Color c1 = b.hover ? Color(255, 255, 220, 50) : Color(255, 180, 140, 0);
+    Color c2 = b.hover ? Color(255, 255, 180, 0) : Color(255, 140, 80, 0);
+    LinearGradientBrush grad(r, c1, c2, LinearGradientModeVertical);
 
-    Gdiplus::LinearGradientBrush grad(r, c1, c2, Gdiplus::LinearGradientModeVertical);
-    g.FillRectangle(&grad, r);
+    // Скругленные углы с тенью
+    GraphicsPath path;
+    float radius = b.isControl ? 2.0f : 10.0f;
+    path.AddArc(r.X, r.Y, radius, radius, 180, 90);
+    path.AddArc(r.X + r.Width - radius, r.Y, radius, radius, 270, 90);
+    path.AddArc(r.X + r.Width - radius, r.Y + r.Height - radius, radius, radius, 0, 90);
+    path.AddArc(r.X, r.Y + r.Height - radius, radius, radius, 90, 90);
+    path.CloseFigure();
 
-    Gdiplus::FontFamily ff(L"Segoe UI");
-    Gdiplus::Font font(&ff, b.isControl ? 14.0f : 18.0f, Gdiplus::FontStyleBold);
-    Gdiplus::SolidBrush text(Gdiplus::Color::White);
+    g.FillPath(&grad, &path);
 
-    Gdiplus::PointF textPos(r.X + (b.isControl ? 3.0f : 20.0f), r.Y + (b.isControl ? 2.0f : 10.0f));
+    // Hover glow
+    if (b.hover)
+    {
+        Pen glow(Color(100, 255, 255, 255), 3);
+        g.DrawPath(&glow, &path);
+    }
+
+    // Текст
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, b.isControl ? 14.0f : 20.0f, FontStyleBold);
+    SolidBrush text(Color::White);
+    PointF textPos(r.X + (b.isControl ? 3.0f : 20.0f), r.Y + (b.isControl ? 2.0f : 12.0f));
     g.DrawString(b.text, -1, &font, textPos, &text);
 }
 
-// Рисуем текст лаунчера
-void DrawLauncherText(Gdiplus::Graphics& g)
+// Текст лаунчера
+void DrawLauncherText(Graphics& g)
 {
-    Gdiplus::FontFamily ff(L"Segoe UI");
-    Gdiplus::Font title(&ff, 32.0f, Gdiplus::FontStyleBold);
-    Gdiplus::Font info(&ff, 16.0f, Gdiplus::FontStyleRegular);
+    FontFamily ff(L"Segoe UI");
+    Font title(&ff, 32.0f, FontStyleBold);
+    Font info(&ff, 16.0f, FontStyleRegular);
 
-    Gdiplus::SolidBrush white(Gdiplus::Color::White);
-    Gdiplus::SolidBrush green(Gdiplus::Color(255, 0, 200, 0));
+    SolidBrush white(Color::White);
+    SolidBrush green(Color(255, 0, 200, 0));
 
-    g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, Gdiplus::PointF(30.0f, 30.0f), &white);
-    g.DrawString(L"STATUS: ONLINE", -1, &info, Gdiplus::PointF(30.0f, 80.0f), &green);
-    g.DrawString(L"Launcher v1.0", -1, &info, Gdiplus::PointF(30.0f, 110.0f), &white);
+    g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, PointF(30.0f, 30.0f), &white);
+    g.DrawString(L"STATUS: ONLINE", -1, &info, PointF(30.0f, 80.0f), &green);
+    g.DrawString(L"Launcher v1.0", -1, &info, PointF(30.0f, 110.0f), &white);
 }
 
 // ================= WINDOW PROC =================
@@ -98,15 +117,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     {
     case WM_CREATE:
         URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
-        background = Gdiplus::Image::FromFile(BG_FILE);
+        background = Image::FromFile(BG_FILE);
         break;
 
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-        Gdiplus::Graphics g(hdc);
-        g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+        Graphics g(hdc);
+        g.SetSmoothingMode(SmoothingModeAntiAlias);
+        g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
 
         if (background)
             g.DrawImage(background, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -114,13 +134,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         DrawOverlay(g);
         DrawLauncherText(g);
 
-        DrawButton(g, btnPlay);
-        DrawButton(g, btnSettings);
-        DrawButton(g, btnDiscord);
-
-        DrawButton(g, btnClose);
-        DrawButton(g, btnMinimize);
-        DrawButton(g, btnMaximize);
+        for (Button* b : buttons)
+            DrawButton(g, *b);
 
         EndPaint(hwnd, &ps);
         break;
@@ -132,7 +147,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         GetCursorPos(&p);
         ScreenToClient(hwnd, &p);
 
-        Button* buttons[] = { &btnPlay, &btnSettings, &btnDiscord, &btnClose, &btnMinimize, &btnMaximize };
         for (Button* b : buttons)
         {
             bool old = b->hover;
@@ -166,14 +180,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             ShowWindow(hwnd, maximized ? SW_MAXIMIZE : SW_RESTORE);
         }
         else
-            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0); // перетаскивание окна
+            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
 
         break;
     }
 
     case WM_DESTROY:
         delete background;
-        Gdiplus::GdiplusShutdown(gdiToken);
+        GdiplusShutdown(gdiToken);
         PostQuitMessage(0);
         break;
 
@@ -186,8 +200,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 // ================= WINMAIN =================
 int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
 {
-    Gdiplus::GdiplusStartupInput gdi;
-    Gdiplus::GdiplusStartup(&gdiToken, &gdi, nullptr);
+    GdiplusStartupInput gdi;
+    GdiplusStartup(&gdiToken, &gdi, nullptr);
 
     WNDCLASSW wc{};
     wc.lpfnWndProc = WndProc;
