@@ -13,7 +13,6 @@ using namespace Gdiplus;
 // ================= CONFIG =================
 const int WINDOW_WIDTH  = 1000;
 const int WINDOW_HEIGHT = 600;
-
 const wchar_t* BG_URL  = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
 const wchar_t* BG_FILE = L"background.jpg";
 
@@ -26,25 +25,26 @@ struct Button
     RECT rect;
     const wchar_t* text;
     bool hover;
-    bool isControl;
+    bool isControl; // верхние кнопки управления окном
+    float glowAlpha; // для анимации свечения
 };
 
 // Верхние кнопки
-Button btnClose     = { {960, 10, 990, 40}, L"X", false, true };
-Button btnMinimize  = { {910, 10, 940, 40}, L"_", false, true };
-Button btnMaximize  = { {860, 10, 890, 40}, L"□", false, true };
+Button btnClose     = { {960, 10, 990, 40}, L"X", false, true, 0.0f };
+Button btnMinimize  = { {910, 10, 940, 40}, L"_", false, true, 0.0f };
+Button btnMaximize  = { {860, 10, 890, 40}, L"□", false, true, 0.0f };
 
-// Кнопки (неактивные)
-Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, false };
-Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, false };
-Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, false };
+// Основные кнопки
+Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, false, 0.0f };
+Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, false, 0.0f };
+Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, false, 0.0f };
 
 std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnDiscord, &btnClose, &btnMinimize, &btnMaximize };
 
 // Новости
 std::vector<std::wstring> newsItems = {
     L"[01.01.2026] Новый ивент: Зимний фестиваль!",
-    L"[02.01.2026] Обновление: Исправлены баги транспорта",
+    L"[02.01.2026] Исправлены баги транспорта",
     L"[05.01.2026] Розыгрыш внутриигровых денег",
     L"[10.01.2026] Новая система фракций в разработке"
 };
@@ -60,24 +60,23 @@ bool InRect(const POINT& p, const RECT& r)
 // ================= DRAW =================
 void DrawOverlay(Graphics& g)
 {
-    SolidBrush overlay(Color(100, 0, 0, 0));
+    SolidBrush overlay(Color(120, 0, 0, 0));
     g.FillRectangle(&overlay, 0.0f, 0.0f, (REAL)WINDOW_WIDTH, (REAL)WINDOW_HEIGHT);
 }
 
-// Рисуем кнопку с градиентом и мягкой тенью
-void DrawButton(Graphics& g, const Button& b)
+// Рисуем кнопку с градиентом и мягкой анимацией свечения
+void DrawButton(Graphics& g, Button& b)
 {
     RectF r((REAL)b.rect.left, (REAL)b.rect.top,
             (REAL)(b.rect.right - b.rect.left),
             (REAL)(b.rect.bottom - b.rect.top));
 
-    Color c1 = b.hover ? Color(255, 255, 220, 50) : Color(255, 180, 140, 0);
-    Color c2 = b.hover ? Color(255, 255, 180, 0) : Color(255, 140, 80, 0);
-
+    Color c1 = b.hover ? Color(255, 255, 180, 0) : Color(255, 180, 140, 0);
+    Color c2 = b.hover ? Color(255, 255, 220, 50) : Color(255, 140, 80, 0);
     LinearGradientBrush grad(r, c1, c2, LinearGradientModeVertical);
-
     GraphicsPath path;
-    float radius = b.isControl ? 2.0f : 10.0f;
+    float radius = b.isControl ? 2.0f : 12.0f;
+
     path.AddArc(r.X, r.Y, radius, radius, 180, 90);
     path.AddArc(r.X + r.Width - radius, r.Y, radius, radius, 270, 90);
     path.AddArc(r.X + r.Width - radius, r.Y + r.Height - radius, radius, radius, 0, 90);
@@ -86,19 +85,29 @@ void DrawButton(Graphics& g, const Button& b)
 
     g.FillPath(&grad, &path);
 
-    // Hover glow
+    // Glow (анимация)
     if (b.hover)
     {
-        Color glowColor(120, 255, 255, 255);
-        Pen glow(glowColor, 3.0f);
+        b.glowAlpha += 10.0f; // плавно увеличиваем
+        if (b.glowAlpha > 255.0f) b.glowAlpha = 255.0f;
+    }
+    else
+    {
+        b.glowAlpha -= 10.0f;
+        if (b.glowAlpha < 0.0f) b.glowAlpha = 0.0f;
+    }
+
+    if (b.glowAlpha > 0.0f)
+    {
+        Pen glow(Color((BYTE)b.glowAlpha, 255, 255, 255), 3.0f);
         g.DrawPath(&glow, &path);
     }
 
     // Текст
     FontFamily ff(L"Segoe UI");
-    Font font(&ff, b.isControl ? 14.0f : 20.0f, FontStyleBold);
+    Font font(&ff, b.isControl ? 14.0f : 22.0f, FontStyleBold);
     SolidBrush text(Color::White);
-    PointF textPos(r.X + (b.isControl ? 3.0f : 20.0f), r.Y + (b.isControl ? 2.0f : 12.0f));
+    PointF textPos(r.X + (b.isControl ? 3.0f : 20.0f), r.Y + (b.isControl ? 2.0f : 14.0f));
     g.DrawString(b.text, -1, &font, textPos, &text);
 }
 
@@ -106,7 +115,7 @@ void DrawButton(Graphics& g, const Button& b)
 void DrawLauncherText(Graphics& g)
 {
     FontFamily ff(L"Segoe UI");
-    Font title(&ff, 32.0f, FontStyleBold);
+    Font title(&ff, 34.0f, FontStyleBold);
     Font info(&ff, 16.0f, FontStyleRegular);
 
     SolidBrush white(Color::White);
@@ -130,7 +139,6 @@ void DrawNews(Graphics& g)
     Color borderColor(200, 255, 255, 255);
     Pen border(borderColor, 2.0f);
 
-    // Используем переменные для DrawRectangle
     REAL x = newsRect.X;
     REAL y = newsRect.Y;
     REAL w = newsRect.Width;
@@ -151,7 +159,21 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     case WM_CREATE:
         URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
         background = Image::FromFile(BG_FILE);
+
+        // Плавное открытие окна через таймер
+        SetTimer(hwnd, 1, 10, nullptr);
+        SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
         break;
+
+    case WM_TIMER:
+    {
+        static BYTE alpha = 0;
+        if (alpha < 255) alpha += 5;
+        SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
+        if (alpha >= 255) KillTimer(hwnd, 1);
+        InvalidateRect(hwnd, nullptr, FALSE);
+        break;
+    }
 
     case WM_PAINT:
     {
@@ -177,25 +199,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 
     case WM_MOUSEMOVE:
     {
-        POINT p;
-        GetCursorPos(&p);
-        ScreenToClient(hwnd, &p);
-
+        POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
         for (Button* b : buttons)
         {
             bool old = b->hover;
             b->hover = InRect(p, b->rect);
-            if (old != b->hover)
-                InvalidateRect(hwnd, nullptr, FALSE);
+            if (old != b->hover) InvalidateRect(hwnd, nullptr, FALSE);
         }
         break;
     }
 
     case WM_LBUTTONDOWN:
     {
-        POINT p;
-        GetCursorPos(&p);
-        ScreenToClient(hwnd, &p);
+        POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
 
         if (InRect(p, btnClose.rect)) PostQuitMessage(0);
         else if (InRect(p, btnMinimize.rect)) ShowWindow(hwnd, SW_MINIMIZE);
@@ -207,7 +223,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         }
         else
         {
-            // Новости листаются при клике на любую неактивную кнопку
+            // Новости листаются по клику на кнопки
             if (InRect(p, btnPlay.rect) || InRect(p, btnSettings.rect) || InRect(p, btnDiscord.rect))
             {
                 newsIndex = (newsIndex + 1) % newsItems.size();
@@ -242,17 +258,15 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
     wc.hInstance = h;
     wc.lpszClassName = L"MAJESTIC_LAUNCHER";
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-
     RegisterClassW(&wc);
 
     HWND hwnd = CreateWindowExW(
-        WS_EX_TOPMOST,
+        WS_EX_LAYERED | WS_EX_TOPMOST,
         wc.lpszClassName,
         L"Majestic RP Launcher",
         WS_POPUP,
         100, 50,
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
+        WINDOW_WIDTH, WINDOW_HEIGHT,
         nullptr,
         nullptr,
         h,
@@ -260,7 +274,6 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
     );
 
     ShowWindow(hwnd, SW_SHOW);
-
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0))
     {
