@@ -1,150 +1,156 @@
 #include <windows.h>
 #include <gdiplus.h>
-#include <vector>
-#include <string>
-#include <chrono>
-#include <sstream>
+#include <urlmon.h>
+#include <shellapi.h>
 
 #pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "urlmon.lib")
 
 using namespace Gdiplus;
 
-constexpr int WIN_W = 360;
-constexpr int WIN_H = 640;
-
-struct AppIcon {
-    std::wstring title;
-    RectF rect;
-};
-
 ULONG_PTR gdiToken;
-std::vector<AppIcon> apps;
+Image* bgImage = nullptr;
 
-std::wstring GetTime() {
-    auto now = std::chrono::system_clock::now();
-    time_t t = std::chrono::system_clock::to_time_t(now);
-    tm tm{};
-    localtime_s(&tm, &t);
-    wchar_t buf[6];
-    swprintf_s(buf, L"%02d:%02d", tm.tm_hour, tm.tm_min);
-    return buf;
+RECT playBtn = { 300, 340, 500, 400 };
+bool hoverPlay = false;
+
+const wchar_t* BG_URL  = L"https://i.imgur.com/9ZQZQ9Y.jpg";
+const wchar_t* BG_FILE = L"bg.jpg";
+
+void DrawButton(Graphics& g)
+{
+    Color bg = hoverPlay ? Color(220, 255, 180, 0) : Color(180, 0, 0, 0);
+    SolidBrush brush(bg);
+    g.FillRectangle(&brush,
+        playBtn.left,
+        playBtn.top,
+        playBtn.right - playBtn.left,
+        playBtn.bottom - playBtn.top);
+
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, 22, FontStyleBold);
+    SolidBrush textBrush(Color::White);
+
+    g.DrawString(
+        L"ИГРАТЬ",
+        -1,
+        &font,
+        PointF(345, 350),
+        &textBrush
+    );
 }
 
-void InitApps() {
-    float x = 40, y = 120;
-    float size = 64, gap = 40;
-
-    std::vector<std::wstring> names = {
-        L"Phone", L"Browser", L"Music", L"Settings"
-    };
-
-    for (int i = 0; i < names.size(); i++) {
-        apps.push_back({
-            names[i],
-            RectF(x + (i % 2) * (size + gap),
-                  y + (i / 2) * (size + 60),
-                  size, size)
-        });
-    }
+bool PointInRect(POINT p, RECT r)
+{
+    return p.x >= r.left && p.x <= r.right &&
+           p.y >= r.top  && p.y <= r.bottom;
 }
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM w, LPARAM l) {
-    switch (msg) {
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
+{
+    switch (msg)
+    {
+    case WM_CREATE:
+        URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
+        bgImage = Image::FromFile(BG_FILE);
+        break;
 
-    case WM_PAINT: {
+    case WM_PAINT:
+    {
         PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hWnd, &ps);
+        HDC hdc = BeginPaint(hwnd, &ps);
         Graphics g(hdc);
 
-        g.SetSmoothingMode(SmoothingModeHighQuality);
+        if (bgImage)
+            g.DrawImage(bgImage, 0, 0, 800, 450);
 
-        // Фон
-        SolidBrush bg(Color(255, 20, 20, 30));
-        g.FillRectangle(&bg, 0, 0, WIN_W, WIN_H);
-
-        // Статус бар
-        SolidBrush bar(Color(255, 30, 30, 50));
-        g.FillRectangle(&bar, 0, 0, WIN_W, 40);
-
-        FontFamily ff(L"Segoe UI");
-        Font font(&ff, 14);
-        SolidBrush text(Color::White);
-
-        // Время
-        std::wstring time = GetTime();
-        g.DrawString(time.c_str(), -1, &font, PointF(10, 10), &text);
-
-        // Батарея
-        g.DrawString(L"🔋 85%", -1, &font, PointF(WIN_W - 80, 10), &text);
-
-        // Иконки
-        Font iconFont(&ff, 12);
-        for (auto& app : apps) {
-            SolidBrush icon(Color(255, 80, 160, 255));
-            g.FillRoundedRectangle(&icon, app.rect, 16);
-
-            RectF txt;
-            g.MeasureString(app.title.c_str(), -1, &iconFont, PointF(0, 0), &txt);
-            g.DrawString(
-                app.title.c_str(), -1, &iconFont,
-                PointF(app.rect.X + (app.rect.Width - txt.Width) / 2,
-                       app.rect.Y + app.rect.Height + 8),
-                &text
-            );
-        }
-
-        EndPaint(hWnd, &ps);
-        return 0;
+        DrawButton(g);
+        EndPaint(hwnd, &ps);
+        break;
     }
 
-    case WM_LBUTTONDOWN: {
-        POINT p{ GET_X_LPARAM(l), GET_Y_LPARAM(l) };
-        for (auto& app : apps) {
-            if (app.rect.Contains((REAL)p.x, (REAL)p.y)) {
-                MessageBox(hWnd,
-                    (L"Launching " + app.title).c_str(),
-                    L"App",
-                    MB_OK);
-            }
+    case WM_MOUSEMOVE:
+    {
+        POINT p;
+        GetCursorPos(&p);
+        ScreenToClient(hwnd, &p);
+
+        bool old = hoverPlay;
+        hoverPlay = PointInRect(p, playBtn);
+        if (old != hoverPlay)
+            InvalidateRect(hwnd, NULL, TRUE);
+        break;
+    }
+
+    case WM_LBUTTONDOWN:
+    {
+        POINT p;
+        GetCursorPos(&p);
+        ScreenToClient(hwnd, &p);
+
+        if (PointInRect(p, playBtn))
+        {
+            ShellExecuteW(
+                nullptr,
+                L"open",
+                L"C:\\Games\\GTA5\\GTA5.exe",
+                L"-rpserver=majestic",
+                nullptr,
+                SW_SHOW
+            );
         }
-        return 0;
+        else
+        {
+            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        }
+        break;
     }
 
     case WM_DESTROY:
+        delete bgImage;
+        GdiplusShutdown(gdiToken);
         PostQuitMessage(0);
-        return 0;
+        break;
+
+    default:
+        return DefWindowProc(hwnd, msg, w, l);
     }
-    return DefWindowProc(hWnd, msg, w, l);
+    return 0;
 }
 
-int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
-    GdiplusStartupInput gdiSI;
-    GdiplusStartup(&gdiToken, &gdiSI, nullptr);
+int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int)
+{
+    GdiplusStartupInput gdiInput;
+    GdiplusStartup(&gdiToken, &gdiInput, nullptr);
 
-    InitApps();
-
-    WNDCLASS wc{};
+    WNDCLASSW wc{};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInst;
-    wc.lpszClassName = L"MobileOS";
+    wc.lpszClassName = L"MAJESTIC_LAUNCHER";
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    RegisterClass(&wc);
 
-    HWND hWnd = CreateWindowEx(
-        WS_EX_TOOLWINDOW,
+    RegisterClassW(&wc);
+
+    HWND hwnd = CreateWindowExW(
+        0,
         wc.lpszClassName,
-        L"Orega Mobile OS",
-        WS_POPUP | WS_VISIBLE,
-        200, 100, WIN_W, WIN_H,
-        nullptr, nullptr, hInst, nullptr
+        L"GTA 5 Majestic RP",
+        WS_POPUP,
+        300, 200,
+        800, 450,
+        nullptr,
+        nullptr,
+        hInst,
+        nullptr
     );
 
-    MSG msg;
-    while (GetMessage(&msg, nullptr, 0, 0)) {
+    ShowWindow(hwnd, SW_SHOW);
+
+    MSG msg{};
+    while (GetMessage(&msg, nullptr, 0, 0))
+    {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
-    GdiplusShutdown(gdiToken);
     return 0;
 }
