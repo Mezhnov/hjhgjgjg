@@ -7,8 +7,8 @@
 #pragma comment(lib, "urlmon.lib")
 
 // ================= CONFIG =================
-const int WINDOW_WIDTH  = 900;
-const int WINDOW_HEIGHT = 520;
+const int WINDOW_WIDTH  = 1000;
+const int WINDOW_HEIGHT = 600;
 
 const wchar_t* BG_URL  = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
 const wchar_t* BG_FILE = L"background.jpg";
@@ -25,12 +25,17 @@ struct Button
     RECT rect;
     const wchar_t* text;
     bool hover;
+    bool isControl; // true для X, _, □
 };
 
-Button btnPlay     = { {350, 360, 550, 415}, L"ИГРАТЬ", false };
-Button btnSettings = { {30, 460, 170, 500},  L"НАСТРОЙКИ", false };
-Button btnDiscord  = { {190, 460, 330, 500}, L"DISCORD", false };
-Button btnExit     = { {820, 20, 880, 55},   L"X", false };
+Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, false };
+Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, false };
+Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, false };
+
+// Верхние окна-кнопки управления
+Button btnClose     = { {960, 10, 990, 40}, L"X", false, true };
+Button btnMinimize  = { {910, 10, 940, 40}, L"_", false, true };
+Button btnMaximize  = { {860, 10, 890, 40}, L"□", false, true };
 // ======================================
 
 // Проверка попадания курсора в прямоугольник
@@ -43,18 +48,15 @@ bool InRect(const POINT& p, const RECT& r)
 // Наложение затемнения
 void DrawOverlay(Gdiplus::Graphics& g)
 {
-    Gdiplus::SolidBrush overlay(Gdiplus::Color(140, 0, 0, 0));
+    Gdiplus::SolidBrush overlay(Gdiplus::Color(120, 0, 0, 0));
     g.FillRectangle(&overlay, 0.0f, 0.0f, (Gdiplus::REAL)WINDOW_WIDTH, (Gdiplus::REAL)WINDOW_HEIGHT);
 }
 
-// Рисуем кнопку
+// Рисуем кнопку с градиентом
 void DrawButton(Gdiplus::Graphics& g, const Button& b)
 {
-    Gdiplus::Color bg = b.hover
-        ? Gdiplus::Color(220, 255, 180, 0)
-        : Gdiplus::Color(160, 0, 0, 0);
-
-    Gdiplus::SolidBrush brush(bg);
+    Gdiplus::Color c1 = b.hover ? Gdiplus::Color(255, 255, 200, 0) : Gdiplus::Color(255, 180, 140, 0);
+    Gdiplus::Color c2 = b.hover ? Gdiplus::Color(255, 255, 150, 0) : Gdiplus::Color(255, 140, 80, 0);
 
     Gdiplus::RectF r(
         (Gdiplus::REAL)b.rect.left,
@@ -63,34 +65,30 @@ void DrawButton(Gdiplus::Graphics& g, const Button& b)
         (Gdiplus::REAL)(b.rect.bottom - b.rect.top)
     );
 
-    g.FillRectangle(&brush, r);
+    Gdiplus::LinearGradientBrush grad(r, c1, c2, Gdiplus::LinearGradientModeVertical);
+    g.FillRectangle(&grad, r);
 
     Gdiplus::FontFamily ff(L"Segoe UI");
-    Gdiplus::Font font(&ff, 16.0f, Gdiplus::FontStyleBold);
+    Gdiplus::Font font(&ff, b.isControl ? 14.0f : 18.0f, Gdiplus::FontStyleBold);
     Gdiplus::SolidBrush text(Gdiplus::Color::White);
 
-    g.DrawString(
-        b.text,
-        -1,
-        &font,
-        Gdiplus::PointF(r.X + 15.0f, r.Y + 8.0f),
-        &text
-    );
+    Gdiplus::PointF textPos(r.X + (b.isControl ? 3.0f : 20.0f), r.Y + (b.isControl ? 2.0f : 10.0f));
+    g.DrawString(b.text, -1, &font, textPos, &text);
 }
 
-// Рисуем текст лаунчера (исправлено имя, чтобы не конфликтовать с WinAPI DrawText)
+// Рисуем текст лаунчера
 void DrawLauncherText(Gdiplus::Graphics& g)
 {
     Gdiplus::FontFamily ff(L"Segoe UI");
-    Gdiplus::Font title(&ff, 28.0f, Gdiplus::FontStyleBold);
-    Gdiplus::Font info(&ff, 14.0f, Gdiplus::FontStyleRegular);
+    Gdiplus::Font title(&ff, 32.0f, Gdiplus::FontStyleBold);
+    Gdiplus::Font info(&ff, 16.0f, Gdiplus::FontStyleRegular);
 
     Gdiplus::SolidBrush white(Gdiplus::Color::White);
     Gdiplus::SolidBrush green(Gdiplus::Color(255, 0, 200, 0));
 
-    g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, Gdiplus::PointF(30.0f, 25.0f), &white);
-    g.DrawString(L"STATUS: ONLINE", -1, &info, Gdiplus::PointF(30.0f, 70.0f), &green);
-    g.DrawString(L"Launcher v1.0", -1, &info, Gdiplus::PointF(30.0f, 95.0f), &white);
+    g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, Gdiplus::PointF(30.0f, 30.0f), &white);
+    g.DrawString(L"STATUS: ONLINE", -1, &info, Gdiplus::PointF(30.0f, 80.0f), &green);
+    g.DrawString(L"Launcher v1.0", -1, &info, Gdiplus::PointF(30.0f, 110.0f), &white);
 }
 
 // ================= WINDOW PROC =================
@@ -99,7 +97,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     switch (msg)
     {
     case WM_CREATE:
-        // Загружаем фон
         URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
         background = Gdiplus::Image::FromFile(BG_FILE);
         break;
@@ -109,7 +106,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
         Gdiplus::Graphics g(hdc);
-
         g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
 
         if (background)
@@ -121,7 +117,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         DrawButton(g, btnPlay);
         DrawButton(g, btnSettings);
         DrawButton(g, btnDiscord);
-        DrawButton(g, btnExit);
+
+        DrawButton(g, btnClose);
+        DrawButton(g, btnMinimize);
+        DrawButton(g, btnMaximize);
 
         EndPaint(hwnd, &ps);
         break;
@@ -133,8 +132,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         GetCursorPos(&p);
         ScreenToClient(hwnd, &p);
 
-        Button* buttons[] = { &btnPlay, &btnSettings, &btnDiscord, &btnExit };
-
+        Button* buttons[] = { &btnPlay, &btnSettings, &btnDiscord, &btnClose, &btnMinimize, &btnMaximize };
         for (Button* b : buttons)
         {
             bool old = b->hover;
@@ -157,10 +155,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             ShellExecuteW(nullptr, L"open", L"https://discord.gg/majestic", nullptr, nullptr, SW_SHOW);
         else if (InRect(p, btnSettings.rect))
             MessageBoxW(hwnd, L"Настройки в разработке", L"Info", MB_ICONINFORMATION);
-        else if (InRect(p, btnExit.rect))
+        else if (InRect(p, btnClose.rect))
             PostQuitMessage(0);
+        else if (InRect(p, btnMinimize.rect))
+            ShowWindow(hwnd, SW_MINIMIZE);
+        else if (InRect(p, btnMaximize.rect))
+        {
+            static bool maximized = false;
+            maximized = !maximized;
+            ShowWindow(hwnd, maximized ? SW_MAXIMIZE : SW_RESTORE);
+        }
         else
-            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0); // Перетаскивание окна
+            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0); // перетаскивание окна
+
         break;
     }
 
@@ -191,11 +198,11 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
     RegisterClassW(&wc);
 
     HWND hwnd = CreateWindowExW(
-        0,
+        WS_EX_TOPMOST,
         wc.lpszClassName,
         L"Majestic RP Launcher",
-        WS_POPUP,
-        250, 150,
+        WS_POPUP, // Borderless
+        100, 50,
         WINDOW_WIDTH,
         WINDOW_HEIGHT,
         nullptr,
