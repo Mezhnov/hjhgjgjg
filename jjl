@@ -11,8 +11,9 @@
 using namespace Gdiplus;
 
 // ================= CONFIG =================
-const int WINDOW_WIDTH  = 1000;
-const int WINDOW_HEIGHT = 600;
+int WINDOW_WIDTH  = 1000;
+int WINDOW_HEIGHT = 600;
+
 const wchar_t* BG_URL  = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
 const wchar_t* BG_FILE = L"background.jpg";
 
@@ -25,21 +26,22 @@ struct Button
     RECT rect;
     const wchar_t* text;
     bool hover;
-    bool isControl; // верхние кнопки управления окном
-    float glowAlpha; // для анимации свечения
+    bool isControl;
+    float glowAlpha;
 };
 
 // Верхние кнопки
-Button btnClose     = { {960, 10, 990, 40}, L"X", false, true, 0.0f };
-Button btnMinimize  = { {910, 10, 940, 40}, L"_", false, true, 0.0f };
-Button btnMaximize  = { {860, 10, 890, 40}, L"□", false, true, 0.0f };
+Button btnClose      = { {960, 10, 990, 40}, L"X", false, true, 0.0f };
+Button btnMinimize   = { {910, 10, 940, 40}, L"_", false, true, 0.0f };
+Button btnMaximize   = { {860, 10, 890, 40}, L"□", false, true, 0.0f };
+Button btnFullscreen = { {810, 10, 840, 40}, L"⛶", false, true, 0.0f };
 
 // Основные кнопки
 Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, false, 0.0f };
 Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, false, 0.0f };
 Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, false, 0.0f };
 
-std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnDiscord, &btnClose, &btnMinimize, &btnMaximize };
+std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnDiscord, &btnClose, &btnMinimize, &btnMaximize, &btnFullscreen };
 
 // Новости
 std::vector<std::wstring> newsItems = {
@@ -64,7 +66,6 @@ void DrawOverlay(Graphics& g)
     g.FillRectangle(&overlay, 0.0f, 0.0f, (REAL)WINDOW_WIDTH, (REAL)WINDOW_HEIGHT);
 }
 
-// Рисуем кнопку с градиентом и мягкой анимацией свечения
 void DrawButton(Graphics& g, Button& b)
 {
     RectF r((REAL)b.rect.left, (REAL)b.rect.top,
@@ -86,10 +87,9 @@ void DrawButton(Graphics& g, Button& b)
 
     g.FillPath(&grad, &path);
 
-    // Glow (анимация)
     if (b.hover)
     {
-        b.glowAlpha += 10.0f; 
+        b.glowAlpha += 10.0f;
         if (b.glowAlpha > 255.0f) b.glowAlpha = 255.0f;
     }
     else
@@ -102,10 +102,9 @@ void DrawButton(Graphics& g, Button& b)
     {
         Color glowColor((BYTE)b.glowAlpha, 255, 255, 255);
         Pen glow(glowColor, 3.0f);
-        g.DrawPath(&glow, &path); // теперь корректно
+        g.DrawPath(&glow, &path);
     }
 
-    // Текст
     FontFamily ff(L"Segoe UI");
     Font font(&ff, b.isControl ? 14.0f : 22.0f, FontStyleBold);
     SolidBrush text(Color::White);
@@ -113,7 +112,6 @@ void DrawButton(Graphics& g, Button& b)
     g.DrawString(b.text, -1, &font, textPos, &text);
 }
 
-// Текст лаунчера
 void DrawLauncherText(Graphics& g)
 {
     FontFamily ff(L"Segoe UI");
@@ -128,24 +126,18 @@ void DrawLauncherText(Graphics& g)
     g.DrawString(L"Launcher v1.0", -1, &info, PointF(30.0f, 110.0f), &white);
 }
 
-// Новости
+// ================= NEWS =================
 void DrawNews(Graphics& g)
 {
     FontFamily ff(L"Segoe UI");
     Font font(&ff, 18.0f, FontStyleRegular);
 
     RectF newsRect(400.0f, 200.0f, 580.0f, 180.0f);
-    SolidBrush bg(Color(120, 0, 0, 0));
+    SolidBrush bg(Color(150, 0, 0, 0));
     g.FillRectangle(&bg, newsRect);
 
-    Color borderColor(200, 255, 255, 255);
-    Pen border(borderColor, 2.0f);
-
-    REAL x = newsRect.X;
-    REAL y = newsRect.Y;
-    REAL w = newsRect.Width;
-    REAL h = newsRect.Height;
-    g.DrawRectangle(&border, x, y, w, h);
+    Pen border(Color(200, 255, 255, 255), 2.0f);
+    g.DrawRectangle(&border, newsRect.X, newsRect.Y, newsRect.Width, newsRect.Height);
 
     if (!newsItems.empty())
     {
@@ -159,26 +151,36 @@ void DrawNews(Graphics& g)
 // ================= WINDOW PROC =================
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 {
+    static bool isFullscreen = false;
+    static RECT prevRect = {0};
+    static int newsTimerID = 2;
+
     switch (msg)
     {
     case WM_CREATE:
         URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
         background = Image::FromFile(BG_FILE);
 
-        // Плавное открытие окна через таймер
-        SetTimer(hwnd, 1, 10, nullptr);
+        SetTimer(hwnd, 1, 10, nullptr);     // fade-in
+        SetTimer(hwnd, newsTimerID, 5000, nullptr); // авто-новости
         SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
         break;
 
     case WM_TIMER:
-    {
-        static BYTE alpha = 0;
-        if (alpha < 255) alpha += 5;
-        SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
-        if (alpha >= 255) KillTimer(hwnd, 1);
-        InvalidateRect(hwnd, nullptr, FALSE);
+        if (w == 1) // fade-in
+        {
+            static BYTE alpha = 0;
+            if (alpha < 255) alpha += 5;
+            SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
+            if (alpha >= 255) KillTimer(hwnd, 1);
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        else if (w == newsTimerID) // автоперелистывание новостей
+        {
+            newsIndex = (newsIndex + 1) % newsItems.size();
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
         break;
-    }
 
     case WM_PAINT:
     {
@@ -226,9 +228,35 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             maximized = !maximized;
             ShowWindow(hwnd, maximized ? SW_MAXIMIZE : SW_RESTORE);
         }
+        else if (InRect(p, btnFullscreen.rect))
+        {
+            if (!isFullscreen)
+            {
+                GetWindowRect(hwnd, &prevRect);
+                SetWindowLong(hwnd, GWL_STYLE, WS_POPUP);
+                SetWindowPos(hwnd, HWND_TOP, 0, 0,
+                             GetSystemMetrics(SM_CXSCREEN),
+                             GetSystemMetrics(SM_CYSCREEN),
+                             SWP_SHOWWINDOW);
+                isFullscreen = true;
+                WINDOW_WIDTH = GetSystemMetrics(SM_CXSCREEN);
+                WINDOW_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
+            }
+            else
+            {
+                SetWindowLong(hwnd, GWL_STYLE, WS_POPUP);
+                SetWindowPos(hwnd, HWND_TOP, prevRect.left, prevRect.top,
+                             prevRect.right - prevRect.left,
+                             prevRect.bottom - prevRect.top,
+                             SWP_SHOWWINDOW);
+                isFullscreen = false;
+                WINDOW_WIDTH = prevRect.right - prevRect.left;
+                WINDOW_HEIGHT = prevRect.bottom - prevRect.top;
+            }
+        }
         else
         {
-            // Новости листаются по клику на кнопки
+            // Клик по основным кнопкам листает новости
             if (InRect(p, btnPlay.rect) || InRect(p, btnSettings.rect) || InRect(p, btnDiscord.rect))
             {
                 newsIndex = (newsIndex + 1) % newsItems.size();
