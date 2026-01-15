@@ -3,7 +3,7 @@
 #include <urlmon.h>
 #include <shellapi.h>
 #include <vector>
-#include <cmath>
+#include <string>
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "urlmon.lib")
@@ -17,9 +17,6 @@ const int WINDOW_HEIGHT = 600;
 const wchar_t* BG_URL  = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
 const wchar_t* BG_FILE = L"background.jpg";
 
-const wchar_t* GTA_PATH = L"C:\\Games\\GTA5\\GTA5.exe";
-// =========================================
-
 ULONG_PTR gdiToken;
 Image* background = nullptr;
 
@@ -29,19 +26,29 @@ struct Button
     RECT rect;
     const wchar_t* text;
     bool hover;
-    bool isControl; // true для X, _, □
+    bool isControl;
 };
 
-// Кнопки
-Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, false };
-Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, false };
-Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, false };
-
+// Верхние кнопки
 Button btnClose     = { {960, 10, 990, 40}, L"X", false, true };
 Button btnMinimize  = { {910, 10, 940, 40}, L"_", false, true };
 Button btnMaximize  = { {860, 10, 890, 40}, L"□", false, true };
 
+// Кнопки (неактивные)
+Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, false };
+Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, false };
+Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, false };
+
 std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnDiscord, &btnClose, &btnMinimize, &btnMaximize };
+
+// Новости
+std::vector<std::wstring> newsItems = {
+    L"[01.01.2026] Новый ивент: Зимний фестиваль!",
+    L"[02.01.2026] Обновление: Исправлены баги транспорта",
+    L"[05.01.2026] Розыгрыш внутриигровых денег",
+    L"[10.01.2026] Новая система фракций в разработке"
+};
+int newsIndex = 0;
 
 // ================= HELPERS =================
 bool InRect(const POINT& p, const RECT& r)
@@ -64,12 +71,10 @@ void DrawButton(Graphics& g, const Button& b)
             (REAL)(b.rect.right - b.rect.left),
             (REAL)(b.rect.bottom - b.rect.top));
 
-    // Градиент кнопки
     Color c1 = b.hover ? Color(255, 255, 220, 50) : Color(255, 180, 140, 0);
     Color c2 = b.hover ? Color(255, 255, 180, 0) : Color(255, 140, 80, 0);
     LinearGradientBrush grad(r, c1, c2, LinearGradientModeVertical);
 
-    // Скругленные углы с тенью
     GraphicsPath path;
     float radius = b.isControl ? 2.0f : 10.0f;
     path.AddArc(r.X, r.Y, radius, radius, 180, 90);
@@ -80,14 +85,12 @@ void DrawButton(Graphics& g, const Button& b)
 
     g.FillPath(&grad, &path);
 
-    // Hover glow
     if (b.hover)
     {
-        Pen glow(Color(100, 255, 255, 255), 3);
+        Pen glow(Color(120, 255, 255, 255), 3);
         g.DrawPath(&glow, &path);
     }
 
-    // Текст
     FontFamily ff(L"Segoe UI");
     Font font(&ff, b.isControl ? 14.0f : 20.0f, FontStyleBold);
     SolidBrush text(Color::White);
@@ -108,6 +111,21 @@ void DrawLauncherText(Graphics& g)
     g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, PointF(30.0f, 30.0f), &white);
     g.DrawString(L"STATUS: ONLINE", -1, &info, PointF(30.0f, 80.0f), &green);
     g.DrawString(L"Launcher v1.0", -1, &info, PointF(30.0f, 110.0f), &white);
+}
+
+// Новости
+void DrawNews(Graphics& g)
+{
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, 18.0f, FontStyleRegular);
+    SolidBrush yellow(Color(255, 255, 255, 0));
+
+    RectF newsRect(400.0f, 200.0f, 580.0f, 180.0f);
+    g.FillRectangle(&SolidBrush(Color(120, 0, 0, 0)), newsRect);
+    g.DrawRectangle(&Pen(Color(200, 255, 255, 255), 2), newsRect.X, newsRect.Y, newsRect.Width, newsRect.Height);
+
+    if (!newsItems.empty())
+        g.DrawString(newsItems[newsIndex].c_str(), -1, &font, PointF(newsRect.X + 10, newsRect.Y + 10), &SolidBrush(Color::White));
 }
 
 // ================= WINDOW PROC =================
@@ -133,6 +151,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 
         DrawOverlay(g);
         DrawLauncherText(g);
+        DrawNews(g);
 
         for (Button* b : buttons)
             DrawButton(g, *b);
@@ -163,16 +182,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         GetCursorPos(&p);
         ScreenToClient(hwnd, &p);
 
-        if (InRect(p, btnPlay.rect))
-            ShellExecuteW(nullptr, L"open", GTA_PATH, nullptr, nullptr, SW_SHOW);
-        else if (InRect(p, btnDiscord.rect))
-            ShellExecuteW(nullptr, L"open", L"https://discord.gg/majestic", nullptr, nullptr, SW_SHOW);
-        else if (InRect(p, btnSettings.rect))
-            MessageBoxW(hwnd, L"Настройки в разработке", L"Info", MB_ICONINFORMATION);
-        else if (InRect(p, btnClose.rect))
-            PostQuitMessage(0);
-        else if (InRect(p, btnMinimize.rect))
-            ShowWindow(hwnd, SW_MINIMIZE);
+        if (InRect(p, btnClose.rect)) PostQuitMessage(0);
+        else if (InRect(p, btnMinimize.rect)) ShowWindow(hwnd, SW_MINIMIZE);
         else if (InRect(p, btnMaximize.rect))
         {
             static bool maximized = false;
@@ -180,8 +191,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             ShowWindow(hwnd, maximized ? SW_MAXIMIZE : SW_RESTORE);
         }
         else
-            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-
+        {
+            // переключение новостей
+            if (InRect(p, btnPlay.rect) || InRect(p, btnSettings.rect) || InRect(p, btnDiscord.rect))
+            {
+                newsIndex = (newsIndex + 1) % newsItems.size();
+                InvalidateRect(hwnd, nullptr, FALSE);
+            }
+            else
+                SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        }
         break;
     }
 
@@ -215,7 +234,7 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
         WS_EX_TOPMOST,
         wc.lpszClassName,
         L"Majestic RP Launcher",
-        WS_POPUP, // Borderless
+        WS_POPUP,
         100, 50,
         WINDOW_WIDTH,
         WINDOW_HEIGHT,
