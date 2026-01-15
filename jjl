@@ -8,71 +8,99 @@
 
 using namespace Gdiplus;
 
-// ---------------- НАСТРОЙКИ ----------------
-const int WINDOW_WIDTH = 800;
-const int WINDOW_HEIGHT = 450;
+// ================= НАСТРОЙКИ =================
+const int W = 900;
+const int H = 520;
 
-const wchar_t* BG_URL = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
+const wchar_t* BG_URL  = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
 const wchar_t* BG_FILE = L"background.jpg";
 
 const wchar_t* GTA_PATH = L"C:\\Games\\GTA5\\GTA5.exe";
-// -------------------------------------------
+// =============================================
 
 ULONG_PTR gdiToken;
-Image* backgroundImage = nullptr;
+Image* bg = nullptr;
 
-RECT playButton = { 300, 340, 500, 400 };
-bool hoverPlay = false;
+// ---------------- КНОПКИ ----------------
+struct UIButton {
+    RECT rect;
+    const wchar_t* text;
+    bool hover;
+};
 
-// ---------------- UI ----------------
-bool PointInRectEx(POINT p, RECT r)
+UIButton btnPlay     = { {350, 360, 550, 415}, L"ИГРАТЬ", false };
+UIButton btnSettings = { {30, 460, 170, 500}, L"НАСТРОЙКИ", false };
+UIButton btnDiscord  = { {190, 460, 330, 500}, L"DISCORD", false };
+UIButton btnExit     = { {760, 20, 880, 55},  L"X", false };
+
+// ---------------------------------------
+
+bool InRect(POINT p, RECT r)
 {
     return p.x >= r.left && p.x <= r.right &&
-        p.y >= r.top && p.y <= r.bottom;
+           p.y >= r.top  && p.y <= r.bottom;
 }
 
-void DrawPlayButton(Graphics& g)
+void DrawButton(Graphics& g, UIButton& btn)
 {
-    Color bgColor = hoverPlay
-        ? Color(220, 255, 180, 0)
-        : Color(180, 0, 0, 0);
+    Color bg = btn.hover
+        ? Color(200, 255, 180, 0)
+        : Color(160, 0, 0, 0);
 
-    SolidBrush bgBrush(bgColor);
+    SolidBrush brush(bg);
 
-    RectF buttonRect(
-        (REAL)playButton.left,
-        (REAL)playButton.top,
-        (REAL)(playButton.right - playButton.left),
-        (REAL)(playButton.bottom - playButton.top)
+    RectF r(
+        (REAL)btn.rect.left,
+        (REAL)btn.rect.top,
+        (REAL)(btn.rect.right - btn.rect.left),
+        (REAL)(btn.rect.bottom - btn.rect.top)
     );
 
-    g.FillRectangle(&bgBrush, buttonRect);
+    g.FillRectangle(&brush, r);
 
-    FontFamily fontFamily(L"Segoe UI");
-    Font font(&fontFamily, 22, FontStyleBold);
-    SolidBrush textBrush(Color::White);
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, btn.text == L"X" ? 18 : 16, FontStyleBold);
+    SolidBrush text(Color::White);
 
     g.DrawString(
-        L"ИГРАТЬ",
+        btn.text,
         -1,
         &font,
-        PointF(350.0f, 350.0f),
-        &textBrush
+        PointF(r.X + 15, r.Y + 8),
+        &text
     );
 }
-// ------------------------------------
 
-// ---------------- WINDOW PROC ----------------
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+void DrawText(Graphics& g)
+{
+    FontFamily ff(L"Segoe UI");
+
+    Font title(&ff, 28, FontStyleBold);
+    Font small(&ff, 14, FontStyleRegular);
+
+    SolidBrush white(Color::White);
+    SolidBrush green(Color(255, 0, 200, 0));
+
+    g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, PointF(30, 25), &white);
+    g.DrawString(L"SERVER STATUS: ONLINE", -1, &small, PointF(30, 70), &green);
+    g.DrawString(L"Launcher v1.0", -1, &small, PointF(30, 95), &white);
+}
+
+void DrawOverlay(Graphics& g)
+{
+    SolidBrush overlay(Color(120, 0, 0, 0));
+    g.FillRectangle(&overlay, 0, 0, W, H);
+}
+
+// ================= WINDOW PROC =================
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 {
     switch (msg)
     {
     case WM_CREATE:
-    {
         URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
-        backgroundImage = Image::FromFile(BG_FILE);
+        bg = Image::FromFile(BG_FILE);
         break;
-    }
 
     case WM_PAINT:
     {
@@ -80,10 +108,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         HDC hdc = BeginPaint(hwnd, &ps);
         Graphics g(hdc);
 
-        if (backgroundImage)
-            g.DrawImage(backgroundImage, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
 
-        DrawPlayButton(g);
+        if (bg)
+            g.DrawImage(bg, 0, 0, W, H);
+
+        DrawOverlay(g);
+        DrawText(g);
+
+        DrawButton(g, btnPlay);
+        DrawButton(g, btnSettings);
+        DrawButton(g, btnDiscord);
+        DrawButton(g, btnExit);
 
         EndPaint(hwnd, &ps);
         break;
@@ -95,11 +131,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         GetCursorPos(&p);
         ScreenToClient(hwnd, &p);
 
-        bool oldHover = hoverPlay;
-        hoverPlay = PointInRectEx(p, playButton);
+        UIButton* buttons[] = { &btnPlay, &btnSettings, &btnDiscord, &btnExit };
 
-        if (oldHover != hoverPlay)
-            InvalidateRect(hwnd, nullptr, TRUE);
+        for (auto& b : buttons)
+        {
+            bool old = b->hover;
+            b->hover = InRect(p, b->rect);
+            if (old != b->hover)
+                InvalidateRect(hwnd, nullptr, TRUE);
+        }
         break;
     }
 
@@ -109,53 +149,50 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         GetCursorPos(&p);
         ScreenToClient(hwnd, &p);
 
-        if (PointInRectEx(p, playButton))
+        if (InRect(p, btnPlay.rect))
         {
-            if (GetFileAttributesW(GTA_PATH) == INVALID_FILE_ATTRIBUTES)
-            {
-                MessageBoxW(hwnd, L"GTA5.exe не найден", L"Ошибка", MB_ICONERROR);
-                break;
-            }
-
-            ShellExecuteW(
-                nullptr,
-                L"open",
-                GTA_PATH,
-                L"-rpserver=majestic",
-                nullptr,
-                SW_SHOW
-            );
+            ShellExecuteW(nullptr, L"open", GTA_PATH, nullptr, nullptr, SW_SHOW);
+        }
+        else if (InRect(p, btnDiscord.rect))
+        {
+            ShellExecuteW(nullptr, L"open", L"https://discord.gg/majestic", nullptr, nullptr, SW_SHOW);
+        }
+        else if (InRect(p, btnSettings.rect))
+        {
+            MessageBoxW(hwnd, L"Настройки в разработке", L"Info", MB_ICONINFORMATION);
+        }
+        else if (InRect(p, btnExit.rect))
+        {
+            PostQuitMessage(0);
         }
         else
         {
-            // перетаскивание окна
             SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
         }
         break;
     }
 
     case WM_DESTROY:
-        delete backgroundImage;
+        delete bg;
         GdiplusShutdown(gdiToken);
         PostQuitMessage(0);
         break;
 
     default:
-        return DefWindowProcW(hwnd, msg, wParam, lParam);
+        return DefWindowProcW(hwnd, msg, w, l);
     }
     return 0;
 }
-// --------------------------------------------
 
-// ---------------- WINMAIN ----------------
-int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int)
+// ================= WINMAIN =================
+int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
 {
-    GdiplusStartupInput gdiInput;
-    GdiplusStartup(&gdiToken, &gdiInput, nullptr);
+    GdiplusStartupInput gdi;
+    GdiplusStartup(&gdiToken, &gdi, nullptr);
 
     WNDCLASSW wc{};
     wc.lpfnWndProc = WndProc;
-    wc.hInstance = hInst;
+    wc.hInstance = h;
     wc.lpszClassName = L"MAJESTIC_LAUNCHER";
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 
@@ -164,14 +201,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int)
     HWND hwnd = CreateWindowExW(
         0,
         wc.lpszClassName,
-        L"GTA 5 Majestic RP Launcher",
+        L"Majestic RP Launcher",
         WS_POPUP,
-        300, 200,
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
+        250, 150,
+        W, H,
         nullptr,
         nullptr,
-        hInst,
+        h,
         nullptr
     );
 
@@ -183,6 +219,5 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int)
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
-
     return 0;
 }
