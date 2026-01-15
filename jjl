@@ -1,13 +1,188 @@
-Сборка начата в 22:12...
-1>------ Сборка начата: проект: WindowsProject4, Конфигурация: Debug x64 ------
-1>WindowsProject4.cpp
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(24,7): error C2668: Gdiplus::Graphics::FillRectangle: неоднозначный вызов перегруженной функции
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(997,12):
-1>    может быть "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,INT,INT,INT,INT)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(967,12):
-1>    или       "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(24,7):
-1>    при попытке сопоставить список аргументов "(Gdiplus::SolidBrush *, LONG, LONG, LONG, LONG)"
-1>Сборка проекта "WindowsProject4.vcxproj" завершена с ошибкой.
-========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
-========== Сборка завершено в 22:12 и заняло 02,005 с ==========
+#include <windows.h>
+#include <gdiplus.h>
+#include <urlmon.h>
+#include <shellapi.h>
+
+#pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "urlmon.lib")
+
+using namespace Gdiplus;
+
+// ---------------- НАСТРОЙКИ ----------------
+const int WINDOW_WIDTH  = 800;
+const int WINDOW_HEIGHT = 450;
+
+const wchar_t* BG_URL  = L"https://i.imgur.com/9ZQZQ9Y.jpg";
+const wchar_t* BG_FILE = L"background.jpg";
+
+const wchar_t* GTA_PATH = L"C:\\Games\\GTA5\\GTA5.exe";
+// -------------------------------------------
+
+ULONG_PTR gdiToken;
+Image* backgroundImage = nullptr;
+
+RECT playButton = { 300, 340, 500, 400 };
+bool hoverPlay = false;
+
+// ---------------- UI ----------------
+bool PointInRectEx(POINT p, RECT r)
+{
+    return p.x >= r.left && p.x <= r.right &&
+           p.y >= r.top  && p.y <= r.bottom;
+}
+
+void DrawPlayButton(Graphics& g)
+{
+    Color bgColor = hoverPlay
+        ? Color(220, 255, 180, 0)
+        : Color(180, 0, 0, 0);
+
+    SolidBrush bgBrush(bgColor);
+
+    RectF buttonRect(
+        (REAL)playButton.left,
+        (REAL)playButton.top,
+        (REAL)(playButton.right - playButton.left),
+        (REAL)(playButton.bottom - playButton.top)
+    );
+
+    g.FillRectangle(&bgBrush, buttonRect);
+
+    FontFamily fontFamily(L"Segoe UI");
+    Font font(&fontFamily, 22, FontStyleBold);
+    SolidBrush textBrush(Color::White);
+
+    g.DrawString(
+        L"ИГРАТЬ",
+        -1,
+        &font,
+        PointF(350.0f, 350.0f),
+        &textBrush
+    );
+}
+// ------------------------------------
+
+// ---------------- WINDOW PROC ----------------
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
+    case WM_CREATE:
+    {
+        URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
+        backgroundImage = Image::FromFile(BG_FILE);
+        break;
+    }
+
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        Graphics g(hdc);
+
+        if (backgroundImage)
+            g.DrawImage(backgroundImage, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        DrawPlayButton(g);
+
+        EndPaint(hwnd, &ps);
+        break;
+    }
+
+    case WM_MOUSEMOVE:
+    {
+        POINT p;
+        GetCursorPos(&p);
+        ScreenToClient(hwnd, &p);
+
+        bool oldHover = hoverPlay;
+        hoverPlay = PointInRectEx(p, playButton);
+
+        if (oldHover != hoverPlay)
+            InvalidateRect(hwnd, nullptr, TRUE);
+        break;
+    }
+
+    case WM_LBUTTONDOWN:
+    {
+        POINT p;
+        GetCursorPos(&p);
+        ScreenToClient(hwnd, &p);
+
+        if (PointInRectEx(p, playButton))
+        {
+            if (GetFileAttributesW(GTA_PATH) == INVALID_FILE_ATTRIBUTES)
+            {
+                MessageBoxW(hwnd, L"GTA5.exe не найден", L"Ошибка", MB_ICONERROR);
+                break;
+            }
+
+            ShellExecuteW(
+                nullptr,
+                L"open",
+                GTA_PATH,
+                L"-rpserver=majestic",
+                nullptr,
+                SW_SHOW
+            );
+        }
+        else
+        {
+            // перетаскивание окна
+            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        }
+        break;
+    }
+
+    case WM_DESTROY:
+        delete backgroundImage;
+        GdiplusShutdown(gdiToken);
+        PostQuitMessage(0);
+        break;
+
+    default:
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
+    }
+    return 0;
+}
+// --------------------------------------------
+
+// ---------------- WINMAIN ----------------
+int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int)
+{
+    GdiplusStartupInput gdiInput;
+    GdiplusStartup(&gdiToken, &gdiInput, nullptr);
+
+    WNDCLASSW wc{};
+    wc.lpfnWndProc   = WndProc;
+    wc.hInstance     = hInst;
+    wc.lpszClassName = L"MAJESTIC_LAUNCHER";
+    wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
+
+    RegisterClassW(&wc);
+
+    HWND hwnd = CreateWindowExW(
+        0,
+        wc.lpszClassName,
+        L"GTA 5 Majestic RP Launcher",
+        WS_POPUP,
+        300, 200,
+        WINDOW_WIDTH,
+        WINDOW_HEIGHT,
+        nullptr,
+        nullptr,
+        hInst,
+        nullptr
+    );
+
+    ShowWindow(hwnd, SW_SHOW);
+
+    MSG msg{};
+    while (GetMessageW(&msg, nullptr, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+
+    return 0;
+}
