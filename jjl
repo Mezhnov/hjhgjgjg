@@ -26,31 +26,38 @@ struct Button
     RECT rect;
     const wchar_t* text;
     bool hover;
-    bool isControl;
     float glowAlpha;
 };
 
-// Верхние кнопки
-Button btnClose      = { {960, 10, 990, 40}, L"X", false, true, 0.0f };
-Button btnMinimize   = { {910, 10, 940, 40}, L"_", false, true, 0.0f };
-Button btnMaximize   = { {860, 10, 890, 40}, L"□", false, true, 0.0f };
-Button btnFullscreen = { {810, 10, 840, 40}, L"⛶", false, true, 0.0f };
+// Основные кнопки лаунчера
+Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, 0.0f };
+Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, 0.0f };
+Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, 0.0f };
+Button btnNews     = { {650, 520, 830, 560}, L"НОВОСТИ", false, 0.0f };
 
-// Основные кнопки
-Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, false, 0.0f };
-Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, false, 0.0f };
-Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, false, 0.0f };
-
-std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnDiscord, &btnClose, &btnMinimize, &btnMaximize, &btnFullscreen };
+std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnDiscord, &btnNews };
 
 // Новости
-std::vector<std::wstring> newsItems = {
-    L"[01.01.2026] Новый ивент: Зимний фестиваль!",
-    L"[02.01.2026] Исправлены баги транспорта",
-    L"[05.01.2026] Розыгрыш внутриигровых денег",
-    L"[10.01.2026] Новая система фракций в разработке"
+struct NewsItem {
+    std::wstring title;
+    std::wstring text;
+    std::wstring imageURL;
 };
-int newsIndex = 0;
+std::vector<NewsItem> newsItems = {
+    { L"Зимний фестиваль!", L"Присоединяйтесь к зимнему событию в Majestic RP!", L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13" },
+    { L"Исправлены баги", L"Исправлены баги транспорта и улучшена стабильность.", L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13" }
+};
+int currentNewsIndex = 0;
+
+// Ссылка на соц сети
+struct SocialIcon {
+    RECT rect;
+    const wchar_t* url;
+};
+SocialIcon iconDiscord = { {20, 500, 60, 540}, L"https://discord.gg/majestic" };
+SocialIcon iconVK      = { {70, 500, 110, 540}, L"https://vk.com/majestic" };
+SocialIcon iconTG      = { {120, 500, 160, 540}, L"https://t.me/majestic" };
+std::vector<SocialIcon> socialIcons = { iconDiscord, iconVK, iconTG };
 
 // ================= HELPERS =================
 bool InRect(const POINT& p, const RECT& r)
@@ -60,12 +67,6 @@ bool InRect(const POINT& p, const RECT& r)
 }
 
 // ================= DRAW =================
-void DrawOverlay(Graphics& g)
-{
-    SolidBrush overlay(Color(120, 0, 0, 0));
-    g.FillRectangle(&overlay, 0.0f, 0.0f, (REAL)WINDOW_WIDTH, (REAL)WINDOW_HEIGHT);
-}
-
 void DrawButton(Graphics& g, Button& b)
 {
     RectF r((REAL)b.rect.left, (REAL)b.rect.top,
@@ -77,7 +78,7 @@ void DrawButton(Graphics& g, Button& b)
 
     LinearGradientBrush grad(r, c1, c2, LinearGradientModeVertical);
     GraphicsPath path;
-    float radius = b.isControl ? 2.0f : 12.0f;
+    float radius = 12.0f;
 
     path.AddArc(r.X, r.Y, radius, radius, 180, 90);
     path.AddArc(r.X + r.Width - radius, r.Y, radius, radius, 270, 90);
@@ -89,13 +90,11 @@ void DrawButton(Graphics& g, Button& b)
 
     if (b.hover)
     {
-        b.glowAlpha += 10.0f;
-        if (b.glowAlpha > 255.0f) b.glowAlpha = 255.0f;
+        b.glowAlpha += 10.0f; if (b.glowAlpha > 255.0f) b.glowAlpha = 255.0f;
     }
     else
     {
-        b.glowAlpha -= 10.0f;
-        if (b.glowAlpha < 0.0f) b.glowAlpha = 0.0f;
+        b.glowAlpha -= 10.0f; if (b.glowAlpha < 0.0f) b.glowAlpha = 0.0f;
     }
 
     if (b.glowAlpha > 0.0f)
@@ -106,80 +105,79 @@ void DrawButton(Graphics& g, Button& b)
     }
 
     FontFamily ff(L"Segoe UI");
-    Font font(&ff, b.isControl ? 14.0f : 22.0f, FontStyleBold);
+    Font font(&ff, 22.0f, FontStyleBold);
     SolidBrush text(Color::White);
-    PointF textPos(r.X + (b.isControl ? 3.0f : 20.0f), r.Y + (b.isControl ? 2.0f : 14.0f));
+    PointF textPos(r.X + 20.0f, r.Y + 14.0f);
     g.DrawString(b.text, -1, &font, textPos, &text);
 }
 
-void DrawLauncherText(Graphics& g)
+// ================= NEWS WINDOW =================
+LRESULT CALLBACK NewsWndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 {
-    FontFamily ff(L"Segoe UI");
-    Font title(&ff, 34.0f, FontStyleBold);
-    Font info(&ff, 16.0f, FontStyleRegular);
-
-    SolidBrush white(Color::White);
-    SolidBrush green(Color(255, 0, 200, 0));
-
-    g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, PointF(30.0f, 30.0f), &white);
-    g.DrawString(L"STATUS: ONLINE", -1, &info, PointF(30.0f, 80.0f), &green);
-    g.DrawString(L"Launcher v1.0", -1, &info, PointF(30.0f, 110.0f), &white);
-}
-
-// ================= NEWS =================
-void DrawNews(Graphics& g)
-{
-    FontFamily ff(L"Segoe UI");
-    Font font(&ff, 18.0f, FontStyleRegular);
-
-    RectF newsRect(400.0f, 200.0f, 580.0f, 180.0f);
-    SolidBrush bg(Color(150, 0, 0, 0));
-    g.FillRectangle(&bg, newsRect);
-
-    Pen border(Color(200, 255, 255, 255), 2.0f);
-    g.DrawRectangle(&border, newsRect.X, newsRect.Y, newsRect.Width, newsRect.Height);
-
-    if (!newsItems.empty())
+    switch(msg)
     {
-        SolidBrush text(Color::White);
-        g.DrawString(newsItems[newsIndex].c_str(), -1, &font,
-                     PointF(newsRect.X + 10, newsRect.Y + 10),
-                     &text);
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        Graphics g(hdc);
+        g.SetSmoothingMode(SmoothingModeAntiAlias);
+        g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+
+        NewsItem& n = newsItems[currentNewsIndex];
+
+        // фон новости
+        Image* img = Image::FromFile(L"news.jpg"); // Для простоты локальный файл
+        if(img) g.DrawImage(img, 0, 0, 600, 400);
+
+        // прозрачный оверлей
+        SolidBrush overlay(Color(150, 0, 0, 0));
+        g.FillRectangle(&overlay, 0, 0, 600, 400);
+
+        // текст
+        FontFamily ff(L"Segoe UI");
+        Font title(&ff, 26.0f, FontStyleBold);
+        Font info(&ff, 16.0f, FontStyleRegular);
+        SolidBrush white(Color::White);
+
+        g.DrawString(n.title.c_str(), -1, &title, PointF(20, 20), &white);
+        g.DrawString(n.text.c_str(), -1, &info, PointF(20, 60), &white);
+
+        // соц сети
+        SolidBrush iconBrush(Color(0, 255, 255, 255));
+        for(auto& s : socialIcons)
+            g.FillEllipse(&iconBrush, (REAL)s.rect.left, (REAL)s.rect.top, (REAL)(s.rect.right - s.rect.left), (REAL)(s.rect.bottom - s.rect.top));
+
+        delete img;
+        EndPaint(hwnd, &ps);
+        break;
     }
+    case WM_LBUTTONDOWN:
+    {
+        POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
+        for(auto& s : socialIcons)
+        {
+            if(InRect(p, s.rect))
+                ShellExecuteW(nullptr, L"open", s.url, nullptr, nullptr, SW_SHOW);
+        }
+        break;
+    }
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+    default: return DefWindowProcW(hwnd, msg, w, l);
+    }
+    return 0;
 }
 
-// ================= WINDOW PROC =================
+// ================= MAIN WINDOW PROC =================
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 {
-    static bool isFullscreen = false;
-    static RECT prevRect = {0};
-    static int newsTimerID = 2;
-
-    switch (msg)
+    switch(msg)
     {
     case WM_CREATE:
         URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
         background = Image::FromFile(BG_FILE);
-
-        SetTimer(hwnd, 1, 10, nullptr);     // fade-in
-        SetTimer(hwnd, newsTimerID, 5000, nullptr); // авто-новости
-        SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
-        break;
-
-    case WM_TIMER:
-        if (w == 1) // fade-in
-        {
-            static BYTE alpha = 0;
-            if (alpha < 255) alpha += 5;
-            SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
-            if (alpha >= 255) KillTimer(hwnd, 1);
-            InvalidateRect(hwnd, nullptr, FALSE);
-        }
-        else if (w == newsTimerID) // автоперелистывание новостей
-        {
-            newsIndex = (newsIndex + 1) % newsItems.size();
-            InvalidateRect(hwnd, nullptr, FALSE);
-        }
         break;
 
     case WM_PAINT:
@@ -190,14 +188,25 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         g.SetSmoothingMode(SmoothingModeAntiAlias);
         g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
 
-        if (background)
-            g.DrawImage(background, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        if(background) g.DrawImage(background, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        DrawOverlay(g);
-        DrawLauncherText(g);
-        DrawNews(g);
+        // оверлей
+        SolidBrush overlay(Color(120, 0, 0, 0));
+        g.FillRectangle(&overlay, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        for (Button* b : buttons)
+        // текст лаунчера
+        FontFamily ff(L"Segoe UI");
+        Font title(&ff, 34.0f, FontStyleBold);
+        Font info(&ff, 16.0f, FontStyleRegular);
+        SolidBrush white(Color::White);
+        SolidBrush green(Color(255, 0, 200, 0));
+
+        g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, PointF(30,30), &white);
+        g.DrawString(L"STATUS: ONLINE", -1, &info, PointF(30,80), &green);
+        g.DrawString(L"Launcher v1.0", -1, &info, PointF(30,110), &white);
+
+        // кнопки
+        for(auto* b : buttons)
             DrawButton(g, *b);
 
         EndPaint(hwnd, &ps);
@@ -207,11 +216,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     case WM_MOUSEMOVE:
     {
         POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
-        for (Button* b : buttons)
+        for(auto* b : buttons)
         {
             bool old = b->hover;
             b->hover = InRect(p, b->rect);
-            if (old != b->hover) InvalidateRect(hwnd, nullptr, FALSE);
+            if(old != b->hover) InvalidateRect(hwnd, nullptr, FALSE);
         }
         break;
     }
@@ -220,50 +229,32 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     {
         POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
 
-        if (InRect(p, btnClose.rect)) PostQuitMessage(0);
-        else if (InRect(p, btnMinimize.rect)) ShowWindow(hwnd, SW_MINIMIZE);
-        else if (InRect(p, btnMaximize.rect))
+        if(InRect(p, btnNews.rect))
         {
-            static bool maximized = false;
-            maximized = !maximized;
-            ShowWindow(hwnd, maximized ? SW_MAXIMIZE : SW_RESTORE);
+            // открыть окно новости
+            WNDCLASSW wc{};
+            wc.lpfnWndProc = NewsWndProc;
+            wc.hInstance = GetModuleHandle(nullptr);
+            wc.lpszClassName = L"NEWS_WINDOW";
+            wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+            RegisterClassW(&wc);
+
+            HWND newsHWND = CreateWindowExW(0, L"NEWS_WINDOW", L"Новости Majestic RP", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                                            100,100,600,400,
+                                            nullptr,nullptr,GetModuleHandle(nullptr),nullptr);
+            ShowWindow(newsHWND, SW_SHOW);
         }
-        else if (InRect(p, btnFullscreen.rect))
+        else if(InRect(p, btnPlay.rect))
         {
-            if (!isFullscreen)
-            {
-                GetWindowRect(hwnd, &prevRect);
-                SetWindowLong(hwnd, GWL_STYLE, WS_POPUP);
-                SetWindowPos(hwnd, HWND_TOP, 0, 0,
-                             GetSystemMetrics(SM_CXSCREEN),
-                             GetSystemMetrics(SM_CYSCREEN),
-                             SWP_SHOWWINDOW);
-                isFullscreen = true;
-                WINDOW_WIDTH = GetSystemMetrics(SM_CXSCREEN);
-                WINDOW_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
-            }
-            else
-            {
-                SetWindowLong(hwnd, GWL_STYLE, WS_POPUP);
-                SetWindowPos(hwnd, HWND_TOP, prevRect.left, prevRect.top,
-                             prevRect.right - prevRect.left,
-                             prevRect.bottom - prevRect.top,
-                             SWP_SHOWWINDOW);
-                isFullscreen = false;
-                WINDOW_WIDTH = prevRect.right - prevRect.left;
-                WINDOW_HEIGHT = prevRect.bottom - prevRect.top;
-            }
+            ShellExecuteW(nullptr, L"open", L"C:\\Games\\GTA5\\GTA5.exe", nullptr, nullptr, SW_SHOW);
         }
-        else
+        else if(InRect(p, btnDiscord.rect))
         {
-            // Клик по основным кнопкам листает новости
-            if (InRect(p, btnPlay.rect) || InRect(p, btnSettings.rect) || InRect(p, btnDiscord.rect))
-            {
-                newsIndex = (newsIndex + 1) % newsItems.size();
-                InvalidateRect(hwnd, nullptr, FALSE);
-            }
-            else
-                SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+            ShellExecuteW(nullptr, L"open", L"https://discord.gg/majestic", nullptr, nullptr, SW_SHOW);
+        }
+        else if(InRect(p, btnSettings.rect))
+        {
+            MessageBoxW(hwnd, L"Настройки в разработке", L"Info", MB_ICONINFORMATION);
         }
         break;
     }
@@ -274,8 +265,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         PostQuitMessage(0);
         break;
 
-    default:
-        return DefWindowProcW(hwnd, msg, w, l);
+    default: return DefWindowProcW(hwnd,msg,w,l);
     }
     return 0;
 }
@@ -293,25 +283,17 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     RegisterClassW(&wc);
 
-    HWND hwnd = CreateWindowExW(
-        WS_EX_LAYERED | WS_EX_TOPMOST,
-        wc.lpszClassName,
-        L"Majestic RP Launcher",
-        WS_POPUP,
-        100, 50,
-        WINDOW_WIDTH, WINDOW_HEIGHT,
-        nullptr,
-        nullptr,
-        h,
-        nullptr
-    );
-
+    HWND hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOPMOST, wc.lpszClassName, L"Majestic RP Launcher",
+                                WS_POPUP, 100,50,WINDOW_WIDTH,WINDOW_HEIGHT,
+                                nullptr,nullptr,h,nullptr);
     ShowWindow(hwnd, SW_SHOW);
+
     MSG msg{};
-    while (GetMessageW(&msg, nullptr, 0, 0))
+    while(GetMessageW(&msg,nullptr,0,0))
     {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
+
     return 0;
 }
