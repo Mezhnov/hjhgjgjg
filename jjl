@@ -9,10 +9,10 @@
 using namespace Gdiplus;
 
 // ---------------- НАСТРОЙКИ ----------------
-const int WINDOW_WIDTH  = 800;
+const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 450;
 
-const wchar_t* BG_URL  = L"https://i.imgur.com/9ZQZQ9Y.jpg";
+const wchar_t* BG_URL = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
 const wchar_t* BG_FILE = L"background.jpg";
 
 const wchar_t* GTA_PATH = L"C:\\Games\\GTA5\\GTA5.exe";
@@ -28,7 +28,7 @@ bool hoverPlay = false;
 bool PointInRectEx(POINT p, RECT r)
 {
     return p.x >= r.left && p.x <= r.right &&
-           p.y >= r.top  && p.y <= r.bottom;
+        p.y >= r.top && p.y <= r.bottom;
 }
 
 void DrawPlayButton(Graphics& g)
@@ -154,10 +154,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int)
     GdiplusStartup(&gdiToken, &gdiInput, nullptr);
 
     WNDCLASSW wc{};
-    wc.lpfnWndProc   = WndProc;
-    wc.hInstance     = hInst;
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInst;
     wc.lpszClassName = L"MAJESTIC_LAUNCHER";
-    wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 
     RegisterClassW(&wc);
 
