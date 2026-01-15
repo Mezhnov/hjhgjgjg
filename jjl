@@ -14,101 +14,60 @@ using namespace Gdiplus;
 int WINDOW_WIDTH  = 1000;
 int WINDOW_HEIGHT = 600;
 
-const wchar_t* BG_URL  = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
-const wchar_t* BG_FILE = L"background.jpg";
-
 ULONG_PTR gdiToken;
 Image* background = nullptr;
 
 // ================= UI =================
-struct Button
-{
+struct Button {
     RECT rect;
     const wchar_t* text;
     bool hover;
-    float glowAlpha;
 };
 
-// Основные кнопки лаунчера
-Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, 0.0f };
-Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, 0.0f };
-Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, 0.0f };
-Button btnNews     = { {650, 520, 830, 560}, L"НОВОСТИ", false, 0.0f };
+Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false };
+Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false };
+Button btnNews     = { {650, 520, 830, 560}, L"НОВОСТИ", false };
 
-std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnDiscord, &btnNews };
+std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnNews };
 
 // Новости
 struct NewsItem {
     std::wstring title;
     std::wstring text;
-    std::wstring imageURL;
+    std::wstring imageFile;
 };
 std::vector<NewsItem> newsItems = {
-    { L"Зимний фестиваль!", L"Присоединяйтесь к зимнему событию в Majestic RP!", L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13" },
-    { L"Исправлены баги", L"Исправлены баги транспорта и улучшена стабильность.", L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13" }
+    { L"Зимний фестиваль!", L"Присоединяйтесь к зимнему событию в Majestic RP!", L"news1.jpg" },
+    { L"Исправлены баги", L"Исправлены баги транспорта и улучшена стабильность.", L"news2.jpg" }
 };
 int currentNewsIndex = 0;
 
-// Ссылка на соц сети
+// Соцсети
 struct SocialIcon {
     RECT rect;
     const wchar_t* url;
 };
-SocialIcon iconDiscord = { {20, 500, 60, 540}, L"https://discord.gg/majestic" };
-SocialIcon iconVK      = { {70, 500, 110, 540}, L"https://vk.com/majestic" };
-SocialIcon iconTG      = { {120, 500, 160, 540}, L"https://t.me/majestic" };
+SocialIcon iconDiscord = { {20, 340, 60, 380}, L"https://discord.gg/majestic" };
+SocialIcon iconVK      = { {70, 340, 110, 380}, L"https://vk.com/majestic" };
+SocialIcon iconTG      = { {120, 340, 160, 380}, L"https://t.me/majestic" };
 std::vector<SocialIcon> socialIcons = { iconDiscord, iconVK, iconTG };
 
 // ================= HELPERS =================
-bool InRect(const POINT& p, const RECT& r)
-{
-    return p.x >= r.left && p.x <= r.right &&
-           p.y >= r.top  && p.y <= r.bottom;
+bool InRect(POINT p, RECT r) {
+    return p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom;
 }
 
-// ================= DRAW =================
-void DrawButton(Graphics& g, Button& b)
-{
+void DrawButton(Graphics& g, Button& b) {
     RectF r((REAL)b.rect.left, (REAL)b.rect.top,
             (REAL)(b.rect.right - b.rect.left),
             (REAL)(b.rect.bottom - b.rect.top));
-
-    Color c1 = b.hover ? Color(255, 255, 180, 0) : Color(255, 180, 140, 0);
-    Color c2 = b.hover ? Color(255, 255, 220, 50) : Color(255, 140, 80, 0);
-
-    LinearGradientBrush grad(r, c1, c2, LinearGradientModeVertical);
-    GraphicsPath path;
-    float radius = 12.0f;
-
-    path.AddArc(r.X, r.Y, radius, radius, 180, 90);
-    path.AddArc(r.X + r.Width - radius, r.Y, radius, radius, 270, 90);
-    path.AddArc(r.X + r.Width - radius, r.Y + r.Height - radius, radius, radius, 0, 90);
-    path.AddArc(r.X, r.Y + r.Height - radius, radius, radius, 90, 90);
-    path.CloseFigure();
-
-    g.FillPath(&grad, &path);
-
-    if (b.hover)
-    {
-        b.glowAlpha += 10.0f; if (b.glowAlpha > 255.0f) b.glowAlpha = 255.0f;
-    }
-    else
-    {
-        b.glowAlpha -= 10.0f; if (b.glowAlpha < 0.0f) b.glowAlpha = 0.0f;
-    }
-
-    if (b.glowAlpha > 0.0f)
-    {
-        Color glowColor((BYTE)b.glowAlpha, 255, 255, 255);
-        Pen glow(glowColor, 3.0f);
-        g.DrawPath(&glow, &path);
-    }
-
+    Color c = b.hover ? Color(255, 255, 180, 0) : Color(255, 180, 140, 0);
+    SolidBrush brush(c);
+    g.FillRectangle(&brush, r);
     FontFamily ff(L"Segoe UI");
-    Font font(&ff, 22.0f, FontStyleBold);
+    Font font(&ff, 22, FontStyleBold);
     SolidBrush text(Color::White);
-    PointF textPos(r.X + 20.0f, r.Y + 14.0f);
-    g.DrawString(b.text, -1, &font, textPos, &text);
+    g.DrawString(b.text, -1, &font, PointF(r.X + 20, r.Y + 14), &text);
 }
 
 // ================= NEWS WINDOW =================
@@ -127,7 +86,7 @@ LRESULT CALLBACK NewsWndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         NewsItem& n = newsItems[currentNewsIndex];
 
         // фон новости
-        Image* img = Image::FromFile(L"news.jpg"); // Для простоты локальный файл
+        Image* img = Image::FromFile(n.imageFile.c_str());
         if(img) g.DrawImage(img, 0, 0, 600, 400);
 
         // прозрачный оверлей
@@ -143,8 +102,8 @@ LRESULT CALLBACK NewsWndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         g.DrawString(n.title.c_str(), -1, &title, PointF(20, 20), &white);
         g.DrawString(n.text.c_str(), -1, &info, PointF(20, 60), &white);
 
-        // соц сети
-        SolidBrush iconBrush(Color(0, 255, 255, 255));
+        // соцсети
+        SolidBrush iconBrush(Color(255, 255, 255, 255));
         for(auto& s : socialIcons)
             g.FillEllipse(&iconBrush, (REAL)s.rect.left, (REAL)s.rect.top, (REAL)(s.rect.right - s.rect.left), (REAL)(s.rect.bottom - s.rect.top));
 
@@ -170,14 +129,14 @@ LRESULT CALLBACK NewsWndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     return 0;
 }
 
-// ================= MAIN WINDOW PROC =================
+// ================= MAIN WINDOW =================
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 {
     switch(msg)
     {
     case WM_CREATE:
-        URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
-        background = Image::FromFile(BG_FILE);
+        URLDownloadToFileW(nullptr, L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13", L"background.jpg", 0, nullptr);
+        background = Image::FromFile(L"background.jpg");
         break;
 
     case WM_PAINT:
@@ -190,11 +149,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 
         if(background) g.DrawImage(background, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        // оверлей
         SolidBrush overlay(Color(120, 0, 0, 0));
         g.FillRectangle(&overlay, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        // текст лаунчера
         FontFamily ff(L"Segoe UI");
         Font title(&ff, 34.0f, FontStyleBold);
         Font info(&ff, 16.0f, FontStyleRegular);
@@ -205,7 +162,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         g.DrawString(L"STATUS: ONLINE", -1, &info, PointF(30,80), &green);
         g.DrawString(L"Launcher v1.0", -1, &info, PointF(30,110), &white);
 
-        // кнопки
         for(auto* b : buttons)
             DrawButton(g, *b);
 
@@ -229,9 +185,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     {
         POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
 
-        if(InRect(p, btnNews.rect))
+        if(InRect(p, btnPlay.rect))
+            ShellExecuteW(nullptr, L"open", L"C:\\Games\\GTA5\\GTA5.exe", nullptr, nullptr, SW_SHOW);
+        else if(InRect(p, btnSettings.rect))
+            MessageBoxW(hwnd, L"Настройки в разработке", L"Info", MB_ICONINFORMATION);
+        else if(InRect(p, btnNews.rect))
         {
-            // открыть окно новости
             WNDCLASSW wc{};
             wc.lpfnWndProc = NewsWndProc;
             wc.hInstance = GetModuleHandle(nullptr);
@@ -239,33 +198,22 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
             RegisterClassW(&wc);
 
-            HWND newsHWND = CreateWindowExW(0, L"NEWS_WINDOW", L"Новости Majestic RP", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                                            100,100,600,400,
+            HWND newsHWND = CreateWindowExW(0, L"NEWS_WINDOW", L"Новости Majestic RP",
+                                            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                                            200,100,600,400,
                                             nullptr,nullptr,GetModuleHandle(nullptr),nullptr);
             ShowWindow(newsHWND, SW_SHOW);
-        }
-        else if(InRect(p, btnPlay.rect))
-        {
-            ShellExecuteW(nullptr, L"open", L"C:\\Games\\GTA5\\GTA5.exe", nullptr, nullptr, SW_SHOW);
-        }
-        else if(InRect(p, btnDiscord.rect))
-        {
-            ShellExecuteW(nullptr, L"open", L"https://discord.gg/majestic", nullptr, nullptr, SW_SHOW);
-        }
-        else if(InRect(p, btnSettings.rect))
-        {
-            MessageBoxW(hwnd, L"Настройки в разработке", L"Info", MB_ICONINFORMATION);
         }
         break;
     }
 
     case WM_DESTROY:
-        delete background;
+        if(background) delete background;
         GdiplusShutdown(gdiToken);
         PostQuitMessage(0);
         break;
 
-    default: return DefWindowProcW(hwnd,msg,w,l);
+    default: return DefWindowProcW(hwnd,w,l);
     }
     return 0;
 }
@@ -283,8 +231,9 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     RegisterClassW(&wc);
 
-    HWND hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOPMOST, wc.lpszClassName, L"Majestic RP Launcher",
-                                WS_POPUP, 100,50,WINDOW_WIDTH,WINDOW_HEIGHT,
+    HWND hwnd = CreateWindowExW(0, wc.lpszClassName, L"Majestic RP Launcher",
+                                WS_POPUP | WS_VISIBLE,
+                                100,50,WINDOW_WIDTH,WINDOW_HEIGHT,
                                 nullptr,nullptr,h,nullptr);
     ShowWindow(hwnd, SW_SHOW);
 
@@ -294,6 +243,5 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
-
     return 0;
 }
