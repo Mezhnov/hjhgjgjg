@@ -1,7 +1,289 @@
-Сборка начата в 0:38...
-1>------ Сборка начата: проект: WindowsProject4, Конфигурация: Debug x64 ------
-1>WindowsProject4.cpp
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(151,24): error C2102: для "&" требуется левостороннее значение
-1>Сборка проекта "WindowsProject4.vcxproj" завершена с ошибкой.
-========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
-========== Сборка завершено в 0:38 и заняло 00,665 с ==========
+#include <windows.h>
+#include <gdiplus.h>
+#include <urlmon.h>
+#include <shellapi.h>
+#include <vector>
+#include <string>
+
+#pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "urlmon.lib")
+
+using namespace Gdiplus;
+
+// ================= CONFIG =================
+const int WINDOW_WIDTH  = 1000;
+const int WINDOW_HEIGHT = 600;
+const wchar_t* BG_URL  = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
+const wchar_t* BG_FILE = L"background.jpg";
+
+ULONG_PTR gdiToken;
+Image* background = nullptr;
+
+// ================= UI =================
+struct Button
+{
+    RECT rect;
+    const wchar_t* text;
+    bool hover;
+    bool isControl; // верхние кнопки управления окном
+    float glowAlpha; // для анимации свечения
+};
+
+// Верхние кнопки
+Button btnClose     = { {960, 10, 990, 40}, L"X", false, true, 0.0f };
+Button btnMinimize  = { {910, 10, 940, 40}, L"_", false, true, 0.0f };
+Button btnMaximize  = { {860, 10, 890, 40}, L"□", false, true, 0.0f };
+
+// Основные кнопки
+Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false, false, 0.0f };
+Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, false, 0.0f };
+Button btnDiscord  = { {200, 520, 360, 560}, L"DISCORD", false, false, 0.0f };
+
+std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnDiscord, &btnClose, &btnMinimize, &btnMaximize };
+
+// Новости
+std::vector<std::wstring> newsItems = {
+    L"[01.01.2026] Новый ивент: Зимний фестиваль!",
+    L"[02.01.2026] Исправлены баги транспорта",
+    L"[05.01.2026] Розыгрыш внутриигровых денег",
+    L"[10.01.2026] Новая система фракций в разработке"
+};
+int newsIndex = 0;
+
+// ================= HELPERS =================
+bool InRect(const POINT& p, const RECT& r)
+{
+    return p.x >= r.left && p.x <= r.right &&
+           p.y >= r.top  && p.y <= r.bottom;
+}
+
+// ================= DRAW =================
+void DrawOverlay(Graphics& g)
+{
+    SolidBrush overlay(Color(120, 0, 0, 0));
+    g.FillRectangle(&overlay, 0.0f, 0.0f, (REAL)WINDOW_WIDTH, (REAL)WINDOW_HEIGHT);
+}
+
+// Рисуем кнопку с градиентом и мягкой анимацией свечения
+void DrawButton(Graphics& g, Button& b)
+{
+    RectF r((REAL)b.rect.left, (REAL)b.rect.top,
+            (REAL)(b.rect.right - b.rect.left),
+            (REAL)(b.rect.bottom - b.rect.top));
+
+    Color c1 = b.hover ? Color(255, 255, 180, 0) : Color(255, 180, 140, 0);
+    Color c2 = b.hover ? Color(255, 255, 220, 50) : Color(255, 140, 80, 0);
+
+    LinearGradientBrush grad(r, c1, c2, LinearGradientModeVertical);
+    GraphicsPath path;
+    float radius = b.isControl ? 2.0f : 12.0f;
+
+    path.AddArc(r.X, r.Y, radius, radius, 180, 90);
+    path.AddArc(r.X + r.Width - radius, r.Y, radius, radius, 270, 90);
+    path.AddArc(r.X + r.Width - radius, r.Y + r.Height - radius, radius, radius, 0, 90);
+    path.AddArc(r.X, r.Y + r.Height - radius, radius, radius, 90, 90);
+    path.CloseFigure();
+
+    g.FillPath(&grad, &path);
+
+    // Glow (анимация)
+    if (b.hover)
+    {
+        b.glowAlpha += 10.0f; 
+        if (b.glowAlpha > 255.0f) b.glowAlpha = 255.0f;
+    }
+    else
+    {
+        b.glowAlpha -= 10.0f;
+        if (b.glowAlpha < 0.0f) b.glowAlpha = 0.0f;
+    }
+
+    if (b.glowAlpha > 0.0f)
+    {
+        Color glowColor((BYTE)b.glowAlpha, 255, 255, 255);
+        Pen glow(glowColor, 3.0f);
+        g.DrawPath(&glow, &path); // теперь корректно
+    }
+
+    // Текст
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, b.isControl ? 14.0f : 22.0f, FontStyleBold);
+    SolidBrush text(Color::White);
+    PointF textPos(r.X + (b.isControl ? 3.0f : 20.0f), r.Y + (b.isControl ? 2.0f : 14.0f));
+    g.DrawString(b.text, -1, &font, textPos, &text);
+}
+
+// Текст лаунчера
+void DrawLauncherText(Graphics& g)
+{
+    FontFamily ff(L"Segoe UI");
+    Font title(&ff, 34.0f, FontStyleBold);
+    Font info(&ff, 16.0f, FontStyleRegular);
+
+    SolidBrush white(Color::White);
+    SolidBrush green(Color(255, 0, 200, 0));
+
+    g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, PointF(30.0f, 30.0f), &white);
+    g.DrawString(L"STATUS: ONLINE", -1, &info, PointF(30.0f, 80.0f), &green);
+    g.DrawString(L"Launcher v1.0", -1, &info, PointF(30.0f, 110.0f), &white);
+}
+
+// Новости
+void DrawNews(Graphics& g)
+{
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, 18.0f, FontStyleRegular);
+
+    RectF newsRect(400.0f, 200.0f, 580.0f, 180.0f);
+    SolidBrush bg(Color(120, 0, 0, 0));
+    g.FillRectangle(&bg, newsRect);
+
+    Color borderColor(200, 255, 255, 255);
+    Pen border(borderColor, 2.0f);
+
+    REAL x = newsRect.X;
+    REAL y = newsRect.Y;
+    REAL w = newsRect.Width;
+    REAL h = newsRect.Height;
+    g.DrawRectangle(&border, x, y, w, h);
+
+    if (!newsItems.empty())
+    {
+        SolidBrush text(Color::White);
+        g.DrawString(newsItems[newsIndex].c_str(), -1, &font,
+                     PointF(newsRect.X + 10, newsRect.Y + 10),
+                     &text);
+    }
+}
+
+// ================= WINDOW PROC =================
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
+{
+    switch (msg)
+    {
+    case WM_CREATE:
+        URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
+        background = Image::FromFile(BG_FILE);
+
+        // Плавное открытие окна через таймер
+        SetTimer(hwnd, 1, 10, nullptr);
+        SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+        break;
+
+    case WM_TIMER:
+    {
+        static BYTE alpha = 0;
+        if (alpha < 255) alpha += 5;
+        SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
+        if (alpha >= 255) KillTimer(hwnd, 1);
+        InvalidateRect(hwnd, nullptr, FALSE);
+        break;
+    }
+
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        Graphics g(hdc);
+        g.SetSmoothingMode(SmoothingModeAntiAlias);
+        g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+
+        if (background)
+            g.DrawImage(background, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        DrawOverlay(g);
+        DrawLauncherText(g);
+        DrawNews(g);
+
+        for (Button* b : buttons)
+            DrawButton(g, *b);
+
+        EndPaint(hwnd, &ps);
+        break;
+    }
+
+    case WM_MOUSEMOVE:
+    {
+        POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
+        for (Button* b : buttons)
+        {
+            bool old = b->hover;
+            b->hover = InRect(p, b->rect);
+            if (old != b->hover) InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        break;
+    }
+
+    case WM_LBUTTONDOWN:
+    {
+        POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
+
+        if (InRect(p, btnClose.rect)) PostQuitMessage(0);
+        else if (InRect(p, btnMinimize.rect)) ShowWindow(hwnd, SW_MINIMIZE);
+        else if (InRect(p, btnMaximize.rect))
+        {
+            static bool maximized = false;
+            maximized = !maximized;
+            ShowWindow(hwnd, maximized ? SW_MAXIMIZE : SW_RESTORE);
+        }
+        else
+        {
+            // Новости листаются по клику на кнопки
+            if (InRect(p, btnPlay.rect) || InRect(p, btnSettings.rect) || InRect(p, btnDiscord.rect))
+            {
+                newsIndex = (newsIndex + 1) % newsItems.size();
+                InvalidateRect(hwnd, nullptr, FALSE);
+            }
+            else
+                SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        }
+        break;
+    }
+
+    case WM_DESTROY:
+        delete background;
+        GdiplusShutdown(gdiToken);
+        PostQuitMessage(0);
+        break;
+
+    default:
+        return DefWindowProcW(hwnd, msg, w, l);
+    }
+    return 0;
+}
+
+// ================= WINMAIN =================
+int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
+{
+    GdiplusStartupInput gdi;
+    GdiplusStartup(&gdiToken, &gdi, nullptr);
+
+    WNDCLASSW wc{};
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = h;
+    wc.lpszClassName = L"MAJESTIC_LAUNCHER";
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    RegisterClassW(&wc);
+
+    HWND hwnd = CreateWindowExW(
+        WS_EX_LAYERED | WS_EX_TOPMOST,
+        wc.lpszClassName,
+        L"Majestic RP Launcher",
+        WS_POPUP,
+        100, 50,
+        WINDOW_WIDTH, WINDOW_HEIGHT,
+        nullptr,
+        nullptr,
+        h,
+        nullptr
+    );
+
+    ShowWindow(hwnd, SW_SHOW);
+    MSG msg{};
+    while (GetMessageW(&msg, nullptr, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+    return 0;
+}
