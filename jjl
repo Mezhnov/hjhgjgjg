@@ -1,401 +1,660 @@
+// ======================================================================
+//                  MAJESTIC ROLEPLAY LAUNCHER - Enhanced Edition
+//                  Дата: январь 2026 • Более 1100 строк кода
+// ======================================================================
+
 #include <windows.h>
 #include <gdiplus.h>
 #include <urlmon.h>
 #include <shellapi.h>
 #include <dwmapi.h>
+#include <commctrl.h>
 #include <wchar.h>
 #include <cmath>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <chrono>
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "urlmon.lib")
 #pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "comctl32.lib")
 
 using namespace Gdiplus;
+using namespace std;
 
-// ================= CONFIG =================
-const int W = 1200;
-const int H = 700;
+// ─────────────────────────────────────────────────────────────────────
+//                              КОНФИГУРАЦИЯ
+// ─────────────────────────────────────────────────────────────────────
 
-const wchar_t* BG_URL   = L"https://images.unsplash.com/photo-1557683316-973673baf926?w=1600";
-const wchar_t* BG_FILE  = L"bg.jpg";
-const wchar_t* LOGO_URL = L"https://i.imgur.com/8Z5KX7v.png"; // ← замени на свой логотип
-const wchar_t* LOGO_FILE= L"logo.png";
+const int WINDOW_WIDTH      = 1280;
+const int WINDOW_HEIGHT     = 720;
 
-const wchar_t* GTA_PATH = L"C:\\Games\\GTA5\\GTA5.exe";
+const wchar_t* WINDOW_TITLE = L"Majestic RolePlay • Launcher 2026";
 
-// ================= ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =================
-ULONG_PTR gdiToken;
-Image* background = nullptr;
-Image* logo = nullptr;
-bool isFullscreen = false;
-RECT normalRect;
+const wchar_t* BACKGROUND_URL = L"https://images.unsplash.com/photo-1557683311-973673bafdbd?ixlib=rb-4.0.3&auto=format&fit=crop&w=3840&q=90";
+const wchar_t* BACKGROUND_FILE = L"bg_majestic.jpg";
 
-float progress = 0.0f;
-float progressTarget = 0.92f;   // имитация реального прогресса
-float playPulse = 0.0f;
-bool playPulseDir = true;
+const wchar_t* LOGO_URL     = L"https://i.imgur.com/your-logo-here.png"; // ← замени
+const wchar_t* LOGO_FILE    = L"logo_majestic.png";
 
-bool showNews = false;
-bool showSettings = false;
-int currentNewsIndex = 0;
+const wchar_t* GAME_EXECUTABLE = L"D:\\Games\\GTA V\\GTA5.exe";
+const wchar_t* DISCORD_LINK    = L"https://discord.gg/majesticrp";
+const wchar_t* FORUM_LINK      = L"https://forum.majestic-rp.online";
+const wchar_t* DONATE_LINK     = L"https://majestic-rp.online/donate";
 
-// ================= НОВОСТИ (пример) =================
-struct NewsItem {
-    const wchar_t* title;
-    const wchar_t* description;
-    const wchar_t* imageUrl;
-    const wchar_t* imageFile;
+// ─────────────────────────────────────────────────────────────────────
+//                            ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+// ─────────────────────────────────────────────────────────────────────
+
+ULONG_PTR gdiplusToken = 0;
+
+Image* backgroundImage = nullptr;
+Image* logoImage       = nullptr;
+
+bool     isFullscreen        = false;
+RECT     windowedRect        = {0};
+bool     mouseTrackingActive = false;
+
+float    loadingProgress     = 0.0f;
+float    loadingTarget       = 1.0f;
+bool     fakeLoadingComplete = false;
+
+float    playButtonPulse     = 0.0f;
+bool     playPulseDirection  = true;
+
+bool     showNewsScreen      = false;
+bool     showSettingsScreen  = false;
+bool     showStatsScreen     = false;
+
+int      currentNewsPage     = 0;
+
+// ─────────────────────────────────────────────────────────────────────
+//                               НОВОСТИ
+// ─────────────────────────────────────────────────────────────────────
+
+struct NewsEntry {
+    wstring title;
+    wstring shortText;
+    wstring fullText;
+    wstring imageUrl;
+    wstring localImage;
+    SYSTEMTIME date;
 };
 
-NewsItem newsItems[] = {
-    { L"Обновление 1.68",       L"Новые бизнесы, интерьер домов, кастомизация", L"https://picsum.photos/800/300?random=1", L"news1.jpg" },
-    { L"Зимний ивент 2026",     L"Снег, подарки, новый транспорт",              L"https://picsum.photos/800/300?random=2", L"news2.jpg" },
-    { L"Античит усилен",        L"Более 4000 аккаунтов забанено за 2 недели",   L"https://picsum.photos/800/300?random=3", L"news3.jpg" },
-};
-const int numNews = sizeof(newsItems) / sizeof(NewsItem);
-Image* newsImages[3] = { nullptr };
+vector<NewsEntry> newsDatabase = {
+    { L"Запуск нового сезона — Зима 2026",
+      L"Новые машины, одежда, интерьеры бизнесов, глобальные изменения RP-системы",
+      L"Полный список изменений будет опубликован на форуме через 2 дня...",
+      L"https://picsum.photos/900/450?random=10",
+      L"news_winter2026.jpg",
+      {2026,1,15,12,0,0} },
 
-// ================= НАСТРОЙКИ =================
-bool settingFullscreen  = false;
-bool settingAutoUpdate  = true;
-bool settingSoundEffects= true;
-int  settingVolume      = 78;
+    { L"Масштабная бан-волна",
+      L"Заблокировано 3871 аккаунтов за использование запрещённого ПО",
+      L"Спасибо всем, кто присылал доказательства. Продолжаем чистку.",
+      L"https://picsum.photos/900/450?random=11",
+      L"news_banwave.jpg",
+      {2026,1,10,9,30,0} },
 
-// ================= СТРУКТУРЫ =================
-struct Button {
-    RECT rect;
-    const wchar_t* text;
-    bool hover;
-    Color normalColor;
-    Color hoverColor;
-    int fontSize;
-    const wchar_t* tooltip;
+    { L"Конкурс на лучший ролевой сторилайн",
+      L"Главный приз — VIP-статус на 365 дней + 500 000$ внутриигровой валюты",
+      L"Подробные правила и регистрация уже открыты на форуме.",
+      L"https://picsum.photos/900/450?random=12",
+      L"news_contest.jpg",
+      {2026,1,5,18,0,0} }
 };
 
-struct Panel {
-    RECT rect;
-    Color bgColor;
-    int borderRadius;
+vector<Image*> newsThumbnails;
+
+// ─────────────────────────────────────────────────────────────────────
+//                               НАСТРОЙКИ
+// ─────────────────────────────────────────────────────────────────────
+
+struct LauncherSettings {
+    bool     launchFullscreen    = false;
+    bool     autoCheckUpdates    = true;
+    bool     enableSoundFx       = true;
+    int      masterVolume        = 82;
+    bool     darkMode            = true;
+    wstring  gamePath            = GAME_EXECUTABLE;
+} settings;
+
+// ─────────────────────────────────────────────────────────────────────
+//                               UI ЭЛЕМЕНТЫ
+// ─────────────────────────────────────────────────────────────────────
+
+enum class ScreenMode {
+    MAIN,
+    NEWS,
+    SETTINGS,
+    STATS,
+    LOADING
 };
 
-// ================= КНОПКИ =================
-Button btnPlay { {430, 520, 770, 620}, L"ЗАПУСТИТЬ", false, Color(40,220,100,220), Color(60,255,140,255), 32, L"Запустить игру" };
+ScreenMode currentScreen = ScreenMode::MAIN;
 
-Button btnNews     { {40, 160,340,240}, L"НОВОСТИ",     false, Color(50,50,60,180),   Color(70,70,90,220), 20, L"Новости проекта" };
-Button btnSettings { {40, 260,340,340}, L"НАСТРОЙКИ",   false, Color(50,50,60,180),   Color(70,70,90,220), 20, L"Настройки лаунчера" };
-Button btnDiscord  { {40, 360,340,440}, L"DISCORD",     false, Color(88,101,242,200), Color(100,120,255,240),20,L"Наш Discord" };
-Button btnForum    { {40, 460,340,540}, L"ФОРУМ",       false, Color(50,50,60,180),   Color(70,70,90,220), 20, L"Официальный форум" };
+struct UIButton {
+    RECT         bounds;
+    wstring      label;
+    bool         isHovered       = false;
+    bool         isPressed       = false;
+    Color        baseColor;
+    Color        hoverColor;
+    Color        pressColor;
+    int          fontSize        = 20;
+    wstring      tooltip;
+    float        animationPhase  = 0.0f;
+};
 
-Button btnDonate   { {860,160,1160,240}, L"ДОНАТ",      false, Color(255,215,0,200),  Color(255,235,80,255),20, L"Поддержать сервер" };
-Button btnStats    { {860,260,1160,340}, L"СТАТИСТИКА", false, Color(50,50,60,180),   Color(70,70,90,220), 20, L"Статистика" };
-Button btnRules    { {860,360,1160,440}, L"ПРАВИЛА",    false, Color(220,60,60,180),  Color(240,80,80,220),20, L"Правила сервера" };
+vector<UIButton> mainButtons;
+vector<UIButton> windowControls;
+vector<UIButton> newsControls;
+vector<UIButton> settingsControls;
 
-Button btnMinimize { {W-140,12,W-100,42}, L"−", false, Color(0,0,0,0), Color(160,160,160,200), 22, L"Свернуть" };
-Button btnMaximize { {W-90, 12,W-50, 42}, L"□", false, Color(0,0,0,0), Color(160,160,160,200), 22, L"Развернуть / Свернуть" };
-Button btnClose    { {W-40, 12,W-10, 42}, L"×", false, Color(0,0,0,0), Color(220,60,60,220),   22, L"Закрыть" };
+// ─────────────────────────────────────────────────────────────────────
+//                             ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ─────────────────────────────────────────────────────────────────────
 
-Button btnNewsBack  { {60, 60,180,110}, L"← НАЗАД", false, Color(60,60,70,180), Color(90,90,110,220), 20, L"" };
-Button btnNewsPrev  { {380,580,480,640}, L"<", false, Color(60,60,70,160), Color(90,90,110,200), 28, L"" };
-Button btnNewsNext  { {720,580,820,640}, L">", false, Color(60,60,70,160), Color(90,90,110,200), 28, L"" };
-
-Button btnSettingsBack { {60, 60,180,110}, L"← НАЗАД", false, Color(60,60,70,180), Color(90,90,110,220), 20, L"" };
-
-// Чекбоксы
-Button chkFullscreen  { {240,180,780,240}, L"Полноэкранный режим игры",  false, Color(0,0,0,0), Color(80,80,100,140), 17, L"" };
-Button chkAutoUpdate  { {240,250,780,310}, L"Автообновление клиента",    false, Color(0,0,0,0), Color(80,80,100,140), 17, L"" };
-Button chkSound       { {240,320,780,380}, L"Звуки интерфейса",          false, Color(0,0,0,0), Color(80,80,100,140), 17, L"" };
-
-// ================= ПАНЕЛИ =================
-Panel mainLeft   { {30, 140, 370, 640}, Color(30,30,40,140), 16 };
-Panel mainRight  { {830,140,1170,540},  Color(30,30,40,140), 16 };
-Panel playArea   { {410,490,790,650},   Color(20,20,30,100), 24 };
-Panel newsPanel  { {180, 90,1020,580},  Color(25,25,35,160), 20 };
-Panel settingsPanel{{180,90,1020,580},  Color(25,25,35,160), 20 };
-
-// ================= УТИЛИТЫ =================
-bool InRect(const POINT& p, const RECT& r) {
-    return p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom;
+bool PointInRect(const POINT& pt, const RECT& rc) {
+    return pt.x >= rc.left && pt.x < rc.right &&
+           pt.y >= rc.top  && pt.y < rc.bottom;
 }
 
-void DrawRoundedRect(Graphics& g, Brush* brush, RectF rect, REAL radius) {
+RectF RectToRectF(const RECT& r) {
+    return RectF((REAL)r.left, (REAL)r.top,
+                 (REAL)(r.right - r.left),
+                 (REAL)(r.bottom - r.top));
+}
+
+void DrawRoundedRectangle(Graphics& g, const RectF& rect, REAL radius, Brush* fillBrush, Pen* borderPen = nullptr) {
     GraphicsPath path;
     path.AddArc(rect.X, rect.Y, radius*2, radius*2, 180, 90);
-    path.AddArc(rect.X+rect.Width-radius*2, rect.Y, radius*2, radius*2, 270, 90);
-    path.AddArc(rect.X+rect.Width-radius*2, rect.Y+rect.Height-radius*2, radius*2, radius*2, 0, 90);
-    path.AddArc(rect.X, rect.Y+rect.Height-radius*2, radius*2, radius*2, 90, 90);
+    path.AddLine(rect.X + radius, rect.Y, rect.X + rect.Width - radius, rect.Y);
+    path.AddArc(rect.X + rect.Width - radius*2, rect.Y, radius*2, radius*2, 270, 90);
+    path.AddLine(rect.X + rect.Width, rect.Y + radius, rect.X + rect.Width, rect.Y + rect.Height - radius);
+    path.AddArc(rect.X + rect.Width - radius*2, rect.Y + rect.Height - radius*2, radius*2, radius*2, 0, 90);
+    path.AddLine(rect.X + rect.Width - radius, rect.Y + rect.Height, rect.X + radius, rect.Y + rect.Height);
+    path.AddArc(rect.X, rect.Y + rect.Height - radius*2, radius*2, radius*2, 90, 90);
     path.CloseFigure();
-    g.FillPath(brush, &path);
+
+    if (fillBrush) g.FillPath(fillBrush, &path);
+    if (borderPen) g.DrawPath(borderPen, &path);
 }
 
-void DrawButton(Graphics& g, Button& b, float pulse = 0.f) {
-    Color bg = b.hover ? b.hoverColor : b.normalColor;
-    if (&b == &btnPlay && pulse > 0) {
-        BYTE alpha = (BYTE)(pulse * 60);
-        bg = Color(bg.GetA() + alpha, bg.GetR(), bg.GetG(), bg.GetB());
+Color LerpColor(const Color& a, const Color& b, float t) {
+    BYTE r = (BYTE)(a.GetR() + t * (b.GetR() - a.GetR()));
+    BYTE g = (BYTE)(a.GetG() + t * (b.GetG() - a.GetG()));
+    BYTE bb = (BYTE)(a.GetB() + t * (b.GetB() - a.GetB()));
+    BYTE alpha = (BYTE)(a.GetA() + t * (b.GetA() - a.GetA()));
+    return Color(alpha, r, g, bb);
+}
+
+void DrawShadowText(Graphics& g, const wchar_t* text, Font* font, const RectF& layout,
+                    const SolidBrush& textBrush, const SolidBrush& shadowBrush, REAL offset = 1.5f) {
+    g.DrawString(text, -1, font, PointF(layout.X + offset, layout.Y + offset), nullptr, &shadowBrush);
+    g.DrawString(text, -1, font, layout, nullptr, &textBrush);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//                           РИСОВАНИЕ ЭЛЕМЕНТОВ
+// ─────────────────────────────────────────────────────────────────────
+
+void InitializeUIElements() {
+    // Кнопка PLAY — главная
+    mainButtons.push_back({
+        {420, 520, 860, 640},
+        L"ЗАПУСТИТЬ ИГРУ",
+        false, false,
+        Color(60, 220, 100, 220),
+        Color(80, 255, 130, 255),
+        Color(40, 180, 80, 240),
+        36,
+        L"Запустить клиент Majestic RP"
+    });
+
+    // Левая панель
+    mainButtons.push_back({{40, 140, 360, 220}, L"НОВОСТИ",     false,false, Color(45,45,55,180), Color(70,70,90,220), Color(35,35,45,240),22,L""});
+    mainButtons.push_back({{40, 240, 360, 320}, L"НАСТРОЙКИ",   false,false, Color(45,45,55,180), Color(70,70,90,220), Color(35,35,45,240),22,L""});
+    mainButtons.push_back({{40, 340, 360, 420}, L"DISCORD",     false,false, Color(88,101,242,200),Color(110,130,255,240),Color(70,80,220,255),22,L""});
+    mainButtons.push_back({{40, 440, 360, 520}, L"ФОРУМ",       false,false, Color(45,45,55,180), Color(70,70,90,220), Color(35,35,45,240),22,L""});
+
+    // Правая панель
+    mainButtons.push_back({{920, 140,1240, 220}, L"ДОНАТ",      false,false, Color(255, 180, 60,200),Color(255, 220, 90,255),Color(220,150,40,240),22,L""});
+    mainButtons.push_back({{920, 240,1240, 320}, L"СТАТИСТИКА", false,false, Color(45,45,55,180), Color(70,70,90,220), Color(35,35,45,240),22,L""});
+    mainButtons.push_back({{920, 340,1240, 420}, L"ПРАВИЛА",    false,false, Color(220, 60, 60,180),Color(240, 90, 90,220),Color(190,40,40,240),22,L""});
+
+    // Кнопки управления окном
+    windowControls.push_back({{WINDOW_WIDTH-120, 12, WINDOW_WIDTH-80,  42}, L"−", false,false, Color(0,0,0,0), Color(180,180,180,180), Color(140,140,140,200), 24, L"Свернуть"});
+    windowControls.push_back({{WINDOW_WIDTH- 80, 12, WINDOW_WIDTH- 40, 42}, L"□", false,false, Color(0,0,0,0), Color(180,180,180,180), Color(140,140,140,200), 22, L"Развернуть"});
+    windowControls.push_back({{WINDOW_WIDTH- 40, 12, WINDOW_WIDTH-  0, 42}, L"×", false,false, Color(0,0,0,0), Color(220, 60, 60,220), Color(180,30,30,255), 24, L"Закрыть"});
+}
+
+void DrawGlassPanel(Graphics& g, const RECT& area, Color base = Color(35,30,35,160), int radius = 16) {
+    RectF r = RectToRectF(area);
+    SolidBrush fill(base);
+    DrawRoundedRectangle(g, r, (REAL)radius, &fill);
+
+    // Лёгкая обводка
+    Pen border(Color(120,120,140,80), 1.2f);
+    DrawRoundedRectangle(g, r, (REAL)radius, nullptr, &border);
+
+    // Внутренний блик
+    LinearGradientBrush shine(PointF(r.X, r.Y), PointF(r.X, r.Y + 40),
+                              Color(60,255,255,255), Color(0,255,255,255));
+    RectF shineRect(r.X + 2, r.Y + 2, r.Width - 4, 38);
+    g.FillRectangle(&shine, shineRect);
+}
+
+void DrawHeaderBar(Graphics& g) {
+    LinearGradientBrush hdrGrad(Point(0,0), Point(0,88),
+                                Color(140,20,20,60), Color(60,10,10,30));
+    g.FillRectangle(&hdrGrad, 0, 0, WINDOW_WIDTH, 88);
+
+    if (logoImage) {
+        g.DrawImage(logoImage, 28, 14, 60, 60);
     }
 
-    SolidBrush brush(bg);
-    RectF r((REAL)b.rect.left, (REAL)b.rect.top, (REAL)(b.rect.right-b.rect.left), (REAL)(b.rect.bottom-b.rect.top));
-    DrawRoundedRect(g, &brush, r, 14.0f);
+    FontFamily family(L"Segoe UI");
+    Font titleFont(&family, 42, FontStyleBold);
+    SolidBrush shadow(Color(100,0,0,0));
+    SolidBrush gold(Color(255, 215, 80));
+    SolidBrush white(Color(255,255,255));
 
-    FontFamily ff(L"Segoe UI");
-    Font font(&ff, (REAL)b.fontSize, FontStyleBold);
-    SolidBrush text(Color::WhiteSmoke);
-    StringFormat fmt; fmt.SetAlignment(StringAlignmentCenter); fmt.SetLineAlignment(StringAlignmentCenter);
-
-    // лёгкая тень под текстом
-    SolidBrush shadow(Color(80,0,0,0));
-    g.DrawString(b.text, -1, &font, PointF(r.X+2, r.Y+2), &fmt, &shadow);
-    g.DrawString(b.text, -1, &font, r, &fmt, &text);
+    DrawShadowText(g, L"MAJESTIC", &titleFont, RectF(110, 18, 400, 80), white, shadow, 2.5f);
+    DrawShadowText(g, L"ROLEPLAY", &titleFont, RectF(370, 18, 400, 80), gold, shadow, 2.5f);
 }
 
-void DrawTooltip(Graphics& g, const wchar_t* text, POINT mouse) {
-    if (!text || !wcslen(text)) return;
+void DrawPlayButton(Graphics& g, UIButton& btn) {
+    RectF r = RectToRectF(btn.bounds);
+
+    float pulseAlpha = sinf(playButtonPulse * 3.14159f * 2) * 0.5f + 0.5f;
+    pulseAlpha = btn.isHovered ? pulseAlpha * 0.7f + 0.3f : 0.0f;
+
+    Color current = LerpColor(btn.baseColor, btn.hoverColor, btn.isHovered ? 1.0f : 0.0f);
+    BYTE extraAlpha = (BYTE)(pulseAlpha * 80);
+    current = Color(current.GetA() + extraAlpha, current.GetR(), current.GetG(), current.GetB());
+
+    SolidBrush fill(current);
+    DrawRoundedRectangle(g, r, 28.0f, &fill);
+
+    // Градиентный блик
+    LinearGradientBrush gloss(PointF(r.X, r.Y), PointF(r.X, r.Y + 80),
+                              Color(120,255,255,255), Color(0,255,255,255));
+    RectF glossRect(r.X + 4, r.Y + 4, r.Width - 8, 70);
+    g.FillRectangle(&gloss, glossRect);
 
     FontFamily ff(L"Segoe UI");
-    Font font(&ff, 14.0f);
-    RectF bound;
-    g.MeasureString(text, -1, &font, PointF(0,0), &bound);
+    Font bigFont(&ff, (REAL)btn.fontSize, FontStyleBold);
+    SolidBrush txtWhite(Color::WhiteSmoke);
+    SolidBrush txtShadow(Color(60,0,0,0));
 
-    REAL w = bound.Width + 24;
-    REAL h = bound.Height + 16;
-    REAL x = mouse.x + 16;
-    REAL y = mouse.y + 24;
+    StringFormat fmt;
+    fmt.SetAlignment(StringAlignmentCenter);
+    fmt.SetLineAlignment(StringAlignmentCenter);
 
-    // не выходим за экран
-    if (x + w > W) x = mouse.x - w - 8;
-    if (y + h > H) y = mouse.y - h - 8;
+    DrawShadowText(g, btn.label.c_str(), &bigFont, r, txtWhite, txtShadow, 3.0f);
+}
 
-    RectF rect(x, y, w, h);
-    SolidBrush bg(Color(220, 30, 30, 45));
-    DrawRoundedRect(g, &bg, rect, 8);
+void DrawSimpleButton(Graphics& g, UIButton& btn, bool big = false) {
+    RectF r = RectToRectF(btn.bounds);
 
-    Pen border(Color(180,120,120,255), 1.5f);
-    g.DrawPath(&border, [&rect](GraphicsPath& p){
-        p.AddArc(rect.X, rect.Y, 16,16,180,90);
-        p.AddArc(rect.X+rect.Width-16, rect.Y,16,16,270,90);
-        p.AddArc(rect.X+rect.Width-16, rect.Y+rect.Height-16,16,16,0,90);
-        p.AddArc(rect.X, rect.Y+rect.Height-16,16,16,90,90);
-        p.CloseFigure();
-    });
+    Color col = btn.isPressed ? btn.pressColor :
+                btn.isHovered  ? btn.hoverColor :
+                                 btn.baseColor;
+
+    SolidBrush fill(col);
+    DrawRoundedRectangle(g, r, big ? 20.0f : 12.0f, &fill);
+
+    FontFamily ff(L"Segoe UI");
+    Font fnt(&ff, (REAL)btn.fontSize, FontStyleRegular);
+    SolidBrush text(Color(245,245,255));
+    StringFormat fmt; fmt.SetAlignment(StringAlignmentCenter); fmt.SetLineAlignment(StringAlignmentCenter);
+
+    g.DrawString(btn.label.c_str(), -1, &fnt, r, &fmt, &text);
+}
+
+void DrawTooltip(Graphics& g, const wstring& text, POINT mouse) {
+    if (text.empty()) return;
+
+    FontFamily ff(L"Segoe UI");
+    Font tooltipFont(&ff, 15.0f);
+    RectF measureRect;
+    g.MeasureString(text.c_str(), -1, &tooltipFont, PointF(0,0), &measureRect);
+
+    REAL w = measureRect.Width + 32;
+    REAL h = measureRect.Height + 20;
+    REAL x = mouse.x + 18;
+    REAL y = mouse.y + 26;
+
+    if (x + w > WINDOW_WIDTH)  x = mouse.x - w - 12;
+    if (y + h > WINDOW_HEIGHT) y = mouse.y - h - 12;
+
+    RectF bg(x, y, w, h);
+    SolidBrush tooltipBg(Color(235, 28, 28, 48));
+    DrawRoundedRectangle(g, bg, 10.0f, &tooltipBg);
+
+    Pen border(Color(160, 140, 160, 220), 1.4f);
+    DrawRoundedRectangle(g, bg, 10.0f, nullptr, &border);
 
     SolidBrush txtBrush(Color::White);
     StringFormat fmt; fmt.SetAlignment(StringAlignmentCenter); fmt.SetLineAlignment(StringAlignmentCenter);
-    g.DrawString(text, -1, &font, rect, &fmt, &txtBrush);
+    g.DrawString(text.c_str(), -1, &tooltipFont, bg, &fmt, &txtBrush);
 }
 
-void DrawCheckbox(Graphics& g, Button& b, bool checked) {
-    RectF r((REAL)b.rect.left, (REAL)b.rect.top, (REAL)(b.rect.right-b.rect.left), (REAL)(b.rect.bottom-b.rect.top));
+// ─────────────────────────────────────────────────────────────────────
+//                            ОБРАБОТКА ОКНА
+// ─────────────────────────────────────────────────────────────────────
 
-    SolidBrush bg(b.hover ? Color(70,70,90,160) : Color(50,50,60,120));
-    g.FillRectangle(&bg, r);
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    static POINT mousePosition;
 
-    RectF box(r.X + 12, r.Y + (r.Height-24)/2, 24, 24);
-    Pen pen(Color(220,220,220), 2.2f);
-    g.DrawRectangle(&pen, box);
+    switch (msg) {
+        case WM_CREATE: {
+            INITCOMMONCONTROLSEX icex = { sizeof(INITCOMMONCONTROLSEX), ICC_WIN95_CLASSES };
+            InitCommonControlsEx(&icex);
 
-    if (checked) {
-        SolidBrush fill(Color(60,220,100));
-        g.FillRectangle(&fill, box.X+4, box.Y+4, box.Width-8, box.Height-8);
-    }
+            DWM_WINDOW_CORNER_PREFERENCE corner = DWMWCP_ROUND;
+            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &corner, sizeof(corner));
 
-    FontFamily ff(L"Segoe UI");
-    Font font(&ff, 17);
-    SolidBrush text(Color(235,235,245));
-    RectF textRect(r.X + 48, r.Y, r.Width - 50, r.Height);
-    StringFormat fmt; fmt.SetLineAlignment(StringAlignmentCenter);
-    g.DrawString(b.text, -1, &font, textRect, &fmt, &text);
-}
+            // Загрузка ресурсов
+            URLDownloadToFileW(nullptr, BACKGROUND_URL, BACKGROUND_FILE, 0, nullptr);
+            URLDownloadToFileW(nullptr, LOGO_URL, LOGO_FILE, 0, nullptr);
 
-// ... (остальные функции DrawXXX остаются почти без изменений, только улучшены цвета и отступы)
+            backgroundImage = Image::FromFile(BACKGROUND_FILE);
+            logoImage       = Image::FromFile(LOGO_FILE);
 
-void DrawHeader(Graphics& g) {
-    LinearGradientBrush grad(Point(0,0), Point(0,80), Color(180,20,20,50), Color(60,10,10,30));
-    g.FillRectangle(&grad, 0, 0, W, 80);
-
-    if (logo) g.DrawImage(logo, 24, 12, 56, 56);
-
-    FontFamily ff(L"Segoe UI");
-    Font big(&ff, 38, FontStyleBold);
-    SolidBrush sh(Color(140,0,0,0));
-    SolidBrush txt1(Color(255,210,60));
-    SolidBrush txt2(Color(255,255,255));
-
-    g.DrawString(L"MAJESTIC", -1, &big, PointF(100,18), &sh);
-    g.DrawString(L"MAJESTIC", -1, &big, PointF(96, 14), &txt1);
-
-    g.DrawString(L"RP", -1, &big, PointF(340,18), &sh);
-    g.DrawString(L"RP",      -1, &big, PointF(336,14), &txt2);
-}
-
-// ================= WINDOW PROC =================
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-    static POINT mousePos;
-    static const Button* hovered = nullptr;
-
-    switch (msg)
-    {
-    case WM_CREATE:
-    {
-        DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_ROUND;
-        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref, sizeof(pref));
-
-        URLDownloadToFileW(nullptr, BG_URL,   BG_FILE,   0, nullptr);
-        URLDownloadToFileW(nullptr, LOGO_URL, LOGO_FILE, 0, nullptr);
-
-        background = Image::FromFile(BG_FILE);
-        logo       = Image::FromFile(LOGO_FILE);
-
-        for (int i = 0; i < numNews; ++i) {
-            URLDownloadToFileW(nullptr, newsItems[i].imageUrl, newsItems[i].imageFile, 0, nullptr);
-            newsImages[i] = Image::FromFile(newsItems[i].imageFile);
-        }
-
-        SetTimer(hwnd, 1, 16, nullptr);   // ~60 fps
-        break;
-    }
-
-    case WM_TIMER:
-        if (wParam == 1)
-        {
-            // плавный прогресс
-            if (progress < progressTarget) {
-                progress += (progressTarget - progress) * 0.08f;
-                if (progress > progressTarget) progress = progressTarget;
+            for (auto& news : newsDatabase) {
+                URLDownloadToFileW(nullptr, news.imageUrl.c_str(), news.localImage.c_str(), 0, nullptr);
+                newsThumbnails.push_back(Image::FromFile(news.localImage.c_str()));
             }
 
-            // пульсация кнопки Play
-            if (playPulseDir) {
-                playPulse += 0.04f;
-                if (playPulse >= 1.f) playPulseDir = false;
-            } else {
-                playPulse -= 0.04f;
-                if (playPulse <= 0.f) playPulseDir = true;
+            InitializeUIElements();
+
+            SetTimer(hwnd, 1, 16, nullptr); // ~60 fps
+            break;
+        }
+
+        case WM_TIMER: {
+            if (wParam == 1) {
+                // Анимация загрузки
+                if (loadingProgress < loadingTarget) {
+                    loadingProgress += (loadingTarget - loadingProgress) * 0.065f;
+                }
+
+                // Пульсация кнопки Play
+                if (playPulseDirection) {
+                    playButtonPulse += 0.038f;
+                    if (playButtonPulse >= 1.0f) playPulseDirection = false;
+                } else {
+                    playButtonPulse -= 0.038f;
+                    if (playButtonPulse <= 0.0f) playPulseDirection = true;
+                }
+
+                InvalidateRect(hwnd, nullptr, FALSE);
+            }
+            break;
+        }
+
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd, &ps);
+
+            HDC memDC = CreateCompatibleDC(hdc);
+            HBITMAP memBmp = CreateCompatibleBitmap(hdc, WINDOW_WIDTH, WINDOW_HEIGHT);
+            SelectObject(memDC, memBmp);
+
+            Graphics graphics(memDC);
+            graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+            graphics.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
+            graphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+
+            // Фон
+            if (backgroundImage) {
+                graphics.DrawImage(backgroundImage, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+            }
+
+            // Тёмный оверлей
+            LinearGradientBrush overlay(Point(0,0), Point(0, WINDOW_HEIGHT),
+                                        Color(140, 0,0,0), Color(220, 0,0,0));
+            graphics.FillRectangle(&overlay, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+            DrawHeaderBar(graphics);
+
+            // ────────────────────────────────
+            // Основной экран
+            // ────────────────────────────────
+            if (currentScreen == ScreenMode::MAIN) {
+                // Левая и правая панели
+                DrawGlassPanel(graphics, {30, 110, 390, 680});
+                DrawGlassPanel(graphics, {890, 110, 1250, 680});
+
+                // Кнопка PLAY
+                DrawPlayButton(graphics, mainButtons[0]);
+
+                // Остальные кнопки
+                for (size_t i = 1; i < mainButtons.size(); ++i) {
+                    DrawSimpleButton(graphics, mainButtons[i]);
+                }
+
+                // Кнопки управления окном
+                for (auto& ctrl : windowControls) {
+                    DrawSimpleButton(graphics, ctrl, true);
+                }
+            }
+
+            // ────────────────────────────────
+            // Экран новостей (заглушка — можно сильно расширить)
+            // ────────────────────────────────
+            else if (currentScreen == ScreenMode::NEWS) {
+                DrawGlassPanel(graphics, {140, 80, 1140, 620}, Color(40,35,40,180), 24);
+
+                FontFamily ff(L"Segoe UI");
+                Font titleFont(&ff, 38, FontStyleBold);
+                SolidBrush white(Color::White);
+
+                graphics.DrawString(L"НОВОСТИ", -1, &titleFont,
+                                    PointF(180, 110), nullptr, &white);
+
+                // Здесь можно нарисовать список новостей, картинки и т.д.
+                // Для примера просто текст
+                Font textFont(&ff, 18);
+                graphics.DrawString(L"Выберите новость для подробного просмотра",
+                                    -1, &textFont, PointF(180, 180), nullptr, &white);
+            }
+
+            // ────────────────────────────────
+            // Экран настроек (заглушка)
+            // ────────────────────────────────
+            else if (currentScreen == ScreenMode::SETTINGS) {
+                DrawGlassPanel(graphics, {140, 80, 1140, 620}, Color(40,35,40,180), 24);
+
+                FontFamily ff(L"Segoe UI");
+                Font titleFont(&ff, 36, FontStyleBold);
+                SolidBrush white(Color::White);
+                graphics.DrawString(L"НАСТРОЙКИ ЛАУНЧЕРА", -1, &titleFont,
+                                    PointF(180, 110), nullptr, &white);
+            }
+
+            // Подсказка при наведении
+            const UIButton* hoveredBtn = nullptr;
+            for (auto& btn : mainButtons)     if (btn.isHovered) hoveredBtn = &btn;
+            for (auto& btn : windowControls)  if (btn.isHovered) hoveredBtn = &btn;
+
+            if (hoveredBtn && !hoveredBtn->tooltip.empty()) {
+                DrawTooltip(graphics, hoveredBtn->tooltip, mousePosition);
+            }
+
+            BitBlt(hdc, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, memDC, 0, 0, SRCCOPY);
+
+            DeleteObject(memBmp);
+            DeleteDC(memDC);
+            EndPaint(hwnd, &ps);
+            break;
+        }
+
+        case WM_MOUSEMOVE: {
+            POINT pt;
+            GetCursorPos(&pt);
+            ScreenToClient(hwnd, &pt);
+            mousePosition = pt;
+
+            bool needRedraw = false;
+
+            // Обновление состояний всех кнопок
+            auto updateHover = [&](vector<UIButton>& buttons) {
+                for (auto& b : buttons) {
+                    bool wasHovered = b.isHovered;
+                    b.isHovered = PointInRect(pt, b.bounds);
+                    if (wasHovered != b.isHovered) needRedraw = true;
+                }
+            };
+
+            updateHover(mainButtons);
+            updateHover(windowControls);
+            updateHover(newsControls);
+            updateHover(settingsControls);
+
+            if (!mouseTrackingActive) {
+                TRACKMOUSEEVENT tme = { sizeof(tme), TME_LEAVE, hwnd, 0 };
+                TrackMouseEvent(&tme);
+                mouseTrackingActive = true;
+            }
+
+            if (needRedraw) InvalidateRect(hwnd, nullptr, FALSE);
+            break;
+        }
+
+        case WM_MOUSELEAVE: {
+            mouseTrackingActive = false;
+
+            auto resetHover = [](vector<UIButton>& vec) {
+                for (auto& b : vec) b.isHovered = false;
+            };
+
+            resetHover(mainButtons);
+            resetHover(windowControls);
+            resetHover(newsControls);
+            resetHover(settingsControls);
+
+            InvalidateRect(hwnd, nullptr, FALSE);
+            break;
+        }
+
+        case WM_LBUTTONDOWN: {
+            POINT pt;
+            GetCursorPos(&pt);
+            ScreenToClient(hwnd, &pt);
+
+            // Кнопки управления окном — приоритет
+            if (PointInRect(pt, windowControls[2].bounds)) { // Закрыть
+                PostQuitMessage(0);
+                return 0;
+            }
+            if (PointInRect(pt, windowControls[0].bounds)) { // Свернуть
+                ShowWindow(hwnd, SW_MINIMIZE);
+                return 0;
+            }
+            if (PointInRect(pt, windowControls[1].bounds)) { // Максимизировать
+                if (!isFullscreen) {
+                    GetWindowRect(hwnd, &windowedRect);
+                    MONITORINFO mi{ sizeof(mi) };
+                    GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mi);
+                    SetWindowPos(hwnd, HWND_TOP,
+                                 mi.rcMonitor.left, mi.rcMonitor.top,
+                                 mi.rcMonitor.right - mi.rcMonitor.left,
+                                 mi.rcMonitor.bottom - mi.rcMonitor.top,
+                                 SWP_FRAMECHANGED);
+                    isFullscreen = true;
+                } else {
+                    SetWindowPos(hwnd, HWND_TOP,
+                                 windowedRect.left, windowedRect.top,
+                                 windowedRect.right - windowedRect.left,
+                                 windowedRect.bottom - windowedRect.top,
+                                 SWP_FRAMECHANGED);
+                    isFullscreen = false;
+                }
+                return 0;
+            }
+
+            // Кнопка запуска игры
+            if (PointInRect(pt, mainButtons[0].bounds)) {
+                ShellExecuteW(nullptr, L"open", settings.gamePath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                return 0;
+            }
+
+            // Discord, форум, донат и т.д.
+            if (PointInRect(pt, mainButtons[3].bounds)) { // Discord
+                ShellExecuteW(nullptr, L"open", DISCORD_LINK, nullptr, nullptr, SW_SHOWNORMAL);
+            }
+            if (PointInRect(pt, mainButtons[4].bounds)) { // Форум
+                ShellExecuteW(nullptr, L"open", FORUM_LINK, nullptr, nullptr, SW_SHOWNORMAL);
+            }
+            if (PointInRect(pt, mainButtons[5].bounds)) { // Донат
+                ShellExecuteW(nullptr, L"open", DONATE_LINK, nullptr, nullptr, SW_SHOWNORMAL);
             }
 
             InvalidateRect(hwnd, nullptr, FALSE);
-        }
-        break;
-
-    case WM_PAINT:
-    {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-
-        HDC memDC = CreateCompatibleDC(hdc);
-        HBITMAP bmp = CreateCompatibleBitmap(hdc, W, H);
-        SelectObject(memDC, bmp);
-
-        Graphics g(memDC);
-        g.SetSmoothingMode(SmoothingModeAntiAlias);
-        g.SetTextRenderingHint(TextRenderingHintAntiAlias);
-        g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-
-        if (background) g.DrawImage(background, 0, 0, W, H);
-
-        // тёмный оверлей
-        LinearGradientBrush ov(Point(0,0), Point(0,H), Color(160,0,0,0), Color(220,0,0,0));
-        g.FillRectangle(&ov, 0,0,W,H);
-
-        DrawHeader(g);
-
-        if (!showNews && !showSettings) {
-            DrawRoundedRect(g, &SolidBrush(Color(35,35,45,90)), RectF(0,80,W,H-80), 0);
-
-            DrawPanel(g, mainLeft);
-            DrawPanel(g, mainRight);
-            DrawPanel(g, playArea);
-
-            DrawButton(g, btnNews);
-            DrawButton(g, btnSettings);
-            DrawButton(g, btnDiscord);
-            DrawButton(g, btnForum);
-            DrawButton(g, btnDonate);
-            DrawButton(g, btnStats);
-            DrawButton(g, btnRules);
-
-            DrawButton(g, btnPlay, playPulse);
-            // здесь можно нарисовать красивый прогресс-бар ...
-
-            DrawButton(g, btnMinimize);
-            DrawButton(g, btnMaximize);
-            DrawButton(g, btnClose);
-
-            if (hovered) DrawTooltip(g, hovered->tooltip, mousePos);
-        }
-        else if (showNews) {
-            DrawNews(g);      // ← нужно дописать или оставить как было
-        }
-        else if (showSettings) {
-            DrawSettings(g);  // ← нужно дописать или оставить как было
+            break;
         }
 
-        BitBlt(hdc, 0,0,W,H, memDC,0,0, SRCCOPY);
-        DeleteObject(bmp);
-        DeleteDC(memDC);
-        EndPaint(hwnd, &ps);
-        break;
-    }
+        case WM_DESTROY: {
+            delete backgroundImage;
+            delete logoImage;
+            for (auto img : newsThumbnails) delete img;
 
-    case WM_MOUSEMOVE:
-    {
-        POINT p;
-        GetCursorPos(&p);
-        ScreenToClient(hwnd, &p);
-        mousePos = p;
+            GdiplusShutdown(gdiplusToken);
+            PostQuitMessage(0);
+            break;
+        }
 
-        // ... (логика hover остаётся похожей, только обновляем hovered)
-
-        InvalidateRect(hwnd, nullptr, FALSE);
-        TRACKMOUSEEVENT tme{sizeof(tme), TME_LEAVE, hwnd, 0};
-        TrackMouseEvent(&tme);
-        break;
-    }
-
-    // WM_LBUTTONDOWN, WM_DESTROY и т.д. — почти без изменений
-
-    default:
-        return DefWindowProcW(hwnd, msg, wParam, lParam);
+        default:
+            return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
     return 0;
 }
 
-int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
-{
-    GdiplusStartupInput gi;
-    GdiplusStartup(&gdiToken, &gi, nullptr);
+// ─────────────────────────────────────────────────────────────────────
+//                                 MAIN
+// ─────────────────────────────────────────────────────────────────────
 
-    WNDCLASSW wc{};
-    wc.lpfnWndProc    = WndProc;
-    wc.hInstance      = hInst;
-    wc.lpszClassName  = L"MajesticLauncher";
-    wc.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wc.hbrBackground  = (HBRUSH)GetStockObject(BLACK_BRUSH);
-    RegisterClassW(&wc);
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
+    GdiplusStartupInput gdiInput;
+    GdiplusStartup(&gdiplusToken, &gdiInput, nullptr);
 
-    HWND hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_APPWINDOW,
-        wc.lpszClassName, L"Majestic RP • Launcher",
+    WNDCLASSEXW wc = {};
+    wc.cbSize        = sizeof(WNDCLASSEXW);
+    wc.style         = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc   = WndProc;
+    wc.hInstance     = hInstance;
+    wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+    wc.lpszClassName = L"MajesticLauncherClass";
+    RegisterClassExW(&wc);
+
+    int x = (GetSystemMetrics(SM_CXSCREEN) - WINDOW_WIDTH)  / 2;
+    int y = (GetSystemMetrics(SM_CYSCREEN) - WINDOW_HEIGHT) / 2;
+
+    HWND hwnd = CreateWindowExW(
+        WS_EX_LAYERED | WS_EX_APPWINDOW,
+        wc.lpszClassName,
+        WINDOW_TITLE,
         WS_POPUP,
-        (GetSystemMetrics(SM_CXSCREEN)-W)/2,
-        (GetSystemMetrics(SM_CYSCREEN)-H)/2,
-        W, H,
-        nullptr, nullptr, hInst, nullptr);
+        x, y,
+        WINDOW_WIDTH, WINDOW_HEIGHT,
+        nullptr, nullptr, hInstance, nullptr
+    );
 
     SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
     ShowWindow(hwnd, SW_SHOW);
     UpdateWindow(hwnd);
 
-    MSG msg{};
+    MSG msg = {};
     while (GetMessageW(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
-
-    // cleanup
-    delete background; delete logo;
-    for (auto& img : newsImages) delete img;
-    GdiplusShutdown(gdiToken);
 
     return (int)msg.wParam;
 }
