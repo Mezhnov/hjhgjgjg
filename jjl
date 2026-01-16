@@ -1,10 +1,6 @@
-static std::unique_ptr<Gdiplus::Font> MakeFontPtr(const HtmlStyle& st)
-{
-    int fs = Gdiplus::FontStyleRegular;
-    if (st.bold) fs |= Gdiplus::FontStyleBold;
-    if (st.italic) fs |= Gdiplus::FontStyleItalic;
-    if (st.underline) fs |= Gdiplus::FontStyleUnderline;
-
-    // Важно: создаём Font без копирования (и без FontFamily на стеке)
-    return std::make_unique<Gdiplus::Font>(L"Segoe UI", st.size, fs, Gdiplus::UnitPixel);
-}
+auto font = MakeFontPtr(st);
+SolidBrush brush(st.color);
+...
+g.MeasureString(sub.c_str(), -1, font.get(), measureR, &bound);
+...
+g.DrawString(chunk.c_str(), -1, font.get(), PointF(x, y), &brush);
