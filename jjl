@@ -17,7 +17,7 @@ const int H = 700;
 
 const wchar_t* BG_URL   = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
 const wchar_t* BG_FILE  = L"background.jpg";
-const wchar_t* LOGO_URL = L"https://i.imgur.com/placeholder.png"; // замените
+const wchar_t* LOGO_URL = L"https://i.imgur.com/placeholder.png"; // ← замените на реальный логотип
 const wchar_t* LOGO_FILE = L"logo.png";
 
 const wchar_t* GTA_PATH = L"C:\\Games\\GTA5\\GTA5.exe";
@@ -29,8 +29,8 @@ Image* logo = nullptr;
 bool isFullscreen = false;
 RECT normalRect;
 float progress = 0.0f;
-bool showNews    = false;
-bool showSettings = false;
+bool showNews      = false;
+bool showSettings  = false;
 int currentNewsIndex = 0;
 
 // ================= НОВОСТИ =================
@@ -42,18 +42,18 @@ struct NewsItem {
 };
 
 NewsItem newsItems[] = {
-    { L"Обновление 1.5: Новые машины!", L"Добавлены новые автомобили и миссии.", L"https://example.com/news1.jpg", L"news1.jpg" },
-    { L"Конкурс на лучший билд", L"Участвуйте и выигрывайте призы!", L"https://example.com/news2.jpg", L"news2.jpg" },
-    { L"Бан волна читеров", L"Очищаем сервер от нарушителей.", L"https://example.com/news3.jpg", L"news3.jpg" },
+    { L"Обновление 1.5: Новые машины!", L"Добавлены новые автомобили и миссии. Подробности на форуме.", L"https://example.com/news1.jpg", L"news1.jpg" },
+    { L"Конкурс на лучший билд", L"Участвуйте и выигрывайте призы! Срок до 20.01.2026.", L"https://example.com/news2.jpg", L"news2.jpg" },
+    { L"Бан волна читеров", L"Очищаем сервер от нарушителей. Спасибо за репорты!", L"https://example.com/news3.jpg", L"news3.jpg" },
 };
 const int numNews = sizeof(newsItems) / sizeof(NewsItem);
-Image* newsImages[3] = {};
+Image* newsImages[3] = {nullptr};
 
-// ================= ПРИМЕР НАСТРОЕК (можно расширять) =================
-bool settingFullscreen = false;
-bool settingAutoUpdate = true;
-bool settingSoundEffects = true;
-int  settingVolume = 75;           // 0–100
+// ================= НАСТРОЙКИ =================
+bool settingFullscreen    = false;
+bool settingAutoUpdate    = true;
+bool settingSoundEffects  = true;
+int  settingVolume        = 75;   // 0–100
 
 // ================= UI СТРУКТУРЫ =================
 struct Button {
@@ -73,7 +73,7 @@ struct Panel {
 };
 
 // ================= КНОПКИ =================
-Button btnPlay     = {{450,500,750,580}, L"ЗАПУСТИТЬ ИГРУ", false, Color(80, 255,140,0),  Color(255,255,165,0), 24, L"Запустить GTA V"};
+Button btnPlay     = {{450,500,750,580}, L"ЗАПУСТИТЬ ИГРУ", false, Color(80, 255,140,0),  Color(255,255,165,0),  24, L"Запустить GTA V"};
 Button btnNews     = {{50, 180,350,250}, L"НОВОСТИ",        false, Color(120,30,30,35),   Color(180,40,40,45),   18, L"Последние новости"};
 Button btnSettings = {{50, 270,350,340}, L"НАСТРОЙКИ",      false, Color(120,30,30,35),   Color(180,40,40,45),   18, L"Настройки лаунчера"};
 Button btnDiscord  = {{50, 360,350,430}, L"DISCORD",        false, Color(120,88,101,242), Color(200,88,101,242), 18, L"Discord сообщество"};
@@ -81,29 +81,28 @@ Button btnForum    = {{50, 450,350,520}, L"ФОРУМ",          false, Color(12
 Button btnDonate   = {{850,180,1150,250},L"ДОНАТ",          false, Color(120,255,215,0),  Color(200,255,215,0),  18, L"Поддержать проект"};
 Button btnStats    = {{850,270,1150,340},L"СТАТИСТИКА",     false, Color(120,30,30,35),   Color(180,40,40,45),   18, L"Статистика"};
 Button btnRules    = {{850,360,1150,430},L"ПРАВИЛА",        false, Color(120,200,0,0),    Color(180,220,20,20),  18, L"Правила сервера"};
-Button btnEvents   = {{50, 540,350,610}, L"СОБЫТИЯ",        false, Color(120,0,200,200),  Color(180,20,220,220), 18, L"События"};
+Button btnEvents   = {{50,  540,350,610},L"СОБЫТИЯ",        false, Color(120,0,200,200),  Color(180,20,220,220), 18, L"События"};
 
 Button btnMinimize = {{W-140,10,W-100,40}, L"—", false, Color(0,0,0,0), Color(100,255,255,255), 20, L"Свернуть"};
 Button btnMaximize = {{W-90, 10,W-50, 40}, L"□", false, Color(0,0,0,0), Color(100,255,255,255), 20, L"Развернуть"};
 Button btnClose    = {{W-40, 10,W-10, 40}, L"✕", false, Color(0,0,0,0), Color(200,255,0,0),     20, L"Закрыть"};
 
-Button btnNewsBack    = {{50,  50, 150,100}, L"НАЗАД", false, Color(120,30,30,35), Color(180,40,40,45), 18, L"Вернуться"};
-Button btnNewsPrev    = {{400,600,500,650},  L"<",    false, Color(120,30,30,35), Color(180,40,40,45), 24, L"Предыдущая"};
-Button btnNewsNext    = {{700,600,800,650},  L">",    false, Color(120,30,30,35), Color(180,40,40,45), 24, L"Следующая"};
+Button btnNewsBack     = {{50,  50,150,100}, L"НАЗАД", false, Color(120,30,30,35), Color(180,40,40,45), 18, L"Вернуться"};
+Button btnNewsPrev     = {{400,600,500,650}, L"<",    false, Color(120,30,30,35), Color(180,40,40,45), 24, L"Предыдущая"};
+Button btnNewsNext     = {{700,600,800,650}, L">",    false, Color(120,30,30,35), Color(180,40,40,45), 24, L"Следующая"};
 
-Button btnSettingsBack = {{50,  50, 150,100}, L"НАЗАД", false, Color(120,30,30,35), Color(180,40,40,45), 18, L"Вернуться"};
+Button btnSettingsBack = {{50,  50,150,100}, L"НАЗАД", false, Color(120,30,30,35), Color(180,40,40,45), 18, L"Вернуться"};
 
-// Чекбоксы и слайдер (имитация)
 Button btnCheckFullscreen  = {{250,180,700,220}, L"Запускать игру в полноэкранном режиме", false, Color(0,0,0,0), Color(80,80,80,120), 16, L""};
 Button btnCheckAutoUpdate  = {{250,240,700,280}, L"Автоматически проверять обновления",     false, Color(0,0,0,0), Color(80,80,80,120), 16, L""};
 Button btnCheckSound       = {{250,300,700,340}, L"Включить звуковые эффекты лаунчера",     false, Color(0,0,0,0), Color(80,80,80,120), 16, L""};
 
 // ================= ПАНЕЛИ =================
-Panel mainPanel  = {{30,  150,370,640}, Color(140,15,15,20), 15};
-Panel rightPanel = {{830, 150,1170,460},Color(140,15,15,20), 15};
-Panel playPanel  = {{430, 480,770,600}, Color(0,0,0,0),      20};
-Panel newsPanel  = {{200, 100,1000,550},Color(140,15,15,20), 20};
-Panel settingsPanel = {{200,100,1000,550},Color(140,15,15,20), 20};
+Panel mainPanel     = {{30,  150,370,640}, Color(140,15,15,20), 15};
+Panel rightPanel    = {{830, 150,1170,460},Color(140,15,15,20), 15};
+Panel playPanel     = {{430, 480,770,600}, Color(0,0,0,0),      20};
+Panel newsPanel     = {{200, 100,1000,550},Color(140,15,15,20), 20};
+Panel settingsPanel = {{200, 100,1000,550},Color(140,15,15,20), 20};
 
 // ================= УТИЛИТЫ =================
 bool InRect(const POINT& p, const RECT& r) {
@@ -122,22 +121,22 @@ void DrawRoundedRect(Graphics& g, Brush* brush, const RectF& rect, float radius)
 
 void DrawPanel(Graphics& g, const Panel& p) {
     SolidBrush brush(p.bgColor);
-    RectF rect((REAL)p.rect.left, (REAL)p.rect.top, (REAL)(p.rect.right-p.rect.left), (REAL)(p.rect.bottom-p.rect.top));
+    RectF rect((REAL)p.rect.left, (REAL)p.rect.top, (REAL)(p.rect.right - p.rect.left), (REAL)(p.rect.bottom - p.rect.top));
     if (p.borderRadius > 0) DrawRoundedRect(g, &brush, rect, (float)p.borderRadius);
     else g.FillRectangle(&brush, rect);
 
-    Pen shadow(Color(50,0,0,0), 2);
-    GraphicsPath sp; sp.AddRectangle(rect);
-    g.TranslateTransform(2,2);
-    g.DrawPath(&shadow, &sp);
+    Pen shadowPen(Color(50,0,0,0), 2.0f);
+    GraphicsPath shadowPath; shadowPath.AddRectangle(rect);
+    g.TranslateTransform(2.0f, 2.0f);
+    g.DrawPath(&shadowPen, &shadowPath);
     g.ResetTransform();
 }
 
 void DrawButton(Graphics& g, const Button& b) {
     Color bg = b.hover ? b.hoverColor : b.normalColor;
     SolidBrush brush(bg);
-    RectF r((REAL)b.rect.left, (REAL)b.rect.top, (REAL)(b.rect.right-b.rect.left), (REAL)(b.rect.bottom-b.rect.top));
-    DrawRoundedRect(g, &brush, r, 10);
+    RectF r((REAL)b.rect.left, (REAL)b.rect.top, (REAL)(b.rect.right - b.rect.left), (REAL)(b.rect.bottom - b.rect.top));
+    DrawRoundedRect(g, &brush, r, 10.0f);
 
     if (b.hover) {
         Pen pen(Color(180,255,255,255), 2.5f);
@@ -156,16 +155,13 @@ void DrawButton(Graphics& g, const Button& b) {
 }
 
 void DrawCheckbox(Graphics& g, const Button& b, bool checked) {
-    RectF r((REAL)b.rect.left, (REAL)b.rect.top, (REAL)(b.rect.right-b.rect.left), (REAL)(b.rect.bottom-b.rect.top));
+    RectF r((REAL)b.rect.left, (REAL)b.rect.top, (REAL)(b.rect.right - b.rect.left), (REAL)(b.rect.bottom - b.rect.top));
 
-    // Фон
     SolidBrush bg(b.hover ? Color(60,60,60,180) : Color(40,40,40,140));
     g.FillRectangle(&bg, r);
 
-    // Квадрат чекбокса
     RectF box(r.X + 10, r.Y + (r.Height-20)/2, 20, 20);
-    SolidBrush border(Color::White);
-    Pen pen(&border, 2);
+    Pen pen(Color::White, 2);
     g.DrawRectangle(&pen, box);
 
     if (checked) {
@@ -173,13 +169,11 @@ void DrawCheckbox(Graphics& g, const Button& b, bool checked) {
         g.FillRectangle(&fill, box.X+3, box.Y+3, box.Width-6, box.Height-6);
     }
 
-    // Текст
     FontFamily ff(L"Segoe UI");
     Font font(&ff, 16, FontStyleRegular);
     SolidBrush text(Color::White);
     RectF textRect(r.X + 40, r.Y, r.Width - 50, r.Height);
-    StringFormat fmt;
-    fmt.SetLineAlignment(StringAlignmentCenter);
+    StringFormat fmt; fmt.SetLineAlignment(StringAlignmentCenter);
     g.DrawString(b.text, -1, &font, textRect, &fmt, &text);
 }
 
@@ -193,7 +187,6 @@ void DrawVolumeSlider(Graphics& g, int volume) {
     LinearGradientBrush grad(PointF(250,380), PointF(750,380), Color(40,180,255), Color(0,120,255));
     g.FillRectangle(&grad, fill);
 
-    // Круглый ползунок
     REAL x = 250 + 500 * pos - 12;
     EllipseF circle(x, 380 - 12, 24, 24);
     SolidBrush circleBrush(Color::White);
@@ -201,7 +194,6 @@ void DrawVolumeSlider(Graphics& g, int volume) {
     Pen border(Color(200,200,200), 2);
     g.DrawEllipse(&border, circle);
 
-    // Подпись
     wchar_t txt[32];
     swprintf(txt, 32, L"Громкость: %d%%", volume);
     FontFamily ff(L"Segoe UI");
@@ -210,7 +202,104 @@ void DrawVolumeSlider(Graphics& g, int volume) {
     g.DrawString(txt, -1, &font, PointF(250, 410), &text);
 }
 
-// ... (остальные функции DrawHeader, DrawServerInfo, DrawInfoBoxes, DrawProgressBar, DrawNews остаются без изменений)
+void DrawGradientOverlay(Graphics& g) {
+    LinearGradientBrush gradient(Point(0,0), Point(0,H), Color(220,0,0,0), Color(0,0,0,0));
+    g.FillRectangle(&gradient, 0,0,W,H);
+
+    LinearGradientBrush side(Point(0,0), Point(W,0), Color(100,0,0,0), Color(0,0,0,0));
+    g.FillRectangle(&side, 0,0,W,H);
+}
+
+void DrawHeader(Graphics& g) {
+    LinearGradientBrush headerGrad(Point(0,0), Point(0,60), Color(200,10,10,15), Color(100,10,10,15));
+    g.FillRectangle(&headerGrad, 0,0,W,60);
+
+    if (logo) g.DrawImage(logo, 20,10,50,50);
+
+    FontFamily ff(L"Segoe UI");
+    Font titleFont(&ff, 32.0f, FontStyleBold);
+    SolidBrush shadow(Color(100,0,0,0));
+    SolidBrush orange(Color(255,255,140,0));
+    SolidBrush white(Color::White);
+
+    g.DrawString(L"MAJESTIC", -1, &titleFont, PointF(82,12), &shadow);
+    g.DrawString(L"ROLEPLAY", -1, &titleFont, PointF(262,12), &shadow);
+    g.DrawString(L"MAJESTIC", -1, &titleFont, PointF(80,10), &orange);
+    g.DrawString(L"ROLEPLAY", -1, &titleFont, PointF(260,10), &white);
+}
+
+void DrawServerInfo(Graphics& g) {
+    FontFamily ff(L"Segoe UI");
+    Font infoFont(&ff, 14.0f, FontStyleBold);
+    Font smallFont(&ff, 11.0f, FontStyleRegular);
+    SolidBrush white(Color::White), green(Color(0,255,0)), gray(Color(200,200,200,200));
+
+    g.DrawString(L"● ONLINE", -1, &infoFont, PointF((REAL)W-250,20), &green);
+    g.DrawString(L"Онлайн: 2847/3000", -1, &smallFont, PointF((REAL)W-380,23), &gray);
+}
+
+void DrawInfoBoxes(Graphics& g) {
+    FontFamily ff(L"Segoe UI");
+    Font titleFont(&ff, 16.0f, FontStyleBold);
+    Font textFont(&ff, 12.0f, FontStyleRegular);
+    SolidBrush white(Color::White), gray(Color(220,200,200,200));
+
+    SolidBrush boxBg(Color(50,255,255,255));
+    RectF box1(440,390,140,60), box2(590,390,170,60);
+    DrawRoundedRect(g, &boxBg, box1, 5);
+    DrawRoundedRect(g, &boxBg, box2, 5);
+
+    g.DrawString(L"Версия игры",         -1, &textFont, PointF(450,400), &gray);
+    g.DrawString(L"3095.2",              -1, &titleFont, PointF(450,420), &white);
+    g.DrawString(L"Последнее обновление", -1, &textFont, PointF(600,400), &gray);
+    g.DrawString(L"15.01.2025",          -1, &titleFont, PointF(600,420), &white);
+}
+
+void DrawProgressBar(Graphics& g, float progress) {
+    RectF bgRect(450,630,300,12);
+    RectF progressRect(450,630,300*progress,12);
+
+    SolidBrush bgBrush(Color(100,50,50,50));
+    LinearGradientBrush progressBrush(PointF(450,630), PointF(750,630), Color(255,255,140,0), Color(255,200,0,0));
+
+    DrawRoundedRect(g, &bgBrush, bgRect, 6);
+    DrawRoundedRect(g, &progressBrush, progressRect, 6);
+
+    wchar_t txt[16];
+    swprintf(txt, 16, L"%.0f%%", progress*100);
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, 10.0f, FontStyleRegular);
+    SolidBrush textBrush(Color::White);
+    g.DrawString(txt, -1, &font, PointF(580,632), &textBrush);
+}
+
+void DrawNews(Graphics& g) {
+    DrawPanel(g, newsPanel);
+
+    FontFamily ff(L"Segoe UI");
+    Font titleFont(&ff, 24.0f, FontStyleBold);
+    Font descFont(&ff, 14.0f, FontStyleRegular);
+    SolidBrush white(Color::White);
+
+    RectF titleRect(220,120,760,50);
+    g.DrawString(newsItems[currentNewsIndex].title, -1, &titleFont, titleRect, nullptr, &white);
+
+    RectF descRect(220,180,760,200);
+    g.DrawString(newsItems[currentNewsIndex].description, -1, &descFont, descRect, nullptr, &white);
+
+    if (newsImages[currentNewsIndex]) {
+        g.DrawImage(newsImages[currentNewsIndex], 220, 400, 760, 120);
+    }
+
+    DrawButton(g, btnNewsPrev);
+    DrawButton(g, btnNewsNext);
+
+    wchar_t idx[16];
+    swprintf(idx, 16, L"%d / %d", currentNewsIndex+1, numNews);
+    g.DrawString(idx, -1, &descFont, PointF(580,620), &white);
+
+    DrawButton(g, btnNewsBack);
+}
 
 void DrawSettings(Graphics& g) {
     DrawPanel(g, settingsPanel);
@@ -218,7 +307,7 @@ void DrawSettings(Graphics& g) {
     FontFamily ff(L"Segoe UI");
     Font titleFont(&ff, 28, FontStyleBold);
     SolidBrush white(Color::White);
-    g.DrawString(L"НАСТРОЙКИ ЛАУНЧЕРА", -1, &titleFont, PointF(250, 120), &white);
+    g.DrawString(L"НАСТРОЙКИ ЛАУНЧЕРА", -1, &titleFont, PointF(250,120), &white);
 
     DrawCheckbox(g, btnCheckFullscreen,  settingFullscreen);
     DrawCheckbox(g, btnCheckAutoUpdate,  settingAutoUpdate);
@@ -233,7 +322,7 @@ void DrawSettings(Graphics& g) {
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     static POINT mousePos;
-    static const Button* hovered = nullptr;
+    static const Button* hoveredButton = nullptr;
 
     switch (msg)
     {
@@ -242,25 +331,25 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_ROUND;
         DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref, sizeof(pref));
 
-        URLDownloadToFileW(0, BG_URL,   BG_FILE,   0, 0);
-        URLDownloadToFileW(0, LOGO_URL, LOGO_FILE, 0, 0);
+        URLDownloadToFileW(nullptr, BG_URL,   BG_FILE,   0, nullptr);
+        URLDownloadToFileW(nullptr, LOGO_URL, LOGO_FILE, 0, nullptr);
         background = Image::FromFile(BG_FILE);
-        logo = Image::FromFile(LOGO_FILE);
+        logo       = Image::FromFile(LOGO_FILE);
 
-        for (int i = 0; i < numNews; i++) {
-            URLDownloadToFileW(0, newsItems[i].imageUrl, newsItems[i].imageFile, 0, 0);
+        for (int i = 0; i < numNews; ++i) {
+            URLDownloadToFileW(nullptr, newsItems[i].imageUrl, newsItems[i].imageFile, 0, nullptr);
             newsImages[i] = Image::FromFile(newsItems[i].imageFile);
         }
 
-        SetTimer(hwnd, 1, 50, 0);
+        SetTimer(hwnd, 1, 50, nullptr);
         break;
     }
 
     case WM_TIMER:
         if (wParam == 1) {
-            progress += 0.005f;
-            if (progress > 1) progress = 0;
-            InvalidateRect(hwnd, 0, FALSE);
+            progress += 0.01f;
+            if (progress > 1.0f) progress = 1.0f;
+            InvalidateRect(hwnd, nullptr, FALSE);
         }
         break;
 
@@ -268,16 +357,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-        HDC mem = CreateCompatibleDC(hdc);
-        HBITMAP bmp = CreateCompatibleBitmap(hdc, W, H);
-        SelectObject(mem, bmp);
 
-        Graphics g(mem);
+        HDC memDC = CreateCompatibleDC(hdc);
+        HBITMAP memBmp = CreateCompatibleBitmap(hdc, W, H);
+        SelectObject(memDC, memBmp);
+
+        Graphics g(memDC);
         g.SetSmoothingMode(SmoothingModeAntiAlias);
         g.SetTextRenderingHint(TextRenderingHintAntiAlias);
+        g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
 
-        if (background) g.DrawImage(background, 0,0,W,H);
-        // DrawGradientOverlay(g);  // если нужен
+        if (background) g.DrawImage(background, 0, 0, W, H);
+        DrawGradientOverlay(g);
         DrawHeader(g);
         DrawServerInfo(g);
 
@@ -307,90 +398,115 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         DrawButton(g, btnMaximize);
         DrawButton(g, btnClose);
 
-        if (hovered) DrawTooltip(g, hovered->tooltip, mousePos);
+        if (hoveredButton) DrawTooltip(g, hoveredButton->tooltip, mousePos);
 
-        BitBlt(hdc,0,0,W,H,mem,0,0,SRCCOPY);
-        DeleteObject(bmp);
-        DeleteDC(mem);
+        BitBlt(hdc, 0, 0, W, H, memDC, 0, 0, SRCCOPY);
+        DeleteObject(memBmp);
+        DeleteDC(memDC);
         EndPaint(hwnd, &ps);
         break;
     }
 
     case WM_MOUSEMOVE:
     {
-        POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
+        POINT p;
+        GetCursorPos(&p);
+        ScreenToClient(hwnd, &p);
         mousePos = p;
 
-        static Button* mainBtns[] = {
-            &btnPlay, &btnNews, &btnSettings, &btnDiscord, &btnForum,
-            &btnDonate, &btnStats, &btnRules, &btnEvents,
-            &btnMinimize, &btnMaximize, &btnClose
+        static Button* mainButtons[] = {
+            &btnPlay, &btnNews, &btnSettings, &btnDiscord,
+            &btnForum, &btnDonate, &btnStats, &btnRules,
+            &btnEvents, &btnMinimize, &btnMaximize, &btnClose
         };
 
-        static Button* newsBtns[] = {
+        static Button* newsButtons[] = {
             &btnNewsBack, &btnNewsPrev, &btnNewsNext,
             &btnMinimize, &btnMaximize, &btnClose
         };
 
-        static Button* settingsBtns[] = {
-            &btnSettingsBack, &btnCheckFullscreen, &btnCheckAutoUpdate,
-            &btnCheckSound, &btnMinimize, &btnMaximize, &btnClose
+        static Button* settingsButtons[] = {
+            &btnSettingsBack, &btnCheckFullscreen,
+            &btnCheckAutoUpdate, &btnCheckSound,
+            &btnMinimize, &btnMaximize, &btnClose
         };
 
-        Button** btns = nullptr;
-        int cnt = 0;
+        Button** buttons = nullptr;
+        int count = 0;
 
-        if (showSettings)      { btns = settingsBtns;   cnt = sizeof(settingsBtns)/sizeof(Button*); }
-        else if (showNews)     { btns = newsBtns;       cnt = sizeof(newsBtns)/sizeof(Button*); }
-        else                   { btns = mainBtns;       cnt = sizeof(mainBtns)/sizeof(Button*); }
+        if (showSettings) {
+            buttons = settingsButtons;
+            count = sizeof(settingsButtons) / sizeof(settingsButtons[0]);
+        }
+        else if (showNews) {
+            buttons = newsButtons;
+            count = sizeof(newsButtons) / sizeof(newsButtons[0]);
+        }
+        else {
+            buttons = mainButtons;
+            count = sizeof(mainButtons) / sizeof(mainButtons[0]);
+        }
 
-        bool redraw = false;
+        bool needRedraw = false;
         const Button* newHover = nullptr;
 
-        for (int i = 0; i < cnt; i++) {
-            Button* b = btns[i];
-            bool was = b->hover;
+        for (int i = 0; i < count; ++i) {
+            Button* b = buttons[i];
+            bool oldHover = b->hover;
             b->hover = InRect(p, b->rect);
-            if (was != b->hover) redraw = true;
+            if (oldHover != b->hover) needRedraw = true;
             if (b->hover) newHover = b;
         }
 
-        if (hovered != newHover) {
-            hovered = newHover;
-            redraw = true;
+        if (hoveredButton != newHover) {
+            hoveredButton = newHover;
+            needRedraw = true;
         }
 
-        if (redraw) InvalidateRect(hwnd, 0, FALSE);
+        if (needRedraw) InvalidateRect(hwnd, nullptr, FALSE);
 
-        TRACKMOUSEEVENT tme = {sizeof(tme), TME_LEAVE, hwnd, 0};
+        TRACKMOUSEEVENT tme = { sizeof(tme), TME_LEAVE, hwnd, 0 };
         TrackMouseEvent(&tme);
         break;
     }
 
     case WM_MOUSELEAVE:
-        hovered = nullptr;
-        InvalidateRect(hwnd, 0, FALSE);
+        hoveredButton = nullptr;
+        InvalidateRect(hwnd, nullptr, FALSE);
         break;
 
     case WM_LBUTTONDOWN:
     {
-        POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
+        POINT p;
+        GetCursorPos(&p);
+        ScreenToClient(hwnd, &p);
 
-        // Системные кнопки всегда
-        if (InRect(p, btnClose.rect))    { PostQuitMessage(0); return 0; }
-        if (InRect(p, btnMinimize.rect)) { ShowWindow(hwnd, SW_MINIMIZE); return 0; }
+        // Системные кнопки — всегда
+        if (InRect(p, btnClose.rect)) {
+            PostQuitMessage(0);
+            return 0;
+        }
+        if (InRect(p, btnMinimize.rect)) {
+            ShowWindow(hwnd, SW_MINIMIZE);
+            return 0;
+        }
         if (InRect(p, btnMaximize.rect)) {
-            // ... (код полноэкранного режима без изменений)
             if (!isFullscreen) {
                 GetWindowRect(hwnd, &normalRect);
-                MONITORINFO mi{sizeof(mi)};
+                MONITORINFO mi = { sizeof(mi) };
                 GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mi);
-                SetWindowPos(hwnd, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
-                             mi.rcMonitor.right-mi.rcMonitor.left, mi.rcMonitor.bottom-mi.rcMonitor.top, SWP_FRAMECHANGED);
+                SetWindowPos(hwnd, HWND_TOP,
+                             mi.rcMonitor.left, mi.rcMonitor.top,
+                             mi.rcMonitor.right - mi.rcMonitor.left,
+                             mi.rcMonitor.bottom - mi.rcMonitor.top,
+                             SWP_FRAMECHANGED);
                 isFullscreen = true;
             } else {
-                SetWindowPos(hwnd, HWND_TOP, normalRect.left, normalRect.top,
-                             normalRect.right-normalRect.left, normalRect.bottom-normalRect.top, SWP_FRAMECHANGED);
+                SetWindowPos(hwnd, HWND_TOP,
+                             normalRect.left, normalRect.top,
+                             normalRect.right - normalRect.left,
+                             normalRect.bottom - normalRect.top,
+                             SWP_FRAMECHANGED);
                 isFullscreen = false;
             }
             return 0;
@@ -398,64 +514,78 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         if (!showNews && !showSettings) {
             if (InRect(p, btnPlay.rect)) {
-                ShellExecuteW(0, L"open", GTA_PATH, 0, 0, SW_SHOW);
+                ShellExecuteW(nullptr, L"open", GTA_PATH, nullptr, nullptr, SW_SHOW);
             }
             else if (InRect(p, btnNews.rect)) {
                 showNews = true;
                 showSettings = false;
-                InvalidateRect(hwnd, 0, FALSE);
+                InvalidateRect(hwnd, nullptr, FALSE);
             }
             else if (InRect(p, btnSettings.rect)) {
                 showSettings = true;
                 showNews = false;
-                InvalidateRect(hwnd, 0, FALSE);
+                InvalidateRect(hwnd, nullptr, FALSE);
             }
-            // ... остальные клики по кнопкам (discord, forum и т.д.)
             else if (InRect(p, btnDiscord.rect)) {
-                ShellExecuteW(0, L"open", L"https://discord.gg/majestic", 0, 0, SW_SHOW);
+                ShellExecuteW(nullptr, L"open", L"https://discord.gg/majestic", nullptr, nullptr, SW_SHOW);
             }
-            // и т.д.
+            else if (InRect(p, btnForum.rect)) {
+                ShellExecuteW(nullptr, L"open", L"https://majestic-rp.ru/forum", nullptr, nullptr, SW_SHOW);
+            }
+            else if (InRect(p, btnDonate.rect)) {
+                ShellExecuteW(nullptr, L"open", L"https://majestic-rp.ru/donate", nullptr, nullptr, SW_SHOW);
+            }
+            else if (InRect(p, btnStats.rect)) {
+                MessageBoxW(hwnd, L"Статистика персонажа", L"Статистика", MB_ICONINFORMATION);
+            }
+            else if (InRect(p, btnRules.rect)) {
+                MessageBoxW(hwnd, L"Правила сервера: Не читерить, уважать других и т.д.", L"Правила", MB_ICONINFORMATION);
+            }
+            else if (InRect(p, btnEvents.rect)) {
+                MessageBoxW(hwnd, L"Текущие события: Конкурс на лучший билд!", L"События", MB_ICONINFORMATION);
+            }
         }
         else if (showNews) {
             if (InRect(p, btnNewsBack.rect)) {
                 showNews = false;
-                InvalidateRect(hwnd, 0, FALSE);
+                InvalidateRect(hwnd, nullptr, FALSE);
             }
             else if (InRect(p, btnNewsPrev.rect)) {
                 currentNewsIndex = (currentNewsIndex - 1 + numNews) % numNews;
-                InvalidateRect(hwnd, 0, FALSE);
+                InvalidateRect(hwnd, nullptr, FALSE);
             }
             else if (InRect(p, btnNewsNext.rect)) {
                 currentNewsIndex = (currentNewsIndex + 1) % numNews;
-                InvalidateRect(hwnd, 0, FALSE);
+                InvalidateRect(hwnd, nullptr, FALSE);
             }
         }
         else if (showSettings) {
             if (InRect(p, btnSettingsBack.rect)) {
                 showSettings = false;
-                InvalidateRect(hwnd, 0, FALSE);
+                InvalidateRect(hwnd, nullptr, FALSE);
             }
             else if (InRect(p, btnCheckFullscreen.rect)) {
                 settingFullscreen = !settingFullscreen;
-                InvalidateRect(hwnd, 0, FALSE);
+                InvalidateRect(hwnd, nullptr, FALSE);
             }
             else if (InRect(p, btnCheckAutoUpdate.rect)) {
                 settingAutoUpdate = !settingAutoUpdate;
-                InvalidateRect(hwnd, 0, FALSE);
+                InvalidateRect(hwnd, nullptr, FALSE);
             }
             else if (InRect(p, btnCheckSound.rect)) {
                 settingSoundEffects = !settingSoundEffects;
-                InvalidateRect(hwnd, 0, FALSE);
+                InvalidateRect(hwnd, nullptr, FALSE);
             }
-            // Здесь можно добавить обработку клика по слайдеру громкости (пока без реализации)
+            // Здесь можно добавить логику для слайдера громкости в будущем
         }
+
         break;
     }
 
     case WM_DESTROY:
         delete background;
         delete logo;
-        for (int i = 0; i < numNews; i++) delete newsImages[i];
+        for (int i = 0; i < numNews; ++i) delete newsImages[i];
         GdiplusShutdown(gdiToken);
         PostQuitMessage(0);
         break;
@@ -466,32 +596,38 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-// WinMain без изменений (как в предыдущей версии)
-int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int nCmdShow)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 {
-    GdiplusStartupInput gdi;
-    GdiplusStartup(&gdiToken, &gdi, nullptr);
+    GdiplusStartupInput gdiplusStartupInput;
+    GdiplusStartup(&gdiToken, &gdiplusStartupInput, nullptr);
 
-    WNDCLASSW wc{};
-    wc.lpfnWndProc = WndProc;
-    wc.hInstance = h;
-    wc.lpszClassName = L"MajesticLauncher";
-    wc.hCursor = LoadCursor(0, IDC_ARROW);
+    WNDCLASSW wc = {};
+    wc.lpfnWndProc   = WndProc;
+    wc.hInstance     = hInstance;
+    wc.lpszClassName = L"MAJESTIC_LAUNCHER";
+    wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
     RegisterClassW(&wc);
 
-    HWND hwnd = CreateWindowExW(WS_EX_LAYERED, wc.lpszClassName, L"Majestic RP",
-        WS_POPUP, (GetSystemMetrics(SM_CXSCREEN)-W)/2, (GetSystemMetrics(SM_CYSCREEN)-H)/2,
-        W, H, 0, 0, h, 0);
+    HWND hwnd = CreateWindowExW(
+        WS_EX_LAYERED,
+        wc.lpszClassName,
+        L"Majestic RP Launcher",
+        WS_POPUP,
+        (GetSystemMetrics(SM_CXSCREEN) - W) / 2,
+        (GetSystemMetrics(SM_CYSCREEN) - H) / 2,
+        W, H,
+        nullptr, nullptr, hInstance, nullptr
+    );
 
     SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
     ShowWindow(hwnd, SW_SHOW);
     UpdateWindow(hwnd);
 
-    MSG msg;
-    while (GetMessage(&msg, 0, 0, 0)) {
+    MSG msg = {};
+    while (GetMessageW(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        DispatchMessageW(&msg);
     }
 
     return (int)msg.wParam;
