@@ -1,24 +1,24 @@
-// Launcher_MajesticStyle.cpp
+// Launcher_MajesticStyle_FIXED.cpp
 // ============================================================
-// "Majestic-like" GTA RP launcher style (Win32 + GDI+ only)
+// Majestic-like GTA RP launcher style demo (Win32 + GDI+ only)
 // - Single file
 // - No third-party libs
 // - INI settings
 // - Pages: Home / News / Settings
-// - Modern titlebar (minimize + close only), F11 fullscreen
-// - Double-buffer painting, hover/press animations
+// - Custom titlebar (minimize + close), F11 fullscreen
+// - Double-buffer painting, hover animations, toast
+// - News/Banners: HTML-like strings rendered by mini parser (GDI+)
+//   Supports: <h1> <h2> <p> <br> <b> <i> <a href="...">text</a>
 //
 // Build notes (Visual Studio):
 // - Project: Windows Desktop Application (C++)
 // - Character Set: Unicode
-// - Linker Input: gdiplus.lib comctl32.lib
+// - C++ Language Standard: at least C++14 (works with default MSVC too)
+// - Linker -> Input: gdiplus.lib comctl32.lib
 //
-// IMPORTANT: This is a UI demo launcher.
 // ============================================================
 
-#define UNICODE
-#define _UNICODE
-
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <windowsx.h>
 #include <commdlg.h>
@@ -28,6 +28,7 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <cctype>
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -38,11 +39,11 @@ using namespace Gdiplus;
 // Global config
 // ============================================================
 
-static int   gWinW = 1100;
-static int   gWinH = 650;
+static int gWinW = 1100;
+static int gWinH = 650;
 
-static const wchar_t* APP_CLASS = L"MAJESTIC_STYLE_LAUNCHER_DEMO";
-static const wchar_t* APP_TITLE = L"Majestic RP Launcher (Style Demo)";
+static const wchar_t* APP_CLASS = L"MAJESTIC_STYLE_LAUNCHER_DEMO_FIXED";
+static const wchar_t* APP_TITLE = L"Majestic RP Launcher (Style Demo) - FIXED";
 static const wchar_t* INI_FILE  = L"launcher_settings.ini";
 
 // ============================================================
@@ -52,7 +53,11 @@ static const wchar_t* INI_FILE  = L"launcher_settings.ini";
 static inline float ClampF(float v, float a, float b) { return (v < a) ? a : (v > b) ? b : v; }
 static inline int   ClampI(int v, int a, int b) { return (v < a) ? a : (v > b) ? b : v; }
 
-static std::wstring WStr(const wchar_t* s) { return s ? std::wstring(s) : L""; }
+static bool FileExists(const std::wstring& p)
+{
+    DWORD attr = GetFileAttributesW(p.c_str());
+    return (attr != INVALID_FILE_ATTRIBUTES) && !(attr & FILE_ATTRIBUTE_DIRECTORY);
+}
 
 static std::wstring GetExeDir()
 {
@@ -64,16 +69,10 @@ static std::wstring GetExeDir()
     return p;
 }
 
-static bool FileExists(const std::wstring& p)
-{
-    DWORD attr = GetFileAttributesW(p.c_str());
-    return (attr != INVALID_FILE_ATTRIBUTES) && !(attr & FILE_ATTRIBUTE_DIRECTORY);
-}
-
 static std::wstring IniRead(const wchar_t* section, const wchar_t* key, const wchar_t* def)
 {
     wchar_t buf[4096]{0};
-    GetPrivateProfileStringW(section, key, def, buf, (DWORD)std::size(buf), INI_FILE);
+    GetPrivateProfileStringW(section, key, def, buf, (DWORD)_countof(buf), INI_FILE);
     return buf;
 }
 
@@ -89,7 +88,8 @@ static int IniReadInt(const wchar_t* section, const wchar_t* key, int def)
 
 static void IniWriteInt(const wchar_t* section, const wchar_t* key, int val)
 {
-    wchar_t buf[64]; wsprintfW(buf, L"%d", val);
+    wchar_t buf[64];
+    wsprintfW(buf, L"%d", val);
     WritePrivateProfileStringW(section, key, buf, INI_FILE);
 }
 
@@ -119,21 +119,24 @@ static void MsgBox(HWND hwnd, const std::wstring& title, const std::wstring& tex
     MessageBoxW(hwnd, text.c_str(), title.c_str(), MB_OK | MB_ICONINFORMATION);
 }
 
-// Launch EXE with arguments (simple)
+// Launch EXE with arguments (fixed CreateProcessW LPWSTR)
 static bool LaunchProcess(const std::wstring& exePath, const std::wstring& args, const std::wstring& workDir)
 {
     std::wstring cmd = L"\"" + exePath + L"\"";
     if (!args.empty())
         cmd += L" " + args;
 
+    // CreateProcessW wants writable buffer for lpCommandLine
+    std::vector<wchar_t> cmdBuf(cmd.begin(), cmd.end());
+    cmdBuf.push_back(L'\0');
+
     STARTUPINFOW si{};
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi{};
 
-    std::wstring cmdMutable = cmd; // CreateProcess needs mutable buffer
     BOOL ok = CreateProcessW(
         NULL,
-        cmdMutable.data(),
+        cmdBuf.data(),           // LPWSTR (writable)
         NULL, NULL,
         FALSE,
         0,
@@ -142,6 +145,7 @@ static bool LaunchProcess(const std::wstring& exePath, const std::wstring& args,
         &si,
         &pi
     );
+
     if (ok)
     {
         CloseHandle(pi.hThread);
@@ -178,8 +182,6 @@ static GraphicsPath* MakeRoundedRectPath(RectF r, float radius)
 
 static void DrawShadow(Graphics& g, RectF r, float radius, int layers, Color base)
 {
-    // Soft fake shadow by drawing multiple strokes
-    // base alpha must be low (e.g. 40..90)
     for (int i = 0; i < layers; ++i)
     {
         float t = (float)i / (float)layers;
@@ -195,6 +197,20 @@ static void DrawShadow(Graphics& g, RectF r, float radius, int layers, Color bas
     }
 }
 
+static void FillRounded(Graphics& g, RectF r, float radius, Brush* b)
+{
+    GraphicsPath* p = MakeRoundedRectPath(r, radius);
+    g.FillPath(b, p);
+    delete p;
+}
+
+static void StrokeRounded(Graphics& g, RectF r, float radius, Pen* p)
+{
+    GraphicsPath* gp = MakeRoundedRectPath(r, radius);
+    g.DrawPath(p, gp);
+    delete gp;
+}
+
 // ============================================================
 // Theme
 // ============================================================
@@ -205,21 +221,10 @@ struct Theme
 {
     ThemeMode mode = ThemeMode::Dark;
 
-    Color bg0;
-    Color bg1;
-    Color panel;
-    Color panel2;
-    Color stroke;
-    Color stroke2;
-
-    Color text0;
-    Color text1;
-    Color text2;
-
-    Color accent;
-    Color accent2;
-    Color danger;
-    Color warn;
+    Color bg0, bg1;
+    Color stroke, stroke2;
+    Color text0, text1, text2;
+    Color accent, accent2, danger, warn;
 
     void Apply(ThemeMode m)
     {
@@ -228,8 +233,6 @@ struct Theme
         {
             bg0 = Color(255, 7, 10, 18);
             bg1 = Color(255, 11, 16, 32);
-            panel = Color(180, 255, 255, 255);   // used as alpha with composite
-            panel2 = Color(200, 255, 255, 255);
 
             stroke  = Color(50, 255, 255, 255);
             stroke2 = Color(85, 255, 255, 255);
@@ -247,8 +250,6 @@ struct Theme
         {
             bg0 = Color(255, 6, 6, 14);
             bg1 = Color(255, 16, 8, 32);
-            panel = Color(180, 255, 255, 255);
-            panel2 = Color(200, 255, 255, 255);
 
             stroke  = Color(55, 255, 255, 255);
             stroke2 = Color(95, 255, 255, 255);
@@ -257,7 +258,7 @@ struct Theme
             text1 = Color(190, 255, 255, 255);
             text2 = Color(145, 255, 255, 255);
 
-            accent  = Color(255, 124, 58, 237); // neon purple
+            accent  = Color(255, 124, 58, 237);
             accent2 = Color(255, 34, 197, 94);
             danger  = Color(255, 239, 68, 68);
             warn    = Color(255, 245, 158, 11);
@@ -268,11 +269,37 @@ struct Theme
 static Theme gTheme;
 
 // ============================================================
-// Simple UI system
+// Toast system (added)
+// ============================================================
+
+struct ToastState
+{
+    bool active = false;
+    DWORD start = 0;
+    DWORD dur = 3200;
+    std::wstring title;
+    std::wstring msg;
+    std::wstring kind; // ok/warn/err
+};
+
+static ToastState gToast;
+
+static void toast(const std::wstring& title, const std::wstring& msg, const std::wstring& kind)
+{
+    gToast.active = true;
+    gToast.start = GetTickCount();
+    gToast.dur = (kind == L"err") ? 5200 : (kind == L"warn" ? 4200 : 3200);
+    gToast.title = title;
+    gToast.msg = msg;
+    gToast.kind = kind;
+}
+
+// ============================================================
+// Pages/UI structs
 // ============================================================
 
 enum class Page { Home, News, Settings };
-enum class BtnKind { Primary, Secondary, Ghost, Danger, Icon };
+enum class BtnKind { Primary, Secondary, Icon, Danger };
 
 struct UIContext
 {
@@ -281,18 +308,17 @@ struct UIContext
     int h = 0;
     bool mouseDown = false;
     POINT mousePos{0,0};
-    bool focusOnText = false;
 };
 
 struct Anim
 {
-    float v = 0.0f;       // 0..1
-    float target = 0.0f;  // 0..1
-    float speed = 0.18f;  // smoothing
-    void Tick()
+    float v = 0.0f;
+    float target = 0.0f;
+    float speed = 0.22f;
+    void Tick(bool enabled)
     {
-        // simple exponential smoothing
-        v = v + (target - v) * speed;
+        float s = enabled ? speed : 1.0f;
+        v = v + (target - v) * s;
         if (fabs(v - target) < 0.001f) v = target;
     }
 };
@@ -304,10 +330,9 @@ struct Button
     std::wstring text;
     BtnKind kind = BtnKind::Secondary;
     bool enabled = true;
-
     bool hover = false;
     bool down = false;
-    Anim glow; // hover glow
+    Anim glow;
 };
 
 struct Toggle
@@ -317,7 +342,7 @@ struct Toggle
     std::wstring text;
     bool value = false;
     bool hover = false;
-    Anim anim; // 0 off -> 1 on
+    Anim anim;
 };
 
 struct TextBox
@@ -329,7 +354,6 @@ struct TextBox
     std::wstring placeholder;
     bool hover = false;
     bool focused = false;
-    bool password = false;
     int caret = 0;
     bool caretOn = true;
     DWORD lastBlink = 0;
@@ -370,8 +394,8 @@ enum UI_ID
     ID_BTN_ADD_SERVER,
     ID_BTN_DEL_SERVER,
     ID_BTN_F11,
-    ID_BTN_SEED_NEWS,
-    ID_BTN_OPEN_LOG,
+    ID_BTN_NEXT_NEWS,
+    ID_BTN_BG_BROWSE,
 
     ID_TX_GAMEPATH = 200,
     ID_TX_ARGS,
@@ -388,14 +412,14 @@ enum UI_ID
 };
 
 // ============================================================
-// Launcher state / settings
+// Launcher settings
 // ============================================================
 
 struct ServerItem
 {
     std::wstring name;
     std::wstring host;
-    int port = 0;
+    int port = 7777;
 };
 
 struct Settings
@@ -417,45 +441,64 @@ struct Settings
 };
 
 static Settings gSet;
-
-// pages
 static Page gPage = Page::Home;
 
-// news
-static std::vector<std::wstring> gNews = {
-    L"[01.01.2026] Новый ивент: Зимний фестиваль!",
-    L"[02.01.2026] Исправлены баги транспорта",
-    L"[05.01.2026] Розыгрыш внутриигровых денег",
-    L"[10.01.2026] Новая система фракций в разработке",
-    L"[12.01.2026] Улучшена оптимизация на слабых ПК",
-    L"[15.01.2026] Добавлены новые авто и тюнинг",
-    L"[18.01.2026] Переработка экономики: балансы и цены",
-    L"[20.01.2026] Новый сезон, новые награды"
-};
-static int gNewsIndex = 0;
-
-// UI objects (stored per-frame layout)
-static std::vector<Button>   gButtons;
-static std::vector<TextBox>  gTextBoxes;
-static std::vector<Toggle>   gToggles;
-static std::vector<Dropdown> gDropdowns;
-
-static ScrollArea gNewsScroll;
-
-// Background image (optional)
 static ULONG_PTR gGdiToken = 0;
 static Image* gBgImage = nullptr;
 
-// Window management
 static bool gFullscreen = false;
 static RECT gRestoreRect{};
 static DWORD gRestoreStyle = 0;
 static DWORD gRestoreExStyle = 0;
 
-// Timers
-static const UINT_PTR T_ANIM = 1;
-static const UINT_PTR T_NEWS = 2;
+static const UINT_PTR T_ANIM  = 1;
+static const UINT_PTR T_NEWS  = 2;
 static const UINT_PTR T_CARET = 3;
+
+// UI lists (rebuilt per paint)
+static std::vector<Button> gButtons;
+static std::vector<TextBox> gTextBoxes;
+static std::vector<Toggle> gToggles;
+static std::vector<Dropdown> gDropdowns;
+
+static ScrollArea gNewsScroll;
+
+// ============================================================
+// HTML-like news/banners (added)
+// ============================================================
+
+// Each item is "HTML-like" string. Our mini renderer draws it with styles and links.
+static std::vector<std::wstring> gNewsHtml =
+{
+    L"<h1>Зимний фестиваль 2026</h1>"
+    L"<p>Стартуем <b>сегодня</b>. Заходи в игру и забирай награды.</p>"
+    L"<p><a href=\"https://example.com/event\">Открыть страницу ивента</a></p>",
+
+    L"<h2>Патч: оптимизация</h2>"
+    L"<p>Мы улучшили производительность на слабых ПК и убрали фризы транспорта.</p>"
+    L"<p><b>Важно:</b> обнови клиент перед входом.</p>",
+
+    L"<h2>Розыгрыш</h2>"
+    L"<p>Каждые 24 часа разыгрываем внутриигровые деньги.</p>"
+    L"<p><a href=\"https://example.com/giveaway\">Условия участия</a></p>",
+
+    L"<h2>Новая система фракций</h2>"
+    L"<p>В разработке: новые ранги, задачи, зарплаты. Следи за новостями.</p>",
+
+    L"<h2>Новые авто и тюнинг</h2>"
+    L"<p>Добавили новые машины и расширили кастомизацию.</p>"
+    L"<p><a href=\"https://example.com/cars\">Список авто</a></p>"
+};
+
+static int gNewsIndex = 0;
+
+// Clickable link rects built each paint for News page
+struct LinkHit
+{
+    RectF r;
+    std::wstring url;
+};
+static std::vector<LinkHit> gLinkHits;
 
 // ============================================================
 // Settings load/save
@@ -476,19 +519,19 @@ static void LoadSettings()
     int t = IniReadInt(L"Appearance", L"Theme", 0);
     gSet.theme = (t == 1) ? ThemeMode::Neon : ThemeMode::Dark;
 
-    // servers: stored as ServerCount and Server{i}=name|host|port
+    // servers
     int count = IniReadInt(L"Servers", L"Count", 3);
     count = ClampI(count, 0, 50);
 
     gSet.servers.clear();
     for (int i = 0; i < count; ++i)
     {
-        wchar_t key[64]; wsprintfW(key, L"Server%d", i);
+        wchar_t key[64];
+        wsprintfW(key, L"Server%d", i);
         std::wstring line = IniRead(L"Servers", key, L"");
-        if (line.empty())
-            continue;
+        if (line.empty()) continue;
 
-        // parse name|host|port
+        // name|host|port
         ServerItem s;
         size_t p1 = line.find(L"|");
         size_t p2 = line.rfind(L"|");
@@ -498,9 +541,11 @@ static void LoadSettings()
             s.host = line.substr(p1 + 1, p2 - (p1 + 1));
             s.port = _wtoi(line.substr(p2 + 1).c_str());
         }
+
         if (s.name.empty()) s.name = L"Server";
         if (s.host.empty()) s.host = L"127.0.0.1";
         if (s.port <= 0) s.port = 7777;
+
         gSet.servers.push_back(s);
     }
 
@@ -513,17 +558,17 @@ static void LoadSettings()
         };
     }
 
-    gSet.selectedServer = ClampI(IniReadInt(L"Servers", L"Selected", 0), 0, (int)gSet.servers.size()-1);
+    gSet.selectedServer = IniReadInt(L"Servers", L"Selected", 0);
+    gSet.selectedServer = ClampI(gSet.selectedServer, 0, (int)gSet.servers.size() - 1);
 
-    // Apply theme
     gTheme.Apply(gSet.theme);
 
-    // Load background if exists
+    // bg
     if (gBgImage) { delete gBgImage; gBgImage = nullptr; }
     if (!gSet.backgroundPath.empty() && FileExists(gSet.backgroundPath))
     {
         gBgImage = Image::FromFile(gSet.backgroundPath.c_str());
-        if (gBgImage && gBgImage->GetLastStatus() != Ok)
+        if (!gBgImage || gBgImage->GetLastStatus() != Ok)
         {
             delete gBgImage;
             gBgImage = nullptr;
@@ -549,7 +594,8 @@ static void SaveSettings()
 
     for (int i = 0; i < (int)gSet.servers.size(); ++i)
     {
-        wchar_t key[64]; wsprintfW(key, L"Server%d", i);
+        wchar_t key[64];
+        wsprintfW(key, L"Server%d", i);
         const auto& s = gSet.servers[i];
         std::wstring line = s.name + L"|" + s.host + L"|" + std::to_wstring(s.port);
         IniWrite(L"Servers", key, line);
@@ -559,17 +605,17 @@ static void SaveSettings()
 }
 
 // ============================================================
-// Drawing helpers (fonts + colors)
+// Text rendering helper
 // ============================================================
 
-static void DrawTextW_GDI(Graphics& g, const std::wstring& txt, const RectF& r, float size, int weight,
-                          Color color, StringAlignment align = StringAlignmentNear, StringAlignment vAlign = StringAlignmentCenter,
-                          bool wrap = false)
+static void DrawTextW_GDI(Graphics& g, const std::wstring& txt, const RectF& r,
+                         float size, int weight, Color color,
+                         StringAlignment align = StringAlignmentNear,
+                         StringAlignment vAlign = StringAlignmentCenter,
+                         bool wrap = false)
 {
     FontFamily ff(L"Segoe UI");
-    FontStyle style = FontStyleRegular;
-    if (weight >= 700) style = FontStyleBold;
-
+    FontStyle style = (weight >= 700) ? FontStyleBold : FontStyleRegular;
     Font font(&ff, size, style, UnitPixel);
     SolidBrush brush(color);
 
@@ -582,88 +628,387 @@ static void DrawTextW_GDI(Graphics& g, const std::wstring& txt, const RectF& r, 
     g.DrawString(txt.c_str(), -1, &font, r, &fmt, &brush);
 }
 
-static void FillRounded(Graphics& g, RectF r, float radius, Brush* b)
-{
-    GraphicsPath* p = MakeRoundedRectPath(r, radius);
-    g.FillPath(b, p);
-    delete p;
-}
-
-static void StrokeRounded(Graphics& g, RectF r, float radius, Pen* p)
-{
-    GraphicsPath* gp = MakeRoundedRectPath(r, radius);
-    g.DrawPath(p, gp);
-    delete gp;
-}
-
-static void DrawGlassPanel(Graphics& g, RectF r, float radius)
-{
-    // shadow
-    DrawShadow(g, r, radius, 10, Color(80, 0, 0, 0));
-
-    // fill (semi-transparent)
-    SolidBrush fill(Color(65, 255, 255, 255));
-    FillRounded(g, r, radius, &fill);
-
-    // subtle gradient overlay
-    LinearGradientBrush grad(r, Color(45, 255, 255, 255), Color(10, 255, 255, 255), LinearGradientModeVertical);
-    FillRounded(g, r, radius, &grad);
-
-    // stroke
-    Pen stroke(gTheme.stroke, 1.0f);
-    StrokeRounded(g, r, radius, &stroke);
-}
+// ============================================================
+// Background
+// ============================================================
 
 static void DrawTopGradientBG(Graphics& g, int w, int h)
 {
-    // If background image exists -> draw it with cover
     if (gBgImage)
     {
-        // cover fit (center crop)
-        const float iw = (float)gBgImage->GetWidth();
-        const float ih = (float)gBgImage->GetHeight();
-        float scale = std::max(w / iw, h / ih);
+        float iw = (float)gBgImage->GetWidth();
+        float ih = (float)gBgImage->GetHeight();
+        float scale = std::max((float)w / iw, (float)h / ih);
         float dw = iw * scale;
         float dh = ih * scale;
-        float dx = (w - dw) * 0.5f;
-        float dy = (h - dh) * 0.5f;
+        float dx = ((float)w - dw) * 0.5f;
+        float dy = ((float)h - dh) * 0.5f;
 
         g.DrawImage(gBgImage, RectF(dx, dy, dw, dh));
 
-        // dark overlay for readability
         SolidBrush ov(Color(160, 0, 0, 0));
-        g.FillRectangle(&ov, 0, 0, (REAL)w, (REAL)h);
+        g.FillRectangle(&ov, 0.0f, 0.0f, (REAL)w, (REAL)h);
         return;
     }
 
-    // Otherwise draw procedural background
-    RectF rr(0,0,(REAL)w,(REAL)h);
+    RectF rr(0.0f, 0.0f, (REAL)w, (REAL)h);
     LinearGradientBrush base(rr, gTheme.bg0, gTheme.bg1, LinearGradientModeVertical);
     g.FillRectangle(&base, rr);
 
-    // accent blobs
     auto blob = [&](float cx, float cy, float rad, Color c){
         GraphicsPath p;
-        p.AddEllipse(cx-rad, cy-rad, rad*2, rad*2);
+        p.AddEllipse((REAL)(cx - rad), (REAL)(cy - rad), (REAL)(rad * 2.0f), (REAL)(rad * 2.0f));
         PathGradientBrush b(&p);
         b.SetCenterColor(c);
         Color edges[1] = { Color(0, c.GetR(), c.GetG(), c.GetB()) };
         int count = 1;
         b.SetSurroundColors(edges, &count);
-        g.FillEllipse(&b, cx-rad, cy-rad, rad*2, rad*2);
+        g.FillEllipse(&b, (REAL)(cx - rad), (REAL)(cy - rad), (REAL)(rad * 2.0f), (REAL)(rad * 2.0f));
     };
 
     blob(w*0.18f, h*0.22f, 420.0f, Color(90, gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB()));
     blob(w*0.82f, h*0.28f, 380.0f, Color(80, gTheme.accent2.GetR(), gTheme.accent2.GetG(), gTheme.accent2.GetB()));
     blob(w*0.50f, h*0.86f, 520.0f, Color(50, gTheme.warn.GetR(), gTheme.warn.GetG(), gTheme.warn.GetB()));
 
-    // vignette
     SolidBrush vign(Color(120, 0, 0, 0));
-    g.FillRectangle(&vign, 0, 0, (REAL)w, (REAL)h);
+    g.FillRectangle(&vign, 0.0f, 0.0f, (REAL)w, (REAL)h);
 }
 
 // ============================================================
-// UI build layout
+// Glass panel
+// ============================================================
+
+static void DrawGlassPanel(Graphics& g, RectF r, float radius)
+{
+    DrawShadow(g, r, radius, 10, Color(80, 0, 0, 0));
+    SolidBrush fill(Color(65, 255, 255, 255));
+    FillRounded(g, r, radius, &fill);
+
+    LinearGradientBrush grad(r, Color(45, 255, 255, 255), Color(10, 255, 255, 255), LinearGradientModeVertical);
+    FillRounded(g, r, radius, &grad);
+
+    Pen stroke(gTheme.stroke, 1.0f);
+    StrokeRounded(g, r, radius, &stroke);
+}
+
+// ============================================================
+// Mini HTML renderer (added)
+// ============================================================
+
+struct HtmlStyle
+{
+    bool bold = false;
+    bool italic = false;
+    bool underline = false;
+    Color color = Color(255,255,255,255);
+    float size = 13.0f;
+    int weight = 700;
+};
+
+static std::wstring ToLower(const std::wstring& s)
+{
+    std::wstring out = s;
+    for (auto& ch : out) ch = (wchar_t)towlower(ch);
+    return out;
+}
+
+static bool StartsWith(const std::wstring& a, const std::wstring& b)
+{
+    if (a.size() < b.size()) return false;
+    return std::equal(b.begin(), b.end(), a.begin());
+}
+
+static std::wstring Trim(const std::wstring& s)
+{
+    size_t i = 0;
+    while (i < s.size() && iswspace(s[i])) i++;
+    size_t j = s.size();
+    while (j > i && iswspace(s[j-1])) j--;
+    return s.substr(i, j - i);
+}
+
+static std::wstring ExtractAttr(const std::wstring& tag, const std::wstring& attr)
+{
+    // very small parser: find attr="..."
+    std::wstring low = ToLower(tag);
+    std::wstring key = ToLower(attr) + L"=\"";
+    size_t p = low.find(key);
+    if (p == std::wstring::npos) return L"";
+    p += key.size();
+    size_t e = tag.find(L"\"", p);
+    if (e == std::wstring::npos) return L"";
+    return tag.substr(p, e - p);
+}
+
+static Font MakeFont(const HtmlStyle& st)
+{
+    FontFamily ff(L"Segoe UI");
+    int fs = FontStyleRegular;
+    if (st.bold) fs |= FontStyleBold;
+    if (st.italic) fs |= FontStyleItalic;
+    if (st.underline) fs |= FontStyleUnderline;
+    Font f(&ff, st.size, (FontStyle)fs, UnitPixel);
+    return f;
+}
+
+static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std::vector<LinkHit>& outLinks)
+{
+    // Layout: simple line wrapping using MeasureString.
+    // We parse tags and render text segments sequentially.
+    // Tags: h1/h2/p/br/b/i/a
+    // We also support closing tags.
+
+    float x = area.X;
+    float y = area.Y;
+    float lineH = 18.0f;
+
+    HtmlStyle st;
+    st.color = gTheme.text0;
+    st.size = 13.0f;
+    st.weight = 700;
+
+    bool inLink = false;
+    std::wstring linkUrl;
+
+    auto newLine = [&]() {
+        x = area.X;
+        y += lineH;
+    };
+
+    auto setHeading = [&](int level) {
+        if (level == 1) { st.size = 20.0f; st.bold = true; st.italic = false; lineH = 28.0f; }
+        if (level == 2) { st.size = 16.0f; st.bold = true; st.italic = false; lineH = 22.0f; }
+    };
+
+    auto setParagraph = [&]() {
+        st.size = 13.0f;
+        lineH = 18.0f;
+        st.bold = false;
+        st.italic = false;
+    };
+
+    auto drawTextRun = [&](const std::wstring& txt)
+    {
+        std::wstring t = txt;
+        if (t.empty()) return;
+
+        // collapse whitespace a bit
+        // (not full HTML behavior, just nicer)
+        // keep single spaces
+        std::wstring norm;
+        norm.reserve(t.size());
+        bool lastSpace = false;
+        for (wchar_t c : t)
+        {
+            if (c == L'\r' || c == L'\n' || c == L'\t') c = L' ';
+            if (c == L' ')
+            {
+                if (!lastSpace) norm.push_back(c);
+                lastSpace = true;
+            }
+            else
+            {
+                norm.push_back(c);
+                lastSpace = false;
+            }
+        }
+        t = norm;
+
+        if (Trim(t).empty()) return;
+
+        Font font = MakeFont(st);
+        SolidBrush brush(st.color);
+
+        // basic word wrap
+        size_t i = 0;
+        while (i < t.size())
+        {
+            // skip leading spaces on new line
+            if (x == area.X)
+            {
+                while (i < t.size() && t[i] == L' ') i++;
+            }
+            if (i >= t.size()) break;
+
+            // take a chunk, try to fit
+            size_t j = i;
+            size_t lastFit = i;
+
+            RectF measureR(0,0,9999,9999);
+            while (j < t.size())
+            {
+                j++;
+                std::wstring sub = t.substr(i, j - i);
+                RectF bound;
+                g.MeasureString(sub.c_str(), -1, &font, measureR, &bound);
+
+                if (x + bound.Width <= area.X + area.Width)
+                {
+                    lastFit = j;
+                    continue;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (lastFit == i)
+            {
+                // at least one char
+                lastFit = std::min(i + (size_t)1, t.size());
+            }
+            else
+            {
+                // prefer breaking at last space
+                size_t k = lastFit;
+                while (k > i && t[k-1] != L' ') k--;
+                if (k > i + 1) lastFit = k;
+            }
+
+            std::wstring chunk = t.substr(i, lastFit - i);
+            RectF bound;
+            g.MeasureString(chunk.c_str(), -1, &font, measureR, &bound);
+
+            // draw
+            RectF drawR(x, y, bound.Width + 2.0f, lineH);
+            g.DrawString(chunk.c_str(), -1, &font, PointF(x, y), &brush);
+
+            if (inLink && !linkUrl.empty())
+            {
+                // store clickable rect
+                LinkHit lh;
+                lh.r = RectF(drawR.X, drawR.Y, drawR.Width, drawR.Height);
+                lh.url = linkUrl;
+                outLinks.push_back(lh);
+            }
+
+            x += bound.Width;
+
+            // line overflow if we stopped due to width
+            if (x >= area.X + area.Width - 2.0f)
+            {
+                newLine();
+            }
+
+            i = lastFit;
+        }
+    };
+
+    // Parse tags
+    size_t p = 0;
+    while (p < html.size())
+    {
+        if (html[p] == L'<')
+        {
+            size_t end = html.find(L'>', p);
+            if (end == std::wstring::npos)
+            {
+                drawTextRun(html.substr(p));
+                break;
+            }
+
+            std::wstring tag = html.substr(p + 1, end - (p + 1));
+            std::wstring tagLow = ToLower(Trim(tag));
+
+            // closing?
+            bool closing = false;
+            if (!tagLow.empty() && tagLow[0] == L'/')
+            {
+                closing = true;
+                tagLow = Trim(tagLow.substr(1));
+            }
+
+            if (!closing)
+            {
+                if (tagLow == L"br" || tagLow == L"br/")
+                {
+                    newLine();
+                }
+                else if (tagLow == L"p")
+                {
+                    setParagraph();
+                    newLine();
+                }
+                else if (tagLow == L"h1")
+                {
+                    setHeading(1);
+                    newLine();
+                }
+                else if (tagLow == L"h2")
+                {
+                    setHeading(2);
+                    newLine();
+                }
+                else if (tagLow == L"b")
+                {
+                    st.bold = true;
+                }
+                else if (tagLow == L"i")
+                {
+                    st.italic = true;
+                }
+                else if (StartsWith(tagLow, L"a "))
+                {
+                    // link open
+                    linkUrl = ExtractAttr(tag, L"href");
+                    if (!linkUrl.empty())
+                    {
+                        inLink = true;
+                        st.underline = true;
+                        st.color = gTheme.accent;
+                    }
+                }
+            }
+            else
+            {
+                if (tagLow == L"p")
+                {
+                    setParagraph();
+                    newLine();
+                }
+                else if (tagLow == L"h1" || tagLow == L"h2")
+                {
+                    setParagraph();
+                    newLine();
+                }
+                else if (tagLow == L"b")
+                {
+                    st.bold = false;
+                }
+                else if (tagLow == L"i")
+                {
+                    st.italic = false;
+                }
+                else if (tagLow == L"a")
+                {
+                    // link close
+                    inLink = false;
+                    linkUrl.clear();
+                    st.underline = false;
+                    st.color = gTheme.text0;
+                }
+            }
+
+            p = end + 1;
+        }
+        else
+        {
+            size_t next = html.find(L'<', p);
+            std::wstring text = (next == std::wstring::npos) ? html.substr(p) : html.substr(p, next - p);
+            drawTextRun(text);
+            if (next == std::wstring::npos) break;
+            p = next;
+        }
+
+        // Stop drawing if we are out of area
+        if (y > area.Y + area.Height - 20.0f)
+            break;
+    }
+}
+
+// ============================================================
+// UI build
 // ============================================================
 
 static void UI_Clear()
@@ -688,7 +1033,8 @@ static Button* UI_AddButton(int id, RectF r, const std::wstring& txt, BtnKind ki
     return &gButtons.back();
 }
 
-static TextBox* UI_AddTextBox(int id, RectF r, const std::wstring& label, const std::wstring& value, const std::wstring& placeholder, bool password=false)
+static TextBox* UI_AddTextBox(int id, RectF r, const std::wstring& label,
+                             const std::wstring& value, const std::wstring& placeholder)
 {
     TextBox t;
     t.id = id;
@@ -696,7 +1042,6 @@ static TextBox* UI_AddTextBox(int id, RectF r, const std::wstring& label, const 
     t.label = label;
     t.value = value;
     t.placeholder = placeholder;
-    t.password = password;
     t.caret = (int)t.value.size();
     t.lastBlink = GetTickCount();
     gTextBoxes.push_back(t);
@@ -716,14 +1061,15 @@ static Toggle* UI_AddToggle(int id, RectF r, const std::wstring& text, bool valu
     return &gToggles.back();
 }
 
-static Dropdown* UI_AddDropdown(int id, RectF r, const std::wstring& label, const std::vector<std::wstring>& items, int selected)
+static Dropdown* UI_AddDropdown(int id, RectF r, const std::wstring& label,
+                               const std::vector<std::wstring>& items, int selected)
 {
     Dropdown d;
     d.id = id;
     d.rect = r;
     d.label = label;
     d.items = items;
-    d.selected = ClampI(selected, 0, (int)items.size()-1);
+    d.selected = items.empty() ? 0 : ClampI(selected, 0, (int)items.size() - 1);
     gDropdowns.push_back(d);
     return &gDropdowns.back();
 }
@@ -735,160 +1081,196 @@ static void BuildLayout(UIContext& ui)
     const float W = (float)ui.w;
     const float H = (float)ui.h;
 
-    // Titlebar area: top 54 px
     const float titleH = 54.0f;
     const float pad = 16.0f;
 
-    // Control buttons (top-right): only minimize + close
-    UI_AddButton(ID_BTN_MIN, RectF(W - 92.0f, 10.0f, 36.0f, 30.0f), L"—", BtnKind::Icon);
+    UI_AddButton(ID_BTN_MIN,   RectF(W - 92.0f, 10.0f, 36.0f, 30.0f), L"—", BtnKind::Icon);
     UI_AddButton(ID_BTN_CLOSE, RectF(W - 48.0f, 10.0f, 36.0f, 30.0f), L"✕", BtnKind::Icon);
 
-    // Left sidebar (like Majestic launcher)
     RectF side(pad, titleH + pad, 240.0f, H - (titleH + pad*2));
-    // Main area
     RectF main(side.X + side.Width + pad, titleH + pad, W - (side.X + side.Width + pad*2), H - (titleH + pad*2));
 
-    // Sidebar buttons
     float y = side.Y + 16.0f;
-    UI_AddButton(ID_BTN_HOME, RectF(side.X + 14, y, side.Width - 28, 44), L"🏠 Home", BtnKind::Secondary); y += 54;
-    UI_AddButton(ID_BTN_NEWS, RectF(side.X + 14, y, side.Width - 28, 44), L"📰 News", BtnKind::Secondary); y += 54;
+    UI_AddButton(ID_BTN_HOME,     RectF(side.X + 14, y, side.Width - 28, 44), L"🏠 Home", BtnKind::Secondary); y += 54;
+    UI_AddButton(ID_BTN_NEWS,     RectF(side.X + 14, y, side.Width - 28, 44), L"📰 News", BtnKind::Secondary); y += 54;
     UI_AddButton(ID_BTN_SETTINGS, RectF(side.X + 14, y, side.Width - 28, 44), L"⚙ Settings", BtnKind::Secondary); y += 54;
 
-    // Bottom area buttons
     UI_AddButton(ID_BTN_DISCORD, RectF(side.X + 14, side.Y + side.Height - 58, side.Width - 28, 44), L"Discord", BtnKind::Secondary);
-    UI_AddButton(ID_BTN_THEME, RectF(side.X + 14, side.Y + side.Height - 112, side.Width - 28, 44), L"Theme", BtnKind::Secondary);
+    UI_AddButton(ID_BTN_THEME,   RectF(side.X + 14, side.Y + side.Height - 112, side.Width - 28, 44), L"Theme", BtnKind::Secondary);
 
-    // Content by page
     if (gPage == Page::Home)
     {
-        // Hero card
-        RectF hero(main.X, main.Y, main.Width, 220.0f);
-        // Play button big
-        UI_AddButton(ID_BTN_PLAY, RectF(main.X + main.Width - 240.0f, main.Y + 150.0f, 220.0f, 56.0f), L"PLAY", BtnKind::Primary);
-
-        // Server dropdown
-        std::vector<std::wstring> sv;
-        for (auto& s : gSet.servers)
-        {
-            sv.push_back(s.name + L" • " + s.host + L":" + std::to_wstring(s.port));
-        }
-        UI_AddDropdown(ID_DD_SERVER, RectF(main.X + 20.0f, main.Y + 150.0f, main.Width - 280.0f, 44.0f), L"Server", sv, gSet.selectedServer);
-
-        // Account badge + nickname edit
+        // hero card
         UI_AddTextBox(ID_TX_NICK, RectF(main.X + 20.0f, main.Y + 96.0f, 320.0f, 44.0f), L"Nickname", gSet.nickname, L"Enter nickname");
 
-        // Quick actions card
-        RectF q(main.X, main.Y + hero.Height + 16.0f, main.Width, 220.0f);
-        UI_AddButton(ID_BTN_OPEN_GAME, RectF(q.X + 20.0f, q.Y + 150.0f, 200.0f, 44.0f), L"Choose Game EXE", BtnKind::Secondary);
-        UI_AddButton(ID_BTN_F11, RectF(q.X + 230.0f, q.Y + 150.0f, 200.0f, 44.0f), L"Fullscreen (F11)", BtnKind::Secondary);
-        UI_AddButton(ID_BTN_OPEN_LOG, RectF(q.X + 440.0f, q.Y + 150.0f, 200.0f, 44.0f), L"Show Info", BtnKind::Secondary);
+        std::vector<std::wstring> sv;
+        for (auto& s : gSet.servers)
+            sv.push_back(s.name + L" • " + s.host + L":" + std::to_wstring(s.port));
+        UI_AddDropdown(ID_DD_SERVER, RectF(main.X + 20.0f, main.Y + 150.0f, main.Width - 280.0f, 44.0f), L"Server", sv, gSet.selectedServer);
 
-        // Show a small settings summary (readonly look -> textbox)
+        UI_AddButton(ID_BTN_PLAY, RectF(main.X + main.Width - 240.0f, main.Y + 150.0f, 220.0f, 56.0f), L"PLAY", BtnKind::Primary);
+
+        RectF q(main.X, main.Y + 220.0f + 16.0f, main.Width, 220.0f);
+        UI_AddButton(ID_BTN_OPEN_GAME, RectF(q.X + 20.0f, q.Y + 150.0f, 200.0f, 44.0f), L"Choose Game EXE", BtnKind::Secondary);
+        UI_AddButton(ID_BTN_F11,       RectF(q.X + 230.0f, q.Y + 150.0f, 200.0f, 44.0f), L"Fullscreen (F11)", BtnKind::Secondary);
+        UI_AddButton(ID_BTN_NEXT_NEWS, RectF(q.X + 440.0f, q.Y + 150.0f, 200.0f, 44.0f), L"Next News", BtnKind::Secondary);
+
         UI_AddTextBox(ID_TX_GAMEPATH, RectF(q.X + 20.0f, q.Y + 44.0f, q.Width - 40.0f, 44.0f), L"Game Path", gSet.gamePath, L"Select game exe path");
-        UI_AddTextBox(ID_TX_ARGS, RectF(q.X + 20.0f, q.Y + 96.0f, q.Width - 40.0f, 44.0f), L"Args", gSet.gameArgs, L"Optional args (e.g. -nolauncher)");
+        UI_AddTextBox(ID_TX_ARGS,     RectF(q.X + 20.0f, q.Y + 96.0f, q.Width - 40.0f, 44.0f), L"Args", gSet.gameArgs, L"Optional args");
     }
     else if (gPage == Page::News)
     {
-        // Big news panel + buttons
-        RectF news(main.X, main.Y, main.Width, main.Height);
-        UI_AddButton(ID_BTN_SEED_NEWS, RectF(news.X + news.Width - 220.0f, news.Y + 14.0f, 200.0f, 40.0f), L"Next News", BtnKind::Secondary);
-
-        // Scroll area for long list
-        gNewsScroll.rect = RectF(news.X + 14, news.Y + 70, news.Width - 28, news.Height - 84);
-        // maxScroll calculated in drawing
+        UI_AddButton(ID_BTN_NEXT_NEWS, RectF(main.X + main.Width - 220.0f, main.Y + 14.0f, 200.0f, 40.0f), L"Next News", BtnKind::Secondary);
+        gNewsScroll.rect = RectF(main.X + 14, main.Y + 70, main.Width - 28, main.Height - 84);
     }
     else if (gPage == Page::Settings)
     {
-        RectF s(main.X, main.Y, main.Width, main.Height);
-
-        // Left column (launcher)
         float colW = (main.Width - 16.0f) * 0.55f;
-        RectF left(s.X, s.Y, colW, s.Height);
-        RectF right(s.X + colW + 16.0f, s.Y, main.Width - colW - 16.0f, s.Height);
+        RectF left(main.X, main.Y, colW, main.Height);
+        RectF right(main.X + colW + 16.0f, main.Y, main.Width - colW - 16.0f, main.Height);
 
-        // Inputs left
         UI_AddTextBox(ID_TX_GAMEPATH, RectF(left.X + 16, left.Y + 62, left.Width - 32, 44), L"Game EXE path", gSet.gamePath, L"C:\\Games\\GTA5\\GTA5.exe");
         UI_AddButton(ID_BTN_OPEN_GAME, RectF(left.X + 16, left.Y + 110, 200, 40), L"Browse...", BtnKind::Secondary);
 
         UI_AddTextBox(ID_TX_ARGS, RectF(left.X + 16, left.Y + 162, left.Width - 32, 44), L"Launch args", gSet.gameArgs, L"-arg1 -arg2");
         UI_AddTextBox(ID_TX_DISCORD, RectF(left.X + 16, left.Y + 214, left.Width - 32, 44), L"Discord URL", gSet.discordUrl, L"https://discord.gg/xxxx");
         UI_AddTextBox(ID_TX_BG, RectF(left.X + 16, left.Y + 266, left.Width - 32, 44), L"Background image", gSet.backgroundPath, L"(optional) path to JPG/PNG");
-        UI_AddButton(ID_BTN_OPEN_LOG, RectF(left.X + 16, left.Y + 314, 200, 40), L"Browse BG...", BtnKind::Secondary);
+        UI_AddButton(ID_BTN_BG_BROWSE, RectF(left.X + 16, left.Y + 314, 200, 40), L"Browse BG...", BtnKind::Secondary);
 
         UI_AddToggle(ID_TG_AUTOLAUNCH, RectF(left.X + 16, left.Y + 372, left.Width - 32, 32), L"Auto-launch on open", gSet.autoLaunch);
         UI_AddToggle(ID_TG_FULLSCREEN, RectF(left.X + 16, left.Y + 410, left.Width - 32, 32), L"Start fullscreen (F11)", gSet.startFullscreen);
         UI_AddToggle(ID_TG_ANIMATIONS, RectF(left.X + 16, left.Y + 448, left.Width - 32, 32), L"UI animations", gSet.animations);
 
-        // Servers right
         UI_AddButton(ID_BTN_ADD_SERVER, RectF(right.X + 16, right.Y + 62, 160, 40), L"+ Add server", BtnKind::Secondary);
         UI_AddButton(ID_BTN_DEL_SERVER, RectF(right.X + 184, right.Y + 62, 160, 40), L"− Remove", BtnKind::Secondary);
 
-        // Theme dropdown
         std::vector<std::wstring> th = { L"Dark", L"Neon" };
-        UI_AddDropdown(ID_DD_THEME, RectF(right.X + 16, right.Y + 114, right.Width - 32, 44), L"Theme", th, (gSet.theme==ThemeMode::Neon)?1:0);
+        UI_AddDropdown(ID_DD_THEME, RectF(right.X + 16, right.Y + 114, right.Width - 32, 44), L"Theme", th, (gSet.theme == ThemeMode::Neon) ? 1 : 0);
 
-        UI_AddButton(ID_BTN_SAVE_SETTINGS, RectF(right.X + right.Width - 200 - 16, right.Y + right.Height - 52, 200, 44), L"Save Settings", BtnKind::Primary);
-
-        // Selected server dropdown (edit-like)
         std::vector<std::wstring> sv;
         for (auto& s0 : gSet.servers)
             sv.push_back(s0.name + L" • " + s0.host + L":" + std::to_wstring(s0.port));
-
         UI_AddDropdown(ID_DD_SERVER, RectF(right.X + 16, right.Y + 170, right.Width - 32, 44), L"Default server", sv, gSet.selectedServer);
 
-        // Simple inline server editor (3 textboxes)
-        // We'll edit selected server fields:
-        const auto& cur = gSet.servers[ClampI(gSet.selectedServer, 0, (int)gSet.servers.size()-1)];
-        UI_AddTextBox(9001, RectF(right.X + 16, right.Y + 230, right.Width - 32, 44), L"Server name", cur.name, L"Lobby");
-        UI_AddTextBox(9002, RectF(right.X + 16, right.Y + 282, right.Width - 32, 44), L"Host", cur.host, L"127.0.0.1");
-        UI_AddTextBox(9003, RectF(right.X + 16, right.Y + 334, right.Width - 32, 44), L"Port", std::to_wstring(cur.port), L"7777");
+        UI_AddButton(ID_BTN_SAVE_SETTINGS, RectF(right.X + right.Width - 200 - 16, right.Y + right.Height - 52, 200, 44), L"Save Settings", BtnKind::Primary);
     }
 }
 
 // ============================================================
-// UI drawing
+// Hit testing
+// ============================================================
+
+static bool PtInRectF(const POINT& p, const RectF& r)
+{
+    return p.x >= r.X && p.x <= (r.X + r.Width) && p.y >= r.Y && p.y <= (r.Y + r.Height);
+}
+
+static Button* HitButton(const POINT& p)
+{
+    for (auto& b : gButtons) if (PtInRectF(p, b.rect)) return &b;
+    return nullptr;
+}
+static TextBox* HitTextBox(const POINT& p)
+{
+    for (auto& t : gTextBoxes) if (PtInRectF(p, t.rect)) return &t;
+    return nullptr;
+}
+static Toggle* HitToggle(const POINT& p)
+{
+    for (auto& t : gToggles) if (PtInRectF(p, t.rect)) return &t;
+    return nullptr;
+}
+static Dropdown* HitDropdown(const POINT& p)
+{
+    for (auto& d : gDropdowns) if (PtInRectF(p, d.rect)) return &d;
+    return nullptr;
+}
+
+static void ClearTextFocus()
+{
+    for (auto& t : gTextBoxes) t.focused = false;
+}
+
+static void CloseAllDropdowns()
+{
+    for (auto& d : gDropdowns) { d.open = false; d.hoverIndex = -1; }
+}
+
+static bool DropdownHitOpenItem(Dropdown& d, const POINT& p, int& outIndex)
+{
+    if (!d.open) return false;
+    float itemH = 36.0f;
+    float listH = std::min(6.0f, (float)d.items.size()) * itemH + 12.0f;
+    RectF list(d.rect.X, d.rect.Y + d.rect.Height + 8.0f, d.rect.Width, listH);
+    if (!PtInRectF(p, list)) return false;
+
+    RectF inner(list.X + 8, list.Y + 8, list.Width - 16, list.Height - 16);
+    float relY = (float)p.y - inner.Y;
+    int idx = (int)(relY / itemH);
+    idx = ClampI(idx, 0, (int)std::min(6.0f, (float)d.items.size()) - 1);
+    outIndex = idx;
+    return true;
+}
+
+// ============================================================
+// Update hover
+// ============================================================
+
+static void UpdateHover(UIContext& ui)
+{
+    for (auto& b : gButtons)
+    {
+        b.hover = PtInRectF(ui.mousePos, b.rect);
+        if (!ui.mouseDown) b.down = false;
+    }
+    for (auto& t : gTextBoxes) t.hover = PtInRectF(ui.mousePos, t.rect);
+    for (auto& t : gToggles) t.hover = PtInRectF(ui.mousePos, t.rect);
+
+    for (auto& d : gDropdowns)
+    {
+        d.hover = PtInRectF(ui.mousePos, d.rect);
+        if (d.open)
+        {
+            int idx = -1;
+            if (DropdownHitOpenItem(d, ui.mousePos, idx)) d.hoverIndex = idx;
+            else d.hoverIndex = -1;
+        }
+    }
+}
+
+// ============================================================
+// Draw UI elements
 // ============================================================
 
 static void DrawTitleBar(Graphics& g, UIContext& ui)
 {
-    RectF r(0,0,(REAL)ui.w, 54.0f);
-
-    // top bar glass
-    SolidBrush bg(Color(120, 0,0,0));
+    RectF r(0.0f, 0.0f, (REAL)ui.w, 54.0f);
+    SolidBrush bg(Color(120, 0, 0, 0));
     g.FillRectangle(&bg, r);
 
-    // subtle bottom line
-    Pen line(Color(50,255,255,255), 1.0f);
-    g.DrawLine(&line, 0, 54, (REAL)ui.w, 54);
+    Pen line(Color(50, 255, 255, 255), 1.0f);
+    g.DrawLine(&line, 0.0f, 54.0f, (REAL)ui.w, 54.0f);
 
-    // Title + status
     DrawTextW_GDI(g, L"MAJESTIC ROLEPLAY", RectF(16, 10, 520, 20), 18, 900, gTheme.text0);
-    DrawTextW_GDI(g, L"ONLINE • Launcher v2 (Demo)", RectF(16, 28, 520, 18), 12, 400, gTheme.text2);
+    DrawTextW_GDI(g, L"ONLINE • Launcher v2 (Demo) • HTML News", RectF(16, 28, 520, 18), 12, 400, gTheme.text2);
 
-    // Right hints
     DrawTextW_GDI(g, L"F11 Fullscreen", RectF((REAL)ui.w - 260, 18, 160, 20), 12, 600, gTheme.text2, StringAlignmentFar);
-
-    // Control buttons drawn via buttons list (Icon kind)
 }
 
 static void DrawButton(Graphics& g, Button& b)
 {
-    RectF r = b.rect;
-
     b.glow.target = b.hover ? 1.0f : 0.0f;
-    b.glow.speed = gSet.animations ? 0.22f : 1.0f;
-    b.glow.Tick();
+    b.glow.Tick(gSet.animations);
 
     bool pressed = b.down && b.hover;
 
-    // Colors by kind
+    RectF r = b.rect;
+    float radius = (b.kind == BtnKind::Icon) ? 12.0f : 14.0f;
+
     Color stroke = gTheme.stroke;
     Color fillA = Color(40,255,255,255);
     Color fillB = Color(25,255,255,255);
     Color text = gTheme.text0;
-
-    float radius = 14.0f;
-    if (b.kind == BtnKind::Icon) radius = 12.0f;
 
     if (!b.enabled)
     {
@@ -897,34 +1279,30 @@ static void DrawButton(Graphics& g, Button& b)
         text = gTheme.text2;
         stroke = Color(35,255,255,255);
     }
-    else if (b.kind == BtnKind::Primary)
-    {
-        // gradient accent
-        // We'll draw gradient ourselves
-    }
-    else if (b.kind == BtnKind::Danger)
+
+    if (b.kind == BtnKind::Danger)
     {
         fillA = Color(40, gTheme.danger.GetR(), gTheme.danger.GetG(), gTheme.danger.GetB());
         fillB = Color(24, gTheme.danger.GetR(), gTheme.danger.GetG(), gTheme.danger.GetB());
         stroke = Color(110, gTheme.danger.GetR(), gTheme.danger.GetG(), gTheme.danger.GetB());
     }
 
-    if (pressed) {
+    if (pressed)
+    {
         fillA = Color((BYTE)ClampI(fillA.GetA()+40,0,255), fillA.GetR(), fillA.GetG(), fillA.GetB());
         fillB = Color((BYTE)ClampI(fillB.GetA()+30,0,255), fillB.GetR(), fillB.GetG(), fillB.GetB());
     }
-    if (b.hover && b.enabled && b.kind != BtnKind::Primary) {
+    if (b.hover && b.enabled && b.kind != BtnKind::Primary)
+    {
         fillA = Color((BYTE)ClampI(fillA.GetA()+30,0,255), fillA.GetR(), fillA.GetG(), fillA.GetB());
         fillB = Color((BYTE)ClampI(fillB.GetA()+24,0,255), fillB.GetR(), fillB.GetG(), fillB.GetB());
         stroke = gTheme.stroke2;
     }
 
-    // Shadow
     DrawShadow(g, r, radius, 8, Color(70,0,0,0));
 
     if (b.kind == BtnKind::Primary)
     {
-        // Primary gradient
         LinearGradientBrush grad(r,
             Color(255, gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB()),
             Color(255, gTheme.accent2.GetR(), gTheme.accent2.GetG(), gTheme.accent2.GetB()),
@@ -935,7 +1313,6 @@ static void DrawButton(Graphics& g, Button& b)
         Pen st(Color(90,255,255,255), 1.0f);
         StrokeRounded(g, r, radius, &st);
 
-        // hover shine
         if (b.hover)
         {
             LinearGradientBrush shine(r,
@@ -948,7 +1325,6 @@ static void DrawButton(Graphics& g, Button& b)
     }
     else
     {
-        // Secondary/other
         SolidBrush f1(fillA);
         FillRounded(g, r, radius, &f1);
 
@@ -959,31 +1335,23 @@ static void DrawButton(Graphics& g, Button& b)
         StrokeRounded(g, r, radius, &st);
     }
 
-    // Glow outline
-    if (b.glow.v > 0.01f && b.enabled)
+    if (b.glow.v > 0.01f && b.enabled && b.kind != BtnKind::Danger)
     {
-        Color glow(
-            (BYTE)(b.glow.v * 120),
-            gTheme.accent.GetR(),
-            gTheme.accent.GetG(),
-            gTheme.accent.GetB()
-        );
+        Color glow((BYTE)(b.glow.v * 120),
+                   gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB());
         Pen p(glow, 2.0f);
         StrokeRounded(g, r, radius, &p);
     }
 
-    // Text
     float fontSize = (b.kind == BtnKind::Icon) ? 16.0f : (b.kind == BtnKind::Primary ? 16.0f : 14.0f);
     int weight = (b.kind == BtnKind::Primary) ? 1000 : 800;
-    DrawTextW_GDI(g, b.text, r, fontSize, weight, text,
-        StringAlignmentCenter, StringAlignmentCenter, false);
+    DrawTextW_GDI(g, b.text, r, fontSize, weight, text, StringAlignmentCenter);
 }
 
 static void DrawTextBox(Graphics& g, TextBox& t)
 {
     RectF r = t.rect;
 
-    // label above
     DrawTextW_GDI(g, t.label, RectF(r.X, r.Y - 18, r.Width, 16), 12, 700, gTheme.text2);
 
     bool active = t.focused;
@@ -991,7 +1359,6 @@ static void DrawTextBox(Graphics& g, TextBox& t)
     Color fill = active ? Color(60, 255,255,255) : Color(38,255,255,255);
 
     DrawShadow(g, r, 14.0f, 7, Color(60,0,0,0));
-
     SolidBrush f(fill);
     FillRounded(g, r, 14.0f, &f);
 
@@ -1001,23 +1368,11 @@ static void DrawTextBox(Graphics& g, TextBox& t)
     Pen p(stroke, 1.2f);
     StrokeRounded(g, r, 14.0f, &p);
 
-    // text
-    std::wstring show = t.value;
-    if (t.password)
-        show = std::wstring(show.size(), L'•');
-
-    if (show.empty())
-    {
-        DrawTextW_GDI(g, t.placeholder, RectF(r.X+12, r.Y, r.Width-24, r.Height), 14, 500, gTheme.text2,
-            StringAlignmentNear, StringAlignmentCenter, false);
-    }
+    if (t.value.empty())
+        DrawTextW_GDI(g, t.placeholder, RectF(r.X+12, r.Y, r.Width-24, r.Height), 14, 500, gTheme.text2);
     else
-    {
-        DrawTextW_GDI(g, show, RectF(r.X+12, r.Y, r.Width-24, r.Height), 14, 700, gTheme.text0,
-            StringAlignmentNear, StringAlignmentCenter, false);
-    }
+        DrawTextW_GDI(g, t.value, RectF(r.X+12, r.Y, r.Width-24, r.Height), 14, 700, gTheme.text0);
 
-    // caret (very simple; not accurate glyph measuring)
     if (t.focused)
     {
         DWORD now = GetTickCount();
@@ -1028,10 +1383,9 @@ static void DrawTextBox(Graphics& g, TextBox& t)
         }
         if (t.caretOn)
         {
-            // approximate caret x by character count * 7 px
-            int count = (int)(t.password ? std::wstring(t.value.size(), L'•').size() : t.value.size());
-            count = ClampI(t.caret, 0, count);
-            float x = r.X + 12.0f + (float)count * 7.0f;
+            int count = (int)t.value.size();
+            int caret = ClampI(t.caret, 0, count);
+            float x = r.X + 12.0f + (float)caret * 7.0f;
             x = std::min(x, r.X + r.Width - 12.0f);
 
             Pen caretPen(Color(210, 255,255,255), 1.6f);
@@ -1043,26 +1397,22 @@ static void DrawTextBox(Graphics& g, TextBox& t)
 static void DrawToggle(Graphics& g, Toggle& t)
 {
     t.anim.target = t.value ? 1.0f : 0.0f;
-    t.anim.speed = gSet.animations ? 0.22f : 1.0f;
-    t.anim.Tick();
+    t.anim.Tick(gSet.animations);
 
     RectF r = t.rect;
 
-    // Switch area on left
     float swW = 52.0f;
     float swH = 26.0f;
     float swX = r.X;
     float swY = r.Y + (r.Height - swH) * 0.5f;
     RectF sw(swX, swY, swW, swH);
 
-    // text area
     RectF tr(swX + swW + 12.0f, r.Y, r.Width - (swW + 12.0f), r.Height);
 
-    // background switch
     Color onC = gTheme.accent2;
     Color offC = Color(80, 255,255,255);
 
-    Color fill = Color(
+    Color fill(
         (BYTE)(60 + t.anim.v * 40),
         (BYTE)((offC.GetR() * (1.0f - t.anim.v)) + (onC.GetR() * t.anim.v)),
         (BYTE)((offC.GetG() * (1.0f - t.anim.v)) + (onC.GetG() * t.anim.v)),
@@ -1076,7 +1426,6 @@ static void DrawToggle(Graphics& g, Toggle& t)
     Pen st(t.hover ? gTheme.stroke2 : gTheme.stroke, 1.0f);
     StrokeRounded(g, sw, 999.0f, &st);
 
-    // knob
     float knobR = 20.0f;
     float knobX = sw.X + 4.0f + t.anim.v * (sw.Width - 8.0f - knobR);
     RectF knob(knobX, sw.Y + 3.0f, knobR, knobR);
@@ -1084,18 +1433,15 @@ static void DrawToggle(Graphics& g, Toggle& t)
     SolidBrush kb(Color(220, 255,255,255));
     FillRounded(g, knob, 999.0f, &kb);
 
-    // text
-    DrawTextW_GDI(g, t.text, tr, 14, 700, gTheme.text1, StringAlignmentNear, StringAlignmentCenter);
+    DrawTextW_GDI(g, t.text, tr, 14, 700, gTheme.text1);
 }
 
 static void DrawDropdown(Graphics& g, Dropdown& d)
 {
     RectF r = d.rect;
 
-    // label
     DrawTextW_GDI(g, d.label, RectF(r.X, r.Y - 18, r.Width, 16), 12, 700, gTheme.text2);
 
-    // base box
     DrawShadow(g, r, 14.0f, 7, Color(60,0,0,0));
     SolidBrush f(Color(38,255,255,255));
     FillRounded(g, r, 14.0f, &f);
@@ -1106,14 +1452,11 @@ static void DrawDropdown(Graphics& g, Dropdown& d)
     Pen st(d.hover ? gTheme.stroke2 : gTheme.stroke, 1.2f);
     StrokeRounded(g, r, 14.0f, &st);
 
-    // selected text
     std::wstring txt = d.items.empty() ? L"(empty)" : d.items[ClampI(d.selected,0,(int)d.items.size()-1)];
     DrawTextW_GDI(g, txt, RectF(r.X+12, r.Y, r.Width-44, r.Height), 14, 700, gTheme.text0);
 
-    // arrow
     DrawTextW_GDI(g, d.open ? L"▲" : L"▼", RectF(r.X + r.Width - 34, r.Y, 24, r.Height), 12, 900, gTheme.text2, StringAlignmentCenter);
 
-    // open list
     if (d.open && !d.items.empty())
     {
         float itemH = 36.0f;
@@ -1122,7 +1465,6 @@ static void DrawDropdown(Graphics& g, Dropdown& d)
 
         DrawGlassPanel(g, list, 16.0f);
 
-        // items
         int maxItems = (int)std::min(6.0f, (float)d.items.size());
         for (int i=0;i<maxItems;i++)
         {
@@ -1144,7 +1486,7 @@ static void DrawDropdown(Graphics& g, Dropdown& d)
 }
 
 // ============================================================
-// Page drawing
+// Pages drawing
 // ============================================================
 
 static void DrawSidebar(Graphics& g, UIContext& ui)
@@ -1152,13 +1494,11 @@ static void DrawSidebar(Graphics& g, UIContext& ui)
     RectF side(16.0f, 54.0f + 16.0f, 240.0f, (float)ui.h - (54.0f + 32.0f));
     DrawGlassPanel(g, side, 20.0f);
 
-    // top user chip
     RectF chip(side.X + 14, side.Y + 14, side.Width - 28, 64);
     DrawShadow(g, chip, 18.0f, 6, Color(65,0,0,0));
     SolidBrush c1(Color(25,255,255,255));
     FillRounded(g, chip, 18.0f, &c1);
 
-    // avatar circle
     RectF ava(chip.X + 12, chip.Y + 12, 40, 40);
     SolidBrush avaB(Color(50, gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB()));
     FillRounded(g, ava, 16.0f, &avaB);
@@ -1169,12 +1509,9 @@ static void DrawSidebar(Graphics& g, UIContext& ui)
     DrawTextW_GDI(g, L"Status: ONLINE", RectF(ava.X+ava.Width+10, chip.Y+36, chip.Width-ava.Width-22, 16),
         12, 700, gTheme.accent2);
 
-    // page hint
     std::wstring pageName = (gPage==Page::Home?L"Home":gPage==Page::News?L"News":L"Settings");
     DrawTextW_GDI(g, L"Page", RectF(side.X+14, side.Y+92, side.Width-28, 16), 12, 700, gTheme.text2);
     DrawTextW_GDI(g, pageName, RectF(side.X+14, side.Y+108, side.Width-28, 22), 16, 1000, gTheme.text0);
-
-    // rest drawn by buttons
 }
 
 static void DrawHomePage(Graphics& g, UIContext& ui)
@@ -1182,47 +1519,33 @@ static void DrawHomePage(Graphics& g, UIContext& ui)
     RectF side(16.0f, 54.0f + 16.0f, 240.0f, (float)ui.h - (54.0f + 32.0f));
     RectF main(side.X + side.Width + 16.0f, side.Y, (float)ui.w - (side.X + side.Width + 32.0f), side.Height);
 
-    // Hero
     RectF hero(main.X, main.Y, main.Width, 220.0f);
     DrawGlassPanel(g, hero, 22.0f);
 
-    // Hero art overlay
-    RectF art(hero.X, hero.Y, hero.Width, hero.Height);
-    GraphicsPath p; p.AddEllipse(art.X-120, art.Y-140, 520, 520);
-    PathGradientBrush b(&p);
-    b.SetCenterColor(Color(90, gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB()));
-    Color edges[1] = { Color(0, gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB()) };
-    int c = 1; b.SetSurroundColors(edges, &c);
-    g.FillEllipse(&b, art.X-120, art.Y-140, 520, 520);
+    // blobs
+    {
+        GraphicsPath p; p.AddEllipse((REAL)(hero.X-120), (REAL)(hero.Y-140), (REAL)520, (REAL)520);
+        PathGradientBrush b(&p);
+        b.SetCenterColor(Color(90, gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB()));
+        Color edges[1] = { Color(0, gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB()) };
+        int c = 1; b.SetSurroundColors(edges, &c);
+        g.FillEllipse(&b, (REAL)(hero.X-120), (REAL)(hero.Y-140), (REAL)520, (REAL)520);
 
-    GraphicsPath p2; p2.AddEllipse(art.X+art.Width-380, art.Y-120, 520, 520);
-    PathGradientBrush b2(&p2);
-    b2.SetCenterColor(Color(80, gTheme.accent2.GetR(), gTheme.accent2.GetG(), gTheme.accent2.GetB()));
-    Color edges2[1] = { Color(0, gTheme.accent2.GetR(), gTheme.accent2.GetG(), gTheme.accent2.GetB()) };
-    int c2 = 1; b2.SetSurroundColors(edges2, &c2);
-    g.FillEllipse(&b2, art.X+art.Width-380, art.Y-120, 520, 520);
+        GraphicsPath p2; p2.AddEllipse((REAL)(hero.X+hero.Width-380), (REAL)(hero.Y-120), (REAL)520, (REAL)520);
+        PathGradientBrush b2(&p2);
+        b2.SetCenterColor(Color(80, gTheme.accent2.GetR(), gTheme.accent2.GetG(), gTheme.accent2.GetB()));
+        Color edges2[1] = { Color(0, gTheme.accent2.GetR(), gTheme.accent2.GetG(), gTheme.accent2.GetB()) };
+        int c2 = 1; b2.SetSurroundColors(edges2, &c2);
+        g.FillEllipse(&b2, (REAL)(hero.X+hero.Width-380), (REAL)(hero.Y-120), (REAL)520, (REAL)520);
+    }
 
-    // Hero texts
     DrawTextW_GDI(g, L"MAJESTIC ROLEPLAY", RectF(hero.X+20, hero.Y+18, hero.Width-40, 32), 22, 1000, gTheme.text0);
-    DrawTextW_GDI(g, L"GTA RP launcher • premium UI (Win32/GDI+)", RectF(hero.X+20, hero.Y+48, hero.Width-40, 18), 13, 700, gTheme.text2);
+    DrawTextW_GDI(g, L"GTA RP launcher • premium UI (Win32/GDI+) • FIXED", RectF(hero.X+20, hero.Y+48, hero.Width-40, 18), 13, 700, gTheme.text2);
 
-    // Status chips
-    RectF chips(hero.X+20, hero.Y+78, hero.Width-40, 30);
-    DrawTextW_GDI(g, L"• ONLINE", RectF(chips.X, chips.Y, 100, chips.Height), 13, 900, gTheme.accent2);
-    DrawTextW_GDI(g, L"• Anti-cheat: Demo", RectF(chips.X+100, chips.Y, 170, chips.Height), 13, 700, gTheme.text2);
-    DrawTextW_GDI(g, L"• Ping: 22ms", RectF(chips.X+280, chips.Y, 140, chips.Height), 13, 700, gTheme.text2);
+    std::wstring preview = gNewsHtml.empty()?L"No news":L"(см. вкладку News — HTML)";
+    DrawTextW_GDI(g, L"Latest news (HTML)", RectF(hero.X+20, hero.Y+132, hero.Width-300, 16), 12, 700, gTheme.text2);
+    DrawTextW_GDI(g, preview, RectF(hero.X+20, hero.Y+148, hero.Width-300, 56), 14, 800, gTheme.text0, StringAlignmentNear, StringAlignmentNear, true);
 
-    // Divider
-    Pen dl(Color(40,255,255,255), 1.0f);
-    g.DrawLine(&dl, hero.X+20, hero.Y+124, hero.X+hero.Width-20, hero.Y+124);
-
-    // Right-side: show selected news preview
-    std::wstring preview = gNews.empty()?L"No news":gNews[gNewsIndex];
-    DrawTextW_GDI(g, L"Latest news", RectF(hero.X+20, hero.Y+132, hero.Width-300, 16), 12, 700, gTheme.text2);
-    DrawTextW_GDI(g, preview, RectF(hero.X+20, hero.Y+148, hero.Width-300, 56), 14, 800, gTheme.text0,
-        StringAlignmentNear, StringAlignmentNear, true);
-
-    // Secondary card
     RectF q(main.X, main.Y + hero.Height + 16.0f, main.Width, 220.0f);
     DrawGlassPanel(g, q, 22.0f);
 
@@ -1230,8 +1553,7 @@ static void DrawHomePage(Graphics& g, UIContext& ui)
     DrawTextW_GDI(g, L"Set game path, tune args, then press PLAY. Press F11 for fullscreen.", RectF(q.X+20, q.Y+40, q.Width-40, 18),
         13, 700, gTheme.text2);
 
-    // Subtle footer note
-    DrawTextW_GDI(g, L"Tip: Settings page contains server list & background.", RectF(q.X+20, q.Y+q.Height-28, q.Width-40, 18),
+    DrawTextW_GDI(g, L"Tip: News page supports <a href> links.", RectF(q.X+20, q.Y+q.Height-28, q.Width-40, 18),
         12, 700, gTheme.text2);
 }
 
@@ -1241,30 +1563,31 @@ static void DrawNewsPage(Graphics& g, UIContext& ui)
     RectF main(side.X + side.Width + 16.0f, side.Y, (float)ui.w - (side.X + side.Width + 32.0f), side.Height);
 
     DrawGlassPanel(g, main, 22.0f);
-    DrawTextW_GDI(g, L"News", RectF(main.X+16, main.Y+14, main.Width-32, 24), 18, 1000, gTheme.text0);
-    DrawTextW_GDI(g, L"Auto-rotates every 6s. Use mouse wheel to scroll.", RectF(main.X+16, main.Y+40, main.Width-32, 16),
+    DrawTextW_GDI(g, L"News (HTML)", RectF(main.X+16, main.Y+14, main.Width-32, 24), 18, 1000, gTheme.text0);
+    DrawTextW_GDI(g, L"Mouse wheel scroll • Click links • Auto-rotate every 6s", RectF(main.X+16, main.Y+40, main.Width-32, 16),
         12, 700, gTheme.text2);
 
-    // Scroll area
     RectF area = gNewsScroll.rect;
-    // compute maxScroll: item count * item height minus area height
-    float itemH = 74.0f;
-    float contentH = 14.0f + (float)gNews.size() * itemH;
+
+    float cardH = 170.0f;
+    float gap = 14.0f;
+    float contentH = 12.0f + (float)gNewsHtml.size() * (cardH + gap);
     gNewsScroll.maxScroll = std::max(0.0f, contentH - area.Height);
     gNewsScroll.scroll = ClampF(gNewsScroll.scroll, 0.0f, gNewsScroll.maxScroll);
 
-    // clip
+    // Clear link hits each frame
+    gLinkHits.clear();
+
     Region oldClip;
     g.GetClip(&oldClip);
     g.SetClip(area);
 
     float y = area.Y + 12.0f - gNewsScroll.scroll;
-    for (int i=0;i<(int)gNews.size();++i)
+    for (int i=0;i<(int)gNewsHtml.size();++i)
     {
-        RectF card(area.X + 12.0f, y, area.Width - 24.0f, itemH - 12.0f);
+        RectF card(area.X + 12.0f, y, area.Width - 24.0f, cardH);
         bool active = (i == gNewsIndex);
 
-        // card bg
         DrawShadow(g, card, 18.0f, 6, Color(55,0,0,0));
         SolidBrush fill(active ? Color(55, gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB())
                               : Color(28,255,255,255));
@@ -1273,14 +1596,13 @@ static void DrawNewsPage(Graphics& g, UIContext& ui)
         Pen st(active ? Color(130, gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB()) : gTheme.stroke, 1.0f);
         StrokeRounded(g, card, 18.0f, &st);
 
-        DrawTextW_GDI(g, L"Update", RectF(card.X+14, card.Y+10, 120, 16), 12, 900, active?gTheme.text0:gTheme.text2);
-        DrawTextW_GDI(g, gNews[i], RectF(card.X+14, card.Y+26, card.Width-28, card.Height-30),
-            14, active?1000:800, gTheme.text0, StringAlignmentNear, StringAlignmentNear, true);
+        // draw HTML content
+        RectF htmlArea(card.X + 14, card.Y + 12, card.Width - 28, card.Height - 24);
+        HtmlDrawBlock(g, gNewsHtml[i], htmlArea, gLinkHits);
 
-        y += itemH;
+        y += (cardH + gap);
     }
 
-    // restore clip
     g.SetClip(&oldClip);
 
     // scrollbar
@@ -1310,15 +1632,12 @@ static void DrawSettingsPage(Graphics& g, UIContext& ui)
     DrawGlassPanel(g, main, 22.0f);
 
     DrawTextW_GDI(g, L"Settings", RectF(main.X+16, main.Y+14, main.Width-32, 24), 18, 1000, gTheme.text0);
-    DrawTextW_GDI(g, L"All stored in INI file. No external libraries. Demo only.", RectF(main.X+16, main.Y+40, main.Width-32, 16),
-        12, 700, gTheme.text2);
+    DrawTextW_GDI(g, L"Stored in INI file. Demo only.", RectF(main.X+16, main.Y+40, main.Width-32, 16), 12, 700, gTheme.text2);
 
-    // column split background (visual separators)
     float colW = (main.Width - 16.0f) * 0.55f;
     RectF left(main.X+8, main.Y+58, colW, main.Height-66);
     RectF right(main.X+8+colW+8, main.Y+58, main.Width - colW - 16, main.Height-66);
 
-    // draw subtle columns
     SolidBrush colBg(Color(18,255,255,255));
     FillRounded(g, left, 18.0f, &colBg);
     FillRounded(g, right, 18.0f, &colBg);
@@ -1330,7 +1649,7 @@ static void DrawSettingsPage(Graphics& g, UIContext& ui)
     DrawTextW_GDI(g, L"Launcher", RectF(left.X+16, left.Y+10, left.Width-32, 18), 14, 1000, gTheme.text0);
     DrawTextW_GDI(g, L"Servers & Appearance", RectF(right.X+16, right.Y+10, right.Width-32, 18), 14, 1000, gTheme.text0);
 
-    // server list preview (simple)
+    // server preview
     float y = right.Y + 390.0f;
     DrawTextW_GDI(g, L"Server list (preview)", RectF(right.X+16, y, right.Width-32, 18), 12, 900, gTheme.text2);
     y += 20;
@@ -1352,75 +1671,91 @@ static void DrawSettingsPage(Graphics& g, UIContext& ui)
 }
 
 // ============================================================
-// UI hit testing
+// Toast drawing
 // ============================================================
 
-static bool PtInRectF(const POINT& p, const RectF& r)
+static void DrawToast(Graphics& g, UIContext& ui)
 {
-    return p.x >= r.X && p.x <= (r.X + r.Width) && p.y >= r.Y && p.y <= (r.Y + r.Height);
+    if (!gToast.active) return;
+
+    DWORD now = GetTickCount();
+    DWORD dt = now - gToast.start;
+    if (dt > gToast.dur)
+    {
+        gToast.active = false;
+        return;
+    }
+
+    float t = (float)dt / (float)gToast.dur;
+    float alphaIn = ClampF((float)dt / 220.0f, 0.0f, 1.0f);
+    float alphaOut = ClampF((float)(gToast.dur - dt) / 260.0f, 0.0f, 1.0f);
+    float a = std::min(alphaIn, alphaOut);
+
+    float W = (float)ui.w;
+    float H = (float)ui.h;
+
+    float boxW = std::min(640.0f, W - 60.0f);
+    float boxH = 64.0f;
+    RectF r((W - boxW) * 0.5f, H - boxH - 22.0f, boxW, boxH);
+
+    Color base = Color((BYTE)(120 * a), 0,0,0);
+    SolidBrush bg(base);
+    DrawShadow(g, r, 18.0f, 8, Color((BYTE)(90 * a), 0,0,0));
+    FillRounded(g, r, 18.0f, &bg);
+
+    Color border = Color((BYTE)(60 * a), 255,255,255);
+    if (gToast.kind == L"ok")   border = Color((BYTE)(90 * a), gTheme.accent2.GetR(), gTheme.accent2.GetG(), gTheme.accent2.GetB());
+    if (gToast.kind == L"warn") border = Color((BYTE)(90 * a), gTheme.warn.GetR(), gTheme.warn.GetG(), gTheme.warn.GetB());
+    if (gToast.kind == L"err")  border = Color((BYTE)(90 * a), gTheme.danger.GetR(), gTheme.danger.GetG(), gTheme.danger.GetB());
+
+    Pen p(border, 1.2f);
+    StrokeRounded(g, r, 18.0f, &p);
+
+    DrawTextW_GDI(g, gToast.title, RectF(r.X+16, r.Y+10, r.Width-32, 20), 14, 1000, Color((BYTE)(235*a),255,255,255));
+    DrawTextW_GDI(g, gToast.msg, RectF(r.X+16, r.Y+30, r.Width-32, 22), 12, 700, Color((BYTE)(200*a),255,255,255), StringAlignmentNear, StringAlignmentCenter, true);
 }
 
-static Button* HitButton(const POINT& p)
-{
-    for (auto& b : gButtons)
-        if (PtInRectF(p, b.rect)) return &b;
-    return nullptr;
-}
+// ============================================================
+// Apply UI data back to settings (simplified)
+// ============================================================
 
-static TextBox* HitTextBox(const POINT& p)
+static void ApplyTextBoxToSettings()
 {
     for (auto& t : gTextBoxes)
-        if (PtInRectF(p, t.rect)) return &t;
-    return nullptr;
+    {
+        if (t.id == ID_TX_GAMEPATH) gSet.gamePath = t.value;
+        if (t.id == ID_TX_ARGS) gSet.gameArgs = t.value;
+        if (t.id == ID_TX_DISCORD) gSet.discordUrl = t.value;
+        if (t.id == ID_TX_BG) gSet.backgroundPath = t.value;
+        if (t.id == ID_TX_NICK) gSet.nickname = t.value;
+    }
 }
 
-static Toggle* HitToggle(const POINT& p)
+static void ApplyToggleToSettings()
 {
     for (auto& t : gToggles)
-        if (PtInRectF(p, t.rect)) return &t;
-    return nullptr;
+    {
+        if (t.id == ID_TG_AUTOLAUNCH) gSet.autoLaunch = t.value;
+        if (t.id == ID_TG_FULLSCREEN) gSet.startFullscreen = t.value;
+        if (t.id == ID_TG_ANIMATIONS) gSet.animations = t.value;
+    }
 }
 
-static Dropdown* HitDropdown(const POINT& p)
+static void ApplyDropdownToSettings()
 {
     for (auto& d : gDropdowns)
-        if (PtInRectF(p, d.rect)) return &d;
-    return nullptr;
-}
-
-static void ClearTextFocus()
-{
-    for (auto& t : gTextBoxes) t.focused = false;
-}
-
-// ============================================================
-// Dropdown interactions
-// ============================================================
-
-static void CloseAllDropdowns()
-{
-    for (auto& d : gDropdowns) { d.open = false; d.hoverIndex = -1; }
-}
-
-static bool DropdownHitOpenItem(Dropdown& d, const POINT& p, int& outIndex)
-{
-    if (!d.open) return false;
-    float itemH = 36.0f;
-    float listH = std::min(6.0f, (float)d.items.size()) * itemH + 12.0f;
-    RectF list(d.rect.X, d.rect.Y + d.rect.Height + 8.0f, d.rect.Width, listH);
-    if (!PtInRectF(p, list)) return false;
-
-    // items area inside list
-    RectF inner(list.X+8, list.Y+8, list.Width-16, list.Height-16);
-    float relY = (float)p.y - inner.Y;
-    int idx = (int)(relY / itemH);
-    idx = ClampI(idx, 0, (int)std::min(6.0f, (float)d.items.size())-1);
-    outIndex = idx;
-    return true;
+    {
+        if (d.id == ID_DD_SERVER) gSet.selectedServer = d.selected;
+        if (d.id == ID_DD_THEME)
+        {
+            gSet.theme = (d.selected == 1) ? ThemeMode::Neon : ThemeMode::Dark;
+            gTheme.Apply(gSet.theme);
+        }
+    }
 }
 
 // ============================================================
-// Actions (button click handlers)
+// Fullscreen
 // ============================================================
 
 static void ToggleFullscreen(HWND hwnd)
@@ -1455,93 +1790,28 @@ static void ToggleFullscreen(HWND hwnd)
     }
 }
 
-static void ApplyTextBoxToSettings()
-{
-    for (auto& t : gTextBoxes)
-    {
-        if (t.id == ID_TX_GAMEPATH) gSet.gamePath = t.value;
-        if (t.id == ID_TX_ARGS) gSet.gameArgs = t.value;
-        if (t.id == ID_TX_DISCORD) gSet.discordUrl = t.value;
-        if (t.id == ID_TX_BG) gSet.backgroundPath = t.value;
-        if (t.id == ID_TX_NICK) gSet.nickname = t.value;
-
-        // server editor fields (settings page)
-        if (t.id == 9001)
-        {
-            int idx = ClampI(gSet.selectedServer, 0, (int)gSet.servers.size()-1);
-            gSet.servers[idx].name = t.value;
-        }
-        if (t.id == 9002)
-        {
-            int idx = ClampI(gSet.selectedServer, 0, (int)gSet.servers.size()-1);
-            gSet.servers[idx].host = t.value;
-        }
-        if (t.id == 9003)
-        {
-            int idx = ClampI(gSet.selectedServer, 0, (int)gSet.servers.size()-1);
-            int p = _wtoi(t.value.c_str());
-            if (p <= 0) p = 7777;
-            gSet.servers[idx].port = p;
-        }
-    }
-}
-
-static void ApplyToggleToSettings()
-{
-    for (auto& t : gToggles)
-    {
-        if (t.id == ID_TG_AUTOLAUNCH) gSet.autoLaunch = t.value;
-        if (t.id == ID_TG_FULLSCREEN) gSet.startFullscreen = t.value;
-        if (t.id == ID_TG_ANIMATIONS) gSet.animations = t.value;
-    }
-}
-
-static void ApplyDropdownToSettings(HWND hwnd)
-{
-    for (auto& d : gDropdowns)
-    {
-        if (d.id == ID_DD_SERVER)
-        {
-            gSet.selectedServer = d.selected;
-        }
-        if (d.id == ID_DD_THEME)
-        {
-            gSet.theme = (d.selected == 1) ? ThemeMode::Neon : ThemeMode::Dark;
-            gTheme.Apply(gSet.theme);
-
-            // reload background
-            if (gBgImage) { delete gBgImage; gBgImage = nullptr; }
-            if (!gSet.backgroundPath.empty() && FileExists(gSet.backgroundPath))
-            {
-                gBgImage = Image::FromFile(gSet.backgroundPath.c_str());
-                if (gBgImage && gBgImage->GetLastStatus() != Ok)
-                {
-                    delete gBgImage;
-                    gBgImage = nullptr;
-                }
-            }
-
-            InvalidateRect(hwnd, NULL, FALSE);
-        }
-    }
-}
+// ============================================================
+// Actions
+// ============================================================
 
 static void HandleButtonClick(HWND hwnd, int id)
 {
-    if (id == ID_BTN_CLOSE)
-    {
-        PostMessageW(hwnd, WM_CLOSE, 0, 0);
-        return;
-    }
-    if (id == ID_BTN_MIN)
-    {
-        ShowWindow(hwnd, SW_MINIMIZE);
-        return;
-    }
+    if (id == ID_BTN_CLOSE) { PostMessageW(hwnd, WM_CLOSE, 0, 0); return; }
+    if (id == ID_BTN_MIN)   { ShowWindow(hwnd, SW_MINIMIZE); return; }
 
-    if (id == ID_BTN_HOME) { gPage = Page::Home; InvalidateRect(hwnd,NULL,FALSE); return; }
-    if (id == ID_BTN_NEWS) { gPage = Page::News; InvalidateRect(hwnd,NULL,FALSE); return; }
-    if (id == ID_BTN_SETTINGS) { gPage = Page::Settings; InvalidateRect(hwnd,NULL,FALSE); return; }
+    if (id == ID_BTN_HOME)     { gPage = Page::Home; InvalidateRect(hwnd, NULL, FALSE); return; }
+    if (id == ID_BTN_NEWS)     { gPage = Page::News; InvalidateRect(hwnd, NULL, FALSE); return; }
+    if (id == ID_BTN_SETTINGS) { gPage = Page::Settings; InvalidateRect(hwnd, NULL, FALSE); return; }
+
+    if (id == ID_BTN_THEME)
+    {
+        gSet.theme = (gSet.theme == ThemeMode::Dark) ? ThemeMode::Neon : ThemeMode::Dark;
+        gTheme.Apply(gSet.theme);
+        IniWriteInt(L"Appearance", L"Theme", (gSet.theme==ThemeMode::Neon)?1:0);
+        toast(L"Theme", (gSet.theme==ThemeMode::Neon)?L"Neon":L"Dark", L"ok");
+        InvalidateRect(hwnd, NULL, FALSE);
+        return;
+    }
 
     if (id == ID_BTN_DISCORD)
     {
@@ -1551,21 +1821,17 @@ static void HandleButtonClick(HWND hwnd, int id)
         return;
     }
 
-    if (id == ID_BTN_THEME)
+    if (id == ID_BTN_NEXT_NEWS)
     {
-        // toggle theme quick
-        gSet.theme = (gSet.theme == ThemeMode::Dark) ? ThemeMode::Neon : ThemeMode::Dark;
-        gTheme.Apply(gSet.theme);
-        IniWriteInt(L"Appearance", L"Theme", (gSet.theme==ThemeMode::Neon)?1:0);
-        toast(L"Theme", (gSet.theme==ThemeMode::Neon)?L"Neon":L"Dark", L"ok");
-        InvalidateRect(hwnd,NULL,FALSE);
+        gNewsIndex = (gNewsIndex + 1) % (int)gNewsHtml.size();
+        toast(L"News", L"Switched to next news card", L"ok");
+        InvalidateRect(hwnd, NULL, FALSE);
         return;
     }
 
-    if (id == ID_BTN_SEED_NEWS)
+    if (id == ID_BTN_F11)
     {
-        gNewsIndex = (gNewsIndex + 1) % (int)gNews.size();
-        InvalidateRect(hwnd,NULL,FALSE);
+        ToggleFullscreen(hwnd);
         return;
     }
 
@@ -1577,58 +1843,96 @@ static void HandleButtonClick(HWND hwnd, int id)
         if (!p.empty())
         {
             gSet.gamePath = p;
-            // reflect into textboxes
             for (auto& tb : gTextBoxes)
                 if (tb.id == ID_TX_GAMEPATH) { tb.value = p; tb.caret = (int)tb.value.size(); }
             toast(L"Selected", p, L"ok");
-            InvalidateRect(hwnd,NULL,FALSE);
+            InvalidateRect(hwnd, NULL, FALSE);
         }
         return;
     }
 
-    if (id == ID_BTN_OPEN_LOG)
+    if (id == ID_BTN_BG_BROWSE)
     {
-        if (gPage == Page::Home)
+        std::wstring p = OpenFileDialog(hwnd,
+            L"Images (*.png;*.jpg;*.jpeg)\0*.png;*.jpg;*.jpeg\0All files (*.*)\0*.*\0\0",
+            L"Select background image");
+        if (!p.empty())
         {
-            MsgBox(hwnd, L"Info", L"This demo launcher uses:\n- Win32 + GDI+ only\n- INI settings\n- Custom UI + animations\n\nNext steps: login/auth, patcher, auto-updater.");
-        }
-        else if (gPage == Page::Settings)
-        {
-            std::wstring p = OpenFileDialog(hwnd,
-                L"Images (*.png;*.jpg;*.jpeg)\0*.png;*.jpg;*.jpeg\0All files (*.*)\0*.*\0\0",
-                L"Select background image");
-            if (!p.empty())
+            gSet.backgroundPath = p;
+            for (auto& tb : gTextBoxes)
+                if (tb.id == ID_TX_BG) { tb.value = p; tb.caret = (int)tb.value.size(); }
+
+            if (gBgImage) { delete gBgImage; gBgImage = nullptr; }
+            gBgImage = Image::FromFile(p.c_str());
+            if (!gBgImage || gBgImage->GetLastStatus() != Ok)
             {
-                gSet.backgroundPath = p;
-                for (auto& tb : gTextBoxes)
-                    if (tb.id == ID_TX_BG) { tb.value = p; tb.caret = (int)tb.value.size(); }
+                delete gBgImage;
+                gBgImage = nullptr;
+                toast(L"Background", L"Failed to load image", L"err");
+            }
+            else toast(L"Background", L"Loaded", L"ok");
 
-                if (gBgImage) { delete gBgImage; gBgImage = nullptr; }
-                gBgImage = Image::FromFile(p.c_str());
-                if (gBgImage && gBgImage->GetLastStatus() != Ok)
-                {
-                    delete gBgImage;
-                    gBgImage = nullptr;
-                    toast(L"Background", L"Failed to load image", L"err");
-                }
-                else toast(L"Background", L"Loaded", L"ok");
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+        return;
+    }
 
-                InvalidateRect(hwnd,NULL,FALSE);
+    if (id == ID_BTN_ADD_SERVER)
+    {
+        ServerItem s;
+        s.name = L"Server-" + std::to_wstring((int)gSet.servers.size()+1);
+        s.host = L"127.0.0.1";
+        s.port = 7777;
+        gSet.servers.push_back(s);
+        gSet.selectedServer = (int)gSet.servers.size()-1;
+        toast(L"Server", L"Added", L"ok");
+        InvalidateRect(hwnd, NULL, FALSE);
+        return;
+    }
+
+    if (id == ID_BTN_DEL_SERVER)
+    {
+        if (gSet.servers.size() <= 1)
+        {
+            toast(L"Server", L"At least 1 server required", L"warn");
+            return;
+        }
+        int idx = ClampI(gSet.selectedServer, 0, (int)gSet.servers.size()-1);
+        gSet.servers.erase(gSet.servers.begin() + idx);
+        gSet.selectedServer = ClampI(gSet.selectedServer, 0, (int)gSet.servers.size()-1);
+        toast(L"Server", L"Removed", L"ok");
+        InvalidateRect(hwnd, NULL, FALSE);
+        return;
+    }
+
+    if (id == ID_BTN_SAVE_SETTINGS)
+    {
+        ApplyTextBoxToSettings();
+        ApplyToggleToSettings();
+        ApplyDropdownToSettings();
+
+        SaveSettings();
+
+        // reload bg
+        if (gBgImage) { delete gBgImage; gBgImage = nullptr; }
+        if (!gSet.backgroundPath.empty() && FileExists(gSet.backgroundPath))
+        {
+            gBgImage = Image::FromFile(gSet.backgroundPath.c_str());
+            if (!gBgImage || gBgImage->GetLastStatus() != Ok)
+            {
+                delete gBgImage;
+                gBgImage = nullptr;
             }
         }
-        return;
-    }
 
-    if (id == ID_BTN_F11)
-    {
-        ToggleFullscreen(hwnd);
+        InvalidateRect(hwnd, NULL, FALSE);
         return;
     }
 
     if (id == ID_BTN_PLAY)
     {
         ApplyTextBoxToSettings();
-        ApplyDropdownToSettings(hwnd);
+        ApplyDropdownToSettings();
 
         if (gSet.gamePath.empty() || !FileExists(gSet.gamePath))
         {
@@ -1636,7 +1940,6 @@ static void HandleButtonClick(HWND hwnd, int id)
             return;
         }
 
-        // If server selected, append args like --connect host:port (demo)
         int idx = ClampI(gSet.selectedServer, 0, (int)gSet.servers.size()-1);
         std::wstring extra;
         if (!gSet.servers.empty())
@@ -1652,8 +1955,7 @@ static void HandleButtonClick(HWND hwnd, int id)
             args += extra;
         }
 
-        std::wstring wd = GetExeDir(); // or derive from exe path
-        // try derive working dir from gamePath
+        std::wstring wd = GetExeDir();
         {
             std::wstring p = gSet.gamePath;
             size_t pos = p.find_last_of(L"\\/");
@@ -1663,64 +1965,6 @@ static void HandleButtonClick(HWND hwnd, int id)
         bool ok = LaunchProcess(gSet.gamePath, args, wd);
         if (ok) toast(L"Launching", L"Game started (demo)", L"ok");
         else toast(L"Launch failed", L"CreateProcess failed. Check path/permissions.", L"err");
-        return;
-    }
-
-    if (id == ID_BTN_ADD_SERVER)
-    {
-        ServerItem s;
-        s.name = L"Server-" + std::to_wstring((int)gSet.servers.size()+1);
-        s.host = L"127.0.0.1";
-        s.port = 7777;
-        gSet.servers.push_back(s);
-        gSet.selectedServer = (int)gSet.servers.size()-1;
-        toast(L"Server", L"Added", L"ok");
-        InvalidateRect(hwnd,NULL,FALSE);
-        return;
-    }
-
-    if (id == ID_BTN_DEL_SERVER)
-    {
-        if (gSet.servers.size() <= 1)
-        {
-            toast(L"Server", L"At least 1 server required", L"warn");
-            return;
-        }
-        int idx = ClampI(gSet.selectedServer, 0, (int)gSet.servers.size()-1);
-        gSet.servers.erase(gSet.servers.begin() + idx);
-        gSet.selectedServer = ClampI(gSet.selectedServer, 0, (int)gSet.servers.size()-1);
-        toast(L"Server", L"Removed", L"ok");
-        InvalidateRect(hwnd,NULL,FALSE);
-        return;
-    }
-
-    if (id == ID_BTN_SAVE_SETTINGS)
-    {
-        ApplyTextBoxToSettings();
-        ApplyToggleToSettings();
-        ApplyDropdownToSettings(hwnd);
-
-        // Validate some fields
-        if (!gSet.discordUrl.empty() && gSet.discordUrl.find(L"http") != 0)
-        {
-            toast(L"Discord URL", L"Must start with http/https", L"warn");
-        }
-
-        SaveSettings();
-
-        // reload background if changed
-        if (gBgImage) { delete gBgImage; gBgImage = nullptr; }
-        if (!gSet.backgroundPath.empty() && FileExists(gSet.backgroundPath))
-        {
-            gBgImage = Image::FromFile(gSet.backgroundPath.c_str());
-            if (gBgImage && gBgImage->GetLastStatus() != Ok)
-            {
-                delete gBgImage;
-                gBgImage = nullptr;
-            }
-        }
-
-        InvalidateRect(hwnd,NULL,FALSE);
         return;
     }
 }
@@ -1745,7 +1989,6 @@ static void Paint(HWND hwnd)
     g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
     g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
 
-    // background
     DrawTopGradientBG(g, w, h);
 
     UIContext ui;
@@ -1755,28 +1998,21 @@ static void Paint(HWND hwnd)
 
     BuildLayout(ui);
 
-    // TitleBar
     DrawTitleBar(g, ui);
-
-    // Sidebar panel
     DrawSidebar(g, ui);
 
-    // Main page area panel depends
     if (gPage == Page::Home) DrawHomePage(g, ui);
     else if (gPage == Page::News) DrawNewsPage(g, ui);
     else DrawSettingsPage(g, ui);
 
-    // Update nav button active styles (visual using hover/glow, but active for page)
-    // We'll just draw buttons and set their text/appearance by page state
     for (auto& b : gButtons)
     {
-        if (b.id == ID_BTN_HOME) b.kind = (gPage==Page::Home) ? BtnKind::Primary : BtnKind::Secondary;
-        if (b.id == ID_BTN_NEWS) b.kind = (gPage==Page::News) ? BtnKind::Primary : BtnKind::Secondary;
+        if (b.id == ID_BTN_HOME)     b.kind = (gPage==Page::Home) ? BtnKind::Primary : BtnKind::Secondary;
+        if (b.id == ID_BTN_NEWS)     b.kind = (gPage==Page::News) ? BtnKind::Primary : BtnKind::Secondary;
         if (b.id == ID_BTN_SETTINGS) b.kind = (gPage==Page::Settings) ? BtnKind::Primary : BtnKind::Secondary;
 
-        // Close/min icon style
         if (b.id == ID_BTN_CLOSE) b.kind = BtnKind::Danger;
-        if (b.id == ID_BTN_MIN) b.kind = BtnKind::Secondary;
+        if (b.id == ID_BTN_MIN)   b.kind = BtnKind::Secondary;
 
         DrawButton(g, b);
     }
@@ -1785,7 +2021,8 @@ static void Paint(HWND hwnd)
     for (auto& t : gToggles) DrawToggle(g, t);
     for (auto& d : gDropdowns) DrawDropdown(g, d);
 
-    // present
+    DrawToast(g, ui);
+
     BitBlt(hdc, 0, 0, w, h, mem, 0, 0, SRCCOPY);
 
     SelectObject(mem, old);
@@ -1795,53 +2032,8 @@ static void Paint(HWND hwnd)
 }
 
 // ============================================================
-// Hover animation updates
+// Window proc
 // ============================================================
-
-static void UpdateHover(UIContext& ui)
-{
-    // Buttons hover
-    for (auto& b : gButtons)
-    {
-        bool h = PtInRectF(ui.mousePos, b.rect);
-        b.hover = h;
-        if (!ui.mouseDown) b.down = false;
-    }
-
-    // Textboxes hover
-    for (auto& t : gTextBoxes)
-    {
-        t.hover = PtInRectF(ui.mousePos, t.rect);
-    }
-
-    // Toggles hover
-    for (auto& t : gToggles)
-        t.hover = PtInRectF(ui.mousePos, t.rect);
-
-    // Dropdown hover + open list hover
-    for (auto& d : gDropdowns)
-    {
-        d.hover = PtInRectF(ui.mousePos, d.rect);
-        if (d.open)
-        {
-            int idx = -1;
-            if (DropdownHitOpenItem(d, ui.mousePos, idx))
-                d.hoverIndex = idx;
-            else
-                d.hoverIndex = -1;
-        }
-    }
-}
-
-// ============================================================
-// Message handling
-// ============================================================
-
-static void ApplyInitialFullscreen(HWND hwnd)
-{
-    if (gSet.startFullscreen)
-        ToggleFullscreen(hwnd);
-}
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 {
@@ -1853,36 +2045,30 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     switch (msg)
     {
     case WM_CREATE:
-    {
         ui.hwnd = hwnd;
         SetTimer(hwnd, T_ANIM, 16, NULL);
         SetTimer(hwnd, T_NEWS, 6000, NULL);
         SetTimer(hwnd, T_CARET, 120, NULL);
         return 0;
-    }
 
     case WM_TIMER:
-    {
-        if (w == T_NEWS)
+        if (w == T_NEWS && !gNewsHtml.empty())
         {
-            gNewsIndex = (gNewsIndex + 1) % (int)gNews.size();
+            gNewsIndex = (gNewsIndex + 1) % (int)gNewsHtml.size();
             InvalidateRect(hwnd, NULL, FALSE);
         }
         else if (w == T_ANIM)
         {
-            // just repaint for smooth hover animations
             if (gSet.animations)
                 InvalidateRect(hwnd, NULL, FALSE);
         }
         else if (w == T_CARET)
         {
-            // caret blink update occurs in DrawTextBox; repaint if any focused
             bool any = false;
             for (auto& t : gTextBoxes) if (t.focused) { any = true; break; }
             if (any) InvalidateRect(hwnd, NULL, FALSE);
         }
         return 0;
-    }
 
     case WM_SIZE:
     {
@@ -1899,7 +2085,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         ui.mousePos.y = GET_Y_LPARAM(l);
         UpdateHover(ui);
 
-        // dragging window via titlebar
         if (dragging)
         {
             POINT cur; GetCursorPos(&cur);
@@ -1914,16 +2099,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     }
 
     case WM_MOUSEWHEEL:
-    {
         if (gPage == Page::News)
         {
             int delta = GET_WHEEL_DELTA_WPARAM(w);
-            float step = (delta > 0) ? -48.0f : 48.0f;
+            float step = (delta > 0) ? -64.0f : 64.0f;
             gNewsScroll.scroll = ClampF(gNewsScroll.scroll + step, 0.0f, gNewsScroll.maxScroll);
             InvalidateRect(hwnd, NULL, FALSE);
         }
         return 0;
-    }
 
     case WM_LBUTTONDOWN:
     {
@@ -1932,6 +2115,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 
         POINT p{ GET_X_LPARAM(l), GET_Y_LPARAM(l) };
 
+        // link click on press? (we open on mouse up)
         // Dropdown open item click
         for (auto& d : gDropdowns)
         {
@@ -1940,7 +2124,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             {
                 d.selected = idx;
                 d.open = false;
-                ApplyDropdownToSettings(hwnd);
+                ApplyDropdownToSettings();
                 InvalidateRect(hwnd, NULL, FALSE);
                 ReleaseCapture();
                 ui.mouseDown = false;
@@ -1948,7 +2132,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             }
         }
 
-        // Button click start
         if (Button* b = HitButton(p))
         {
             b->down = true;
@@ -1956,34 +2139,26 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             return 0;
         }
 
-        // Toggle click
         if (Toggle* t = HitToggle(p))
         {
             t->value = !t->value;
-            t->anim.target = t->value ? 1.0f : 0.0f;
             ApplyToggleToSettings();
             InvalidateRect(hwnd, NULL, FALSE);
             return 0;
         }
 
-        // Dropdown click open
         if (Dropdown* d = HitDropdown(p))
         {
-            // close others
-            for (auto& dd : gDropdowns)
-                if (dd.id != d->id) dd.open = false;
-
+            for (auto& dd : gDropdowns) if (dd.id != d->id) dd.open = false;
             d->open = !d->open;
             InvalidateRect(hwnd, NULL, FALSE);
             return 0;
         }
         else
         {
-            // click outside closes dropdowns
             CloseAllDropdowns();
         }
 
-        // Textbox focus
         if (TextBox* t = HitTextBox(p))
         {
             ClearTextFocus();
@@ -1998,7 +2173,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             ClearTextFocus();
         }
 
-        // Titlebar drag region (avoid top-right buttons)
+        // Titlebar drag region
         if (p.y <= 54 && p.x < ui.w - 120)
         {
             dragging = true;
@@ -2018,7 +2193,21 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 
         POINT p{ GET_X_LPARAM(l), GET_Y_LPARAM(l) };
 
-        // If any button was pressed and released over it -> click
+        // If News page: check link hits
+        if (gPage == Page::News)
+        {
+            for (const auto& lh : gLinkHits)
+            {
+                if (PtInRectF(p, lh.r))
+                {
+                    toast(L"Open link", lh.url, L"ok");
+                    ShellOpenUrl(lh.url);
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    return 0;
+                }
+            }
+        }
+
         for (auto& b : gButtons)
         {
             bool wasDown = b.down;
@@ -2030,15 +2219,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             }
         }
 
-        // Close dropdown if clicked elsewhere
         bool clickedDropdown = false;
-        for (auto& d : gDropdowns)
-        {
-            if (PtInRectF(p, d.rect)) clickedDropdown = true;
-        }
+        for (auto& d : gDropdowns) if (PtInRectF(p, d.rect)) clickedDropdown = true;
+
         if (!clickedDropdown)
         {
-            // if click outside dropdown list also close
             bool hitOpenList = false;
             for (auto& d : gDropdowns)
             {
@@ -2054,7 +2239,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 
     case WM_CHAR:
     {
-        // Handle text input for focused textbox
         wchar_t ch = (wchar_t)w;
         if (ch == 0) return 0;
 
@@ -2062,7 +2246,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         {
             if (!t.focused) continue;
 
-            if (ch == 8) // backspace
+            if (ch == 8)
             {
                 if (!t.value.empty() && t.caret > 0)
                 {
@@ -2070,9 +2254,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
                     t.caret--;
                 }
             }
-            else if (ch == 13) // enter
+            else if (ch == 13)
             {
-                // apply quickly if nickname changed
                 if (t.id == ID_TX_NICK)
                 {
                     ApplyTextBoxToSettings();
@@ -2082,13 +2265,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             }
             else if (ch >= 32)
             {
-                // Insert at caret
                 if ((int)t.value.size() < 180)
                 {
                     t.value.insert(t.value.begin() + t.caret, ch);
                     t.caret++;
                 }
             }
+
             InvalidateRect(hwnd, NULL, FALSE);
             return 0;
         }
@@ -2096,24 +2279,21 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     }
 
     case WM_KEYDOWN:
-    {
         if (w == VK_F11)
         {
             ToggleFullscreen(hwnd);
             return 0;
         }
 
-        // simple caret movement
         for (auto& t : gTextBoxes)
         {
             if (!t.focused) continue;
-            if (w == VK_LEFT) { t.caret = ClampI(t.caret - 1, 0, (int)t.value.size()); InvalidateRect(hwnd,NULL,FALSE); return 0; }
-            if (w == VK_RIGHT){ t.caret = ClampI(t.caret + 1, 0, (int)t.value.size()); InvalidateRect(hwnd,NULL,FALSE); return 0; }
-            if (w == VK_HOME){ t.caret = 0; InvalidateRect(hwnd,NULL,FALSE); return 0; }
-            if (w == VK_END){ t.caret = (int)t.value.size(); InvalidateRect(hwnd,NULL,FALSE); return 0; }
+            if (w == VK_LEFT)  { t.caret = ClampI(t.caret - 1, 0, (int)t.value.size()); InvalidateRect(hwnd,NULL,FALSE); return 0; }
+            if (w == VK_RIGHT) { t.caret = ClampI(t.caret + 1, 0, (int)t.value.size()); InvalidateRect(hwnd,NULL,FALSE); return 0; }
+            if (w == VK_HOME)  { t.caret = 0; InvalidateRect(hwnd,NULL,FALSE); return 0; }
+            if (w == VK_END)   { t.caret = (int)t.value.size(); InvalidateRect(hwnd,NULL,FALSE); return 0; }
         }
         return 0;
-    }
 
     case WM_PAINT:
     {
@@ -2125,7 +2305,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     }
 
     case WM_ERASEBKGND:
-        return 1; // prevent flicker
+        return 1;
 
     case WM_DESTROY:
         KillTimer(hwnd, T_ANIM);
@@ -2145,15 +2325,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
 {
-    // GDI+
     GdiplusStartupInput gdiplusStartupInput;
     if (GdiplusStartup(&gGdiToken, &gdiplusStartupInput, NULL) != Ok)
         return 0;
 
-    // Load settings
     LoadSettings();
 
-    // Register class
     WNDCLASSW wc{};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInst;
@@ -2162,7 +2339,6 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
     RegisterClassW(&wc);
 
-    // Create window (frameless)
     DWORD style = WS_POPUP;
     DWORD ex = WS_EX_APPWINDOW;
 
@@ -2181,18 +2357,18 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     ShowWindow(hwnd, SW_SHOW);
     UpdateWindow(hwnd);
 
-    // Apply fullscreen if configured
     if (gSet.startFullscreen)
         ToggleFullscreen(hwnd);
 
-    // Autolaunch if enabled (demo behavior: only if gamePath valid)
     if (gSet.autoLaunch && !gSet.gamePath.empty() && FileExists(gSet.gamePath))
     {
-        // delay a little (in real we’d do PostMessage + timer)
         toast(L"AutoLaunch", L"Enabled (demo). Press PLAY to confirm.", L"warn");
     }
+    else
+    {
+        toast(L"Ready", L"News supports HTML-like markup and clickable links.", L"ok");
+    }
 
-    // Message loop
     MSG msg{};
     while (GetMessageW(&msg, NULL, 0, 0))
     {
@@ -2200,146 +2376,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
         DispatchMessageW(&msg);
     }
 
-    // cleanup
     if (gBgImage) { delete gBgImage; gBgImage = nullptr; }
     GdiplusShutdown(gGdiToken);
     return 0;
 }
-
-/*
-============================================================
-WHAT YOU GET (Investor / Showcase points):
-- Clean frameless window with custom titlebar
-- "Majestic-like" premium visual language:
-  - Glass panels, shadows, gradients, glow states
-  - Sidebar navigation with active state
-  - Large hero card + big CTA (PLAY)
-  - News page with scrolling and auto-rotation
-  - Settings page with toggles, dropdowns, server management
-- No third-party UI libs, only Win32 + GDI+ (system)
-- INI persistence for all settings
-
-NEXT UP (if you want "real launcher"):
-- Auth (login/register) via your API (HTTPS)
-- Auto-updater: manifest.json + hash + signature
-- Server status/ping querying
-- Embedded browser panel for news / shop
-- Anti-cheat bootstrapper / integrity checks
-============================================================
-*/
-Сборка начата в 14:50...
-1>------ Сборка начата: проект: WindowsProject4, Конфигурация: Debug x64 ------
-1>WindowsProject4.cpp
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(19,9): warning C4005: UNICODE: изменение макроопределения
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(19,9):
-1>    "UNICODE" ранее объявлен в командной строке
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(20,9): warning C4005: _UNICODE: изменение макроопределения
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(20,9):
-1>    "_UNICODE" ранее объявлен в командной строке
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15): error C2664: "BOOL CreateProcessW(LPCWSTR,LPWSTR,LPSECURITY_ATTRIBUTES,LPSECURITY_ATTRIBUTES,BOOL,DWORD,LPVOID,LPCWSTR,LPSTARTUPINFOW,LPPROCESS_INFORMATION)": невозможно преобразовать аргумент 2 из "const _Elem *" в "LPWSTR"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15): error C2664:         with
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15): error C2664:         [
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15): error C2664:             _Elem=wchar_t
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15): error C2664:         ]
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(136,24):
-1>    В результате преобразования теряются квалификаторы
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\processthreadsapi.h(386,1):
-1>     см. объявление "CreateProcessW"
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15):
-1>    при попытке сопоставить список аргументов "(int, const _Elem *, int, int, int, int, int, const _Elem *, STARTUPINFOW *, PROCESS_INFORMATION *)"
-1>        with
-1>        [
-1>            _Elem=wchar_t
-1>        ]
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(160,19): error C2589: (: недопустимая лексема справа от "::"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(160,19): error C2059: синтаксическая ошибка: )
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(558,5): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(625,28): error C2589: (: недопустимая лексема справа от "::"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(625,28): error C2059: синтаксическая ошибка: )
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(635,11): error C2666: "Gdiplus::Graphics::FillRectangle": перегруженные функции имеют похожие преобразования
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(997,12):
-1>    может быть "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,INT,INT,INT,INT)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(967,12):
-1>    или       "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(635,11):
-1>    при попытке сопоставить список аргументов "(Gdiplus::SolidBrush *, int, int, Gdiplus::REAL, Gdiplus::REAL)"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(662,7): error C2666: "Gdiplus::Graphics::FillRectangle": перегруженные функции имеют похожие преобразования
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(997,12):
-1>    может быть "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,INT,INT,INT,INT)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(967,12):
-1>    или       "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(662,7):
-1>    при попытке сопоставить список аргументов "(Gdiplus::SolidBrush *, int, int, Gdiplus::REAL, Gdiplus::REAL)"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(862,7): error C2666: "Gdiplus::Graphics::DrawLine": перегруженные функции имеют похожие преобразования
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(460,12):
-1>    может быть "Gdiplus::Status Gdiplus::Graphics::DrawLine(const Gdiplus::Pen *,INT,INT,INT,INT)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(433,12):
-1>    или       "Gdiplus::Status Gdiplus::Graphics::DrawLine(const Gdiplus::Pen *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(862,7):
-1>    при попытке сопоставить список аргументов "(Gdiplus::Pen *, int, int, Gdiplus::REAL, int)"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1035,22): error C2589: (: недопустимая лексема справа от "::"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1035,22): error C2059: синтаксическая ошибка: )
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1120,28): error C2589: (: недопустимая лексема справа от "::"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1120,28): error C2059: синтаксическая ошибка: )
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1126,34): error C2589: (: недопустимая лексема справа от "::"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1126,34): error C2059: синтаксическая ошибка: )
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1191,23): error C2666: "Gdiplus::GraphicsPath::AddEllipse": перегруженные функции имеют похожие преобразования
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(512,12):
-1>    может быть "Gdiplus::Status Gdiplus::GraphicsPath::AddEllipse(INT,INT,INT,INT)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(495,12):
-1>    или       "Gdiplus::Status Gdiplus::GraphicsPath::AddEllipse(Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1191,23):
-1>    при попытке сопоставить список аргументов "(Gdiplus::REAL, Gdiplus::REAL, int, int)"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1196,7): error C2666: "Gdiplus::Graphics::FillEllipse": перегруженные функции имеют похожие преобразования
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(1079,12):
-1>    может быть "Gdiplus::Status Gdiplus::Graphics::FillEllipse(const Gdiplus::Brush *,INT,INT,INT,INT)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(1062,12):
-1>    или       "Gdiplus::Status Gdiplus::Graphics::FillEllipse(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1196,7):
-1>    при попытке сопоставить список аргументов "(Gdiplus::PathGradientBrush *, Gdiplus::REAL, Gdiplus::REAL, int, int)"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1198,25): error C2666: "Gdiplus::GraphicsPath::AddEllipse": перегруженные функции имеют похожие преобразования
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(512,12):
-1>    может быть "Gdiplus::Status Gdiplus::GraphicsPath::AddEllipse(INT,INT,INT,INT)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(495,12):
-1>    или       "Gdiplus::Status Gdiplus::GraphicsPath::AddEllipse(Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1198,25):
-1>    при попытке сопоставить список аргументов "(Gdiplus::REAL, Gdiplus::REAL, int, int)"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1203,7): error C2666: "Gdiplus::Graphics::FillEllipse": перегруженные функции имеют похожие преобразования
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(1079,12):
-1>    может быть "Gdiplus::Status Gdiplus::Graphics::FillEllipse(const Gdiplus::Brush *,INT,INT,INT,INT)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(1062,12):
-1>    или       "Gdiplus::Status Gdiplus::Graphics::FillEllipse(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1203,7):
-1>    при попытке сопоставить список аргументов "(Gdiplus::PathGradientBrush *, Gdiplus::REAL, Gdiplus::REAL, int, int)"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1253,34): error C2589: (: недопустимая лексема справа от "::"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1253,34): error C2059: синтаксическая ошибка: )
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1295,29): error C2589: (: недопустимая лексема справа от "::"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1295,29): error C2059: синтаксическая ошибка: )
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1338,21): error C2589: (: недопустимая лексема справа от "::"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1338,21): error C2059: синтаксическая ошибка: )
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1409,24): error C2589: (: недопустимая лексема справа от "::"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1409,24): error C2059: синтаксическая ошибка: )
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1417,36): error C2589: (: недопустимая лексема справа от "::"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1417,11): error C2660: ClampI: функция не принимает 2 аргументов
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(53,21):
-1>     см. объявление "ClampI"
-1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1417,11):
-1>    при попытке сопоставить список аргументов "(int, int)"
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1417,72): error C2059: синтаксическая ошибка: )
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1550,14): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1560,9): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1583,13): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1612,21): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1614,22): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1635,13): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1664,17): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1665,14): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1677,9): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1686,13): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1692,9): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1706,13): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(2079,21): error C3861: toast: идентификатор не найден
-1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(2192,9): error C3861: toast: идентификатор не найден
-1>Сборка проекта "WindowsProject4.vcxproj" завершена с ошибкой.
-========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
-========== Сборка завершено в 14:50 и заняло 00,886 с ==========
