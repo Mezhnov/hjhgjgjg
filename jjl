@@ -2,91 +2,231 @@
 #include <gdiplus.h>
 #include <urlmon.h>
 #include <shellapi.h>
+#include <dwmapi.h>
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "urlmon.lib")
+#pragma comment(lib, "dwmapi.lib")
+
+using namespace Gdiplus;
 
 // ================= CONFIG =================
-const int W = 900;
-const int H = 520;
+const int W = 1200;
+const int H = 700;
 
 const wchar_t* BG_URL = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
 const wchar_t* BG_FILE = L"background.jpg";
+const wchar_t* LOGO_URL = L"https://i.imgur.com/placeholder.png";
+const wchar_t* LOGO_FILE = L"logo.png";
 
 const wchar_t* GTA_PATH = L"C:\\Games\\GTA5\\GTA5.exe";
 // =========================================
 
 ULONG_PTR gdiToken;
-Gdiplus::Image* background = nullptr;
+Image* background = nullptr;
+Image* logo = nullptr;
+bool isFullscreen = false;
+RECT normalRect;
 
-// ================= UI =================
+// ================= UI СТРУКТУРЫ =================
 struct Button
 {
     RECT rect;
     const wchar_t* text;
     bool hover;
+    Color normalColor;
+    Color hoverColor;
+    int fontSize;
 };
 
-Button btnPlay = { {350, 360, 550, 415}, L"ИГРАТЬ", false };
-Button btnSettings = { {30, 460, 170, 500},  L"НАСТРОЙКИ", false };
-Button btnDiscord = { {190, 460, 330, 500}, L"DISCORD", false };
-Button btnExit = { {820, 20, 880, 55},   L"X", false };
-// ======================================
+struct Panel
+{
+    RECT rect;
+    Color bgColor;
+    int borderRadius;
+};
 
+// ================= КНОПКИ =================
+Button btnPlay = { {450, 500, 750, 580}, L"ЗАПУСТИТЬ ИГРУ", false, 
+    Color(80, 255, 140, 0), Color(255, 255, 165, 0), 24 };
+
+Button btnNews = { {50, 180, 350, 250}, L"НОВОСТИ", false,
+    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18 };
+
+Button btnSettings = { {50, 270, 350, 340}, L"НАСТРОЙКИ", false,
+    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18 };
+
+Button btnDiscord = { {50, 360, 350, 430}, L"DISCORD", false,
+    Color(120, 88, 101, 242), Color(200, 88, 101, 242), 18 };
+
+Button btnForum = { {50, 450, 350, 520}, L"ФОРУМ", false,
+    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18 };
+
+Button btnDonate = { {850, 180, 1150, 250}, L"ДОНАТ", false,
+    Color(120, 255, 215, 0), Color(200, 255, 215, 0), 18 };
+
+Button btnStats = { {850, 270, 1150, 340}, L"СТАТИСТИКА", false,
+    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18 };
+
+// Системные кнопки
+Button btnMinimize = { {W-140, 10, W-100, 40}, L"—", false,
+    Color(0, 0, 0, 0), Color(100, 255, 255, 255), 20 };
+
+Button btnMaximize = { {W-90, 10, W-50, 40}, L"□", false,
+    Color(0, 0, 0, 0), Color(100, 255, 255, 255), 20 };
+
+Button btnClose = { {W-40, 10, W-10, 40}, L"✕", false,
+    Color(0, 0, 0, 0), Color(200, 255, 0, 0), 20 };
+
+// ================= ПАНЕЛИ =================
+Panel mainPanel = { {30, 150, 370, 540}, Color(140, 15, 15, 20), 15 };
+Panel rightPanel = { {830, 150, 1170, 360}, Color(140, 15, 15, 20), 15 };
+Panel playPanel = { {430, 480, 770, 600}, Color(0, 0, 0, 0), 20 };
+
+// ================= УТИЛИТЫ =================
 bool InRect(const POINT& p, const RECT& r)
 {
     return p.x >= r.left && p.x <= r.right &&
-        p.y >= r.top && p.y <= r.bottom;
+           p.y >= r.top && p.y <= r.bottom;
 }
 
-void DrawOverlay(Gdiplus::Graphics& g)
+void DrawRoundedRect(Graphics& g, Brush* brush, const RectF& rect, float radius)
 {
-    Gdiplus::SolidBrush overlay(Gdiplus::Color(140, 0, 0, 0));
-    g.FillRectangle(&overlay, 0.0f, 0.0f, (Gdiplus::REAL)W, (Gdiplus::REAL)H);
+    GraphicsPath path;
+    path.AddArc(rect.X, rect.Y, radius, radius, 180, 90);
+    path.AddArc(rect.X + rect.Width - radius, rect.Y, radius, radius, 270, 90);
+    path.AddArc(rect.X + rect.Width - radius, rect.Y + rect.Height - radius, radius, radius, 0, 90);
+    path.AddArc(rect.X, rect.Y + rect.Height - radius, radius, radius, 90, 90);
+    path.CloseFigure();
+    
+    g.FillPath(brush, &path);
 }
 
-void DrawButton(Gdiplus::Graphics& g, const Button& b)
+void DrawPanel(Graphics& g, const Panel& p)
 {
-    Gdiplus::Color bg = b.hover
-        ? Gdiplus::Color(220, 255, 180, 0)
-        : Gdiplus::Color(160, 0, 0, 0);
+    SolidBrush brush(p.bgColor);
+    RectF rect((REAL)p.rect.left, (REAL)p.rect.top,
+               (REAL)(p.rect.right - p.rect.left),
+               (REAL)(p.rect.bottom - p.rect.top));
+    
+    if (p.borderRadius > 0)
+        DrawRoundedRect(g, &brush, rect, (float)p.borderRadius);
+    else
+        g.FillRectangle(&brush, rect);
+}
 
-    Gdiplus::SolidBrush brush(bg);
+void DrawButton(Graphics& g, const Button& b)
+{
+    Color bg = b.hover ? b.hoverColor : b.normalColor;
+    SolidBrush brush(bg);
+    
+    RectF rect((REAL)b.rect.left, (REAL)b.rect.top,
+               (REAL)(b.rect.right - b.rect.left),
+               (REAL)(b.rect.bottom - b.rect.top));
+    
+    DrawRoundedRect(g, &brush, rect, 10.0f);
+    
+    // Тень при наведении
+    if (b.hover)
+    {
+        Pen shadowPen(Color(150, 255, 255, 255), 2.0f);
+        GraphicsPath path;
+        path.AddRectangle(rect);
+        g.DrawPath(&shadowPen, &path);
+    }
+    
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, (REAL)b.fontSize, FontStyleBold);
+    SolidBrush textBrush(Color::White);
+    
+    StringFormat format;
+    format.SetAlignment(StringAlignmentCenter);
+    format.SetLineAlignment(StringAlignmentCenter);
+    
+    g.DrawString(b.text, -1, &font, rect, &format, &textBrush);
+}
 
-    Gdiplus::RectF r(
-        (Gdiplus::REAL)b.rect.left,
-        (Gdiplus::REAL)b.rect.top,
-        (Gdiplus::REAL)(b.rect.right - b.rect.left),
-        (Gdiplus::REAL)(b.rect.bottom - b.rect.top)
+void DrawGradientOverlay(Graphics& g)
+{
+    // Градиент сверху вниз
+    LinearGradientBrush gradient(
+        Point(0, 0),
+        Point(0, H),
+        Color(180, 0, 0, 0),
+        Color(220, 0, 0, 0)
     );
-
-    g.FillRectangle(&brush, r);
-
-    Gdiplus::FontFamily ff(L"Segoe UI");
-    Gdiplus::Font font(&ff, 16.0f, Gdiplus::FontStyleBold);
-    Gdiplus::SolidBrush text(Gdiplus::Color::White);
-
-    g.DrawString(
-        b.text,
-        -1,
-        &font,
-        Gdiplus::PointF(r.X + 15.0f, r.Y + 8.0f),
-        &text
-    );
+    
+    g.FillRectangle(&gradient, 0, 0, W, H);
 }
 
-void DrawText(Gdiplus::Graphics& g)
+void DrawHeader(Graphics& g)
 {
-    Gdiplus::FontFamily ff(L"Segoe UI");
-    Gdiplus::Font title(&ff, 28.0f, Gdiplus::FontStyleBold);
-    Gdiplus::Font info(&ff, 14.0f, Gdiplus::FontStyleRegular);
+    // Затемнение верхней панели
+    SolidBrush headerBg(Color(180, 10, 10, 15));
+    g.FillRectangle(&headerBg, 0, 0, W, 60);
+    
+    // Логотип/название
+    FontFamily ff(L"Segoe UI");
+    Font titleFont(&ff, 32.0f, FontStyleBold);
+    Font subtitleFont(&ff, 12.0f, FontStyleRegular);
+    
+    SolidBrush white(Color::White);
+    SolidBrush orange(Color(255, 255, 140, 0));
+    
+    g.DrawString(L"MAJESTIC", -1, &titleFont, PointF(20.0f, 10.0f), &orange);
+    g.DrawString(L"ROLEPLAY", -1, &titleFont, PointF(200.0f, 10.0f), &white);
+}
 
-    Gdiplus::SolidBrush white(Gdiplus::Color::White);
-    Gdiplus::SolidBrush green(Gdiplus::Color(255, 0, 200, 0));
+void DrawServerInfo(Graphics& g)
+{
+    FontFamily ff(L"Segoe UI");
+    Font infoFont(&ff, 14.0f, FontStyleBold);
+    Font smallFont(&ff, 11.0f, FontStyleRegular);
+    
+    SolidBrush white(Color::White);
+    SolidBrush green(Color(255, 0, 255, 0));
+    SolidBrush gray(Color(200, 200, 200, 200));
+    
+    // Статус сервера
+    g.DrawString(L"● ONLINE", -1, &infoFont, PointF(W - 250.0f, 20.0f), &green);
+    
+    // Онлайн игроков
+    g.DrawString(L"Онлайн: 2847/3000", -1, &smallFont, PointF(W - 380.0f, 23.0f), &gray);
+}
 
-    g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, Gdiplus::PointF(30.0f, 25.0f), &white);
-    g.DrawString(L"STATUS: ONLINE", -1, &info, Gdiplus::PointF(30.0f, 70.0f), &green);
-    g.DrawString(L"Launcher v1.0", -1, &info, Gdiplus::PointF(30.0f, 95.0f), &white);
+void DrawInfoBoxes(Graphics& g)
+{
+    FontFamily ff(L"Segoe UI");
+    Font titleFont(&ff, 16.0f, FontStyleBold);
+    Font textFont(&ff, 12.0f, FontStyleRegular);
+    
+    SolidBrush white(Color::White);
+    SolidBrush gray(Color(220, 200, 200, 200));
+    
+    // Информационные блоки
+    const wchar_t* info1 = L"Версия игры";
+    const wchar_t* value1 = L"3095.2";
+    
+    const wchar_t* info2 = L"Последнее обновление";
+    const wchar_t* value2 = L"15.01.2025";
+    
+    g.DrawString(info1, -1, &textFont, PointF(450.0f, 400.0f), &gray);
+    g.DrawString(value1, -1, &titleFont, PointF(450.0f, 420.0f), &white);
+    
+    g.DrawString(info2, -1, &textFont, PointF(600.0f, 400.0f), &gray);
+    g.DrawString(value2, -1, &titleFont, PointF(600.0f, 420.0f), &white);
+}
+
+void DrawProgressBar(Graphics& g, float progress)
+{
+    RectF bgRect(450.0f, 630.0f, 300.0f, 8.0f);
+    RectF progressRect(450.0f, 630.0f, 300.0f * progress, 8.0f);
+    
+    SolidBrush bgBrush(Color(100, 255, 255, 255));
+    SolidBrush progressBrush(Color(255, 255, 140, 0));
+    
+    DrawRoundedRect(g, &bgBrush, bgRect, 4.0f);
+    DrawRoundedRect(g, &progressBrush, progressRect, 4.0f);
 }
 
 // ================= WINDOW PROC =================
@@ -95,29 +235,65 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     switch (msg)
     {
     case WM_CREATE:
+    {
+        // Скругленные углы окна (Windows 11)
+        DWM_WINDOW_CORNER_PREFERENCE preference = DWMWCP_ROUND;
+        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &preference, sizeof(preference));
+        
+        // Загрузка ресурсов
         URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
-        background = Gdiplus::Image::FromFile(BG_FILE);
+        background = Image::FromFile(BG_FILE);
+        
         break;
+    }
 
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-        Gdiplus::Graphics g(hdc);
-
-        g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
-
+        
+        // Двойная буферизация
+        HDC memDC = CreateCompatibleDC(hdc);
+        HBITMAP memBitmap = CreateCompatibleBitmap(hdc, W, H);
+        SelectObject(memDC, memBitmap);
+        
+        Graphics g(memDC);
+        g.SetSmoothingMode(SmoothingModeAntiAlias);
+        g.SetTextRenderingHint(TextRenderingHintAntiAlias);
+        g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+        
+        // Фон
         if (background)
             g.DrawImage(background, 0, 0, W, H);
-
-        DrawOverlay(g);
-        DrawText(g);
-
-        DrawButton(g, btnPlay);
+        
+        DrawGradientOverlay(g);
+        
+        // UI элементы
+        DrawHeader(g);
+        DrawServerInfo(g);
+        
+        DrawPanel(g, mainPanel);
+        DrawPanel(g, rightPanel);
+        
+        DrawButton(g, btnNews);
         DrawButton(g, btnSettings);
         DrawButton(g, btnDiscord);
-        DrawButton(g, btnExit);
-
+        DrawButton(g, btnForum);
+        DrawButton(g, btnDonate);
+        DrawButton(g, btnStats);
+        
+        DrawInfoBoxes(g);
+        DrawButton(g, btnPlay);
+        
+        // Системные кнопки
+        DrawButton(g, btnMinimize);
+        DrawButton(g, btnMaximize);
+        DrawButton(g, btnClose);
+        
+        BitBlt(hdc, 0, 0, W, H, memDC, 0, 0, SRCCOPY);
+        
+        DeleteObject(memBitmap);
+        DeleteDC(memDC);
         EndPaint(hwnd, &ps);
         break;
     }
@@ -127,16 +303,23 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         POINT p;
         GetCursorPos(&p);
         ScreenToClient(hwnd, &p);
-
-        Button* buttons[] = { &btnPlay, &btnSettings, &btnDiscord, &btnExit };
-
+        
+        Button* buttons[] = { 
+            &btnPlay, &btnNews, &btnSettings, &btnDiscord, 
+            &btnForum, &btnDonate, &btnStats,
+            &btnMinimize, &btnMaximize, &btnClose
+        };
+        
+        bool needRedraw = false;
         for (Button* b : buttons)
         {
             bool old = b->hover;
             b->hover = InRect(p, b->rect);
-            if (old != b->hover)
-                InvalidateRect(hwnd, nullptr, FALSE);
+            if (old != b->hover) needRedraw = true;
         }
+        
+        if (needRedraw)
+            InvalidateRect(hwnd, nullptr, FALSE);
         break;
     }
 
@@ -145,24 +328,79 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         POINT p;
         GetCursorPos(&p);
         ScreenToClient(hwnd, &p);
-
+        
         if (InRect(p, btnPlay.rect))
+        {
             ShellExecuteW(nullptr, L"open", GTA_PATH, nullptr, nullptr, SW_SHOW);
+        }
         else if (InRect(p, btnDiscord.rect))
+        {
             ShellExecuteW(nullptr, L"open", L"https://discord.gg/majestic", nullptr, nullptr, SW_SHOW);
+        }
+        else if (InRect(p, btnForum.rect))
+        {
+            ShellExecuteW(nullptr, L"open", L"https://majestic-rp.ru/forum", nullptr, nullptr, SW_SHOW);
+        }
+        else if (InRect(p, btnDonate.rect))
+        {
+            ShellExecuteW(nullptr, L"open", L"https://majestic-rp.ru/donate", nullptr, nullptr, SW_SHOW);
+        }
         else if (InRect(p, btnSettings.rect))
-            MessageBoxW(hwnd, L"Настройки в разработке", L"Info", MB_ICONINFORMATION);
-        else if (InRect(p, btnExit.rect))
+        {
+            MessageBoxW(hwnd, L"Настройки в разработке", L"Majestic RP", MB_ICONINFORMATION);
+        }
+        else if (InRect(p, btnNews.rect))
+        {
+            MessageBoxW(hwnd, L"Последние новости сервера", L"Новости", MB_ICONINFORMATION);
+        }
+        else if (InRect(p, btnStats.rect))
+        {
+            MessageBoxW(hwnd, L"Статистика персонажа", L"Статистика", MB_ICONINFORMATION);
+        }
+        else if (InRect(p, btnClose.rect))
+        {
             PostQuitMessage(0);
-        else
+        }
+        else if (InRect(p, btnMinimize.rect))
+        {
+            ShowWindow(hwnd, SW_MINIMIZE);
+        }
+        else if (InRect(p, btnMaximize.rect))
+        {
+            if (!isFullscreen)
+            {
+                GetWindowRect(hwnd, &normalRect);
+                MONITORINFO mi = { sizeof(mi) };
+                GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mi);
+                SetWindowPos(hwnd, HWND_TOP,
+                    mi.rcMonitor.left, mi.rcMonitor.top,
+                    mi.rcMonitor.right - mi.rcMonitor.left,
+                    mi.rcMonitor.bottom - mi.rcMonitor.top,
+                    SWP_FRAMECHANGED);
+                isFullscreen = true;
+            }
+            else
+            {
+                SetWindowPos(hwnd, HWND_TOP,
+                    normalRect.left, normalRect.top,
+                    normalRect.right - normalRect.left,
+                    normalRect.bottom - normalRect.top,
+                    SWP_FRAMECHANGED);
+                isFullscreen = false;
+            }
+        }
+        else if (p.y < 60) // Перетаскивание за header
+        {
             SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-
+        }
+        
         break;
     }
 
     case WM_DESTROY:
         delete background;
-        Gdiplus::GdiplusShutdown(gdiToken);
+        delete logo;
+        GdiplusShutdown(gdiToken);
         PostQuitMessage(0);
         break;
 
@@ -175,37 +413,39 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 // ================= WINMAIN =================
 int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
 {
-    Gdiplus::GdiplusStartupInput gdi;
-    Gdiplus::GdiplusStartup(&gdiToken, &gdi, nullptr);
-
+    GdiplusStartupInput gdi;
+    GdiplusStartup(&gdiToken, &gdi, nullptr);
+    
     WNDCLASSW wc{};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = h;
     wc.lpszClassName = L"MAJESTIC_LAUNCHER";
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-
+    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+    
     RegisterClassW(&wc);
-
+    
     HWND hwnd = CreateWindowExW(
-        0,
+        WS_EX_LAYERED,
         wc.lpszClassName,
         L"Majestic RP Launcher",
         WS_POPUP,
-        250, 150,
+        (GetSystemMetrics(SM_CXSCREEN) - W) / 2,
+        (GetSystemMetrics(SM_CYSCREEN) - H) / 2,
         W, H,
-        nullptr,
-        nullptr,
-        h,
-        nullptr
+        nullptr, nullptr, h, nullptr
     );
-
+    
+    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
     ShowWindow(hwnd, SW_SHOW);
-
+    UpdateWindow(hwnd);
+    
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0))
     {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
+    
     return 0;
 }
