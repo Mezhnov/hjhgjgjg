@@ -13,16 +13,31 @@
 // Build notes (Visual Studio):
 // - Project: Windows Desktop Application (C++)
 // - Character Set: Unicode
-// - C++ Language Standard: at least C++14 (works with default MSVC too)
-// - Linker -> Input: gdiplus.lib comctl32.lib
+// - C++ standard: C++14+
+// - Linker -> Input: gdiplus.lib comctl32.lib ole32.lib
 //
 // ============================================================
 
+#ifndef UNICODE
+#define UNICODE
+#endif
+#ifndef _UNICODE
+#define _UNICODE
+#endif
+
+#define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
+
 #include <windows.h>
 #include <windowsx.h>
 #include <commdlg.h>
 #include <shellapi.h>
+
+// --- IMPORTANT FIX (WinSDK 26100+): COM types required by GDI+ headers ---
+#include <objidl.h>   // IStream, interface, byte, etc.
+#include <propidl.h>  // PROPID
+// ------------------------------------------------------------------------
+
 #include <gdiplus.h>
 #include <string>
 #include <vector>
@@ -32,6 +47,7 @@
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "ole32.lib")
 
 using namespace Gdiplus;
 
@@ -467,7 +483,6 @@ static ScrollArea gNewsScroll;
 // HTML-like news/banners (added)
 // ============================================================
 
-// Each item is "HTML-like" string. Our mini renderer draws it with styles and links.
 static std::vector<std::wstring> gNewsHtml =
 {
     L"<h1>Зимний фестиваль 2026</h1>"
@@ -492,7 +507,6 @@ static std::vector<std::wstring> gNewsHtml =
 
 static int gNewsIndex = 0;
 
-// Clickable link rects built each paint for News page
 struct LinkHit
 {
     RectF r;
@@ -753,11 +767,6 @@ static Font MakeFont(const HtmlStyle& st)
 
 static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std::vector<LinkHit>& outLinks)
 {
-    // Layout: simple line wrapping using MeasureString.
-    // We parse tags and render text segments sequentially.
-    // Tags: h1/h2/p/br/b/i/a
-    // We also support closing tags.
-
     float x = area.X;
     float y = area.Y;
     float lineH = 18.0f;
@@ -792,9 +801,6 @@ static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std
         std::wstring t = txt;
         if (t.empty()) return;
 
-        // collapse whitespace a bit
-        // (not full HTML behavior, just nicer)
-        // keep single spaces
         std::wstring norm;
         norm.reserve(t.size());
         bool lastSpace = false;
@@ -819,18 +825,15 @@ static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std
         Font font = MakeFont(st);
         SolidBrush brush(st.color);
 
-        // basic word wrap
         size_t i = 0;
         while (i < t.size())
         {
-            // skip leading spaces on new line
             if (x == area.X)
             {
                 while (i < t.size() && t[i] == L' ') i++;
             }
             if (i >= t.size()) break;
 
-            // take a chunk, try to fit
             size_t j = i;
             size_t lastFit = i;
 
@@ -855,12 +858,10 @@ static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std
 
             if (lastFit == i)
             {
-                // at least one char
                 lastFit = std::min(i + (size_t)1, t.size());
             }
             else
             {
-                // prefer breaking at last space
                 size_t k = lastFit;
                 while (k > i && t[k-1] != L' ') k--;
                 if (k > i + 1) lastFit = k;
@@ -870,13 +871,11 @@ static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std
             RectF bound;
             g.MeasureString(chunk.c_str(), -1, &font, measureR, &bound);
 
-            // draw
             RectF drawR(x, y, bound.Width + 2.0f, lineH);
             g.DrawString(chunk.c_str(), -1, &font, PointF(x, y), &brush);
 
             if (inLink && !linkUrl.empty())
             {
-                // store clickable rect
                 LinkHit lh;
                 lh.r = RectF(drawR.X, drawR.Y, drawR.Width, drawR.Height);
                 lh.url = linkUrl;
@@ -885,7 +884,6 @@ static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std
 
             x += bound.Width;
 
-            // line overflow if we stopped due to width
             if (x >= area.X + area.Width - 2.0f)
             {
                 newLine();
@@ -895,7 +893,6 @@ static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std
         }
     };
 
-    // Parse tags
     size_t p = 0;
     while (p < html.size())
     {
@@ -911,7 +908,6 @@ static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std
             std::wstring tag = html.substr(p + 1, end - (p + 1));
             std::wstring tagLow = ToLower(Trim(tag));
 
-            // closing?
             bool closing = false;
             if (!tagLow.empty() && tagLow[0] == L'/')
             {
@@ -950,7 +946,6 @@ static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std
                 }
                 else if (StartsWith(tagLow, L"a "))
                 {
-                    // link open
                     linkUrl = ExtractAttr(tag, L"href");
                     if (!linkUrl.empty())
                     {
@@ -982,7 +977,6 @@ static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std
                 }
                 else if (tagLow == L"a")
                 {
-                    // link close
                     inLink = false;
                     linkUrl.clear();
                     st.underline = false;
@@ -1001,7 +995,6 @@ static void HtmlDrawBlock(Graphics& g, const std::wstring& html, RectF area, std
             p = next;
         }
 
-        // Stop drawing if we are out of area
         if (y > area.Y + area.Height - 20.0f)
             break;
     }
@@ -1100,7 +1093,6 @@ static void BuildLayout(UIContext& ui)
 
     if (gPage == Page::Home)
     {
-        // hero card
         UI_AddTextBox(ID_TX_NICK, RectF(main.X + 20.0f, main.Y + 96.0f, 320.0f, 44.0f), L"Nickname", gSet.nickname, L"Enter nickname");
 
         std::vector<std::wstring> sv;
@@ -1522,7 +1514,6 @@ static void DrawHomePage(Graphics& g, UIContext& ui)
     RectF hero(main.X, main.Y, main.Width, 220.0f);
     DrawGlassPanel(g, hero, 22.0f);
 
-    // blobs
     {
         GraphicsPath p; p.AddEllipse((REAL)(hero.X-120), (REAL)(hero.Y-140), (REAL)520, (REAL)520);
         PathGradientBrush b(&p);
@@ -1575,7 +1566,6 @@ static void DrawNewsPage(Graphics& g, UIContext& ui)
     gNewsScroll.maxScroll = std::max(0.0f, contentH - area.Height);
     gNewsScroll.scroll = ClampF(gNewsScroll.scroll, 0.0f, gNewsScroll.maxScroll);
 
-    // Clear link hits each frame
     gLinkHits.clear();
 
     Region oldClip;
@@ -1596,7 +1586,6 @@ static void DrawNewsPage(Graphics& g, UIContext& ui)
         Pen st(active ? Color(130, gTheme.accent.GetR(), gTheme.accent.GetG(), gTheme.accent.GetB()) : gTheme.stroke, 1.0f);
         StrokeRounded(g, card, 18.0f, &st);
 
-        // draw HTML content
         RectF htmlArea(card.X + 14, card.Y + 12, card.Width - 28, card.Height - 24);
         HtmlDrawBlock(g, gNewsHtml[i], htmlArea, gLinkHits);
 
@@ -1605,7 +1594,6 @@ static void DrawNewsPage(Graphics& g, UIContext& ui)
 
     g.SetClip(&oldClip);
 
-    // scrollbar
     if (gNewsScroll.maxScroll > 0.0f)
     {
         float barW = 10.0f;
@@ -1649,7 +1637,6 @@ static void DrawSettingsPage(Graphics& g, UIContext& ui)
     DrawTextW_GDI(g, L"Launcher", RectF(left.X+16, left.Y+10, left.Width-32, 18), 14, 1000, gTheme.text0);
     DrawTextW_GDI(g, L"Servers & Appearance", RectF(right.X+16, right.Y+10, right.Width-32, 18), 14, 1000, gTheme.text0);
 
-    // server preview
     float y = right.Y + 390.0f;
     DrawTextW_GDI(g, L"Server list (preview)", RectF(right.X+16, y, right.Width-32, 18), 12, 900, gTheme.text2);
     y += 20;
@@ -1686,7 +1673,6 @@ static void DrawToast(Graphics& g, UIContext& ui)
         return;
     }
 
-    float t = (float)dt / (float)gToast.dur;
     float alphaIn = ClampF((float)dt / 220.0f, 0.0f, 1.0f);
     float alphaOut = ClampF((float)(gToast.dur - dt) / 260.0f, 0.0f, 1.0f);
     float a = std::min(alphaIn, alphaOut);
@@ -1913,7 +1899,6 @@ static void HandleButtonClick(HWND hwnd, int id)
 
         SaveSettings();
 
-        // reload bg
         if (gBgImage) { delete gBgImage; gBgImage = nullptr; }
         if (!gSet.backgroundPath.empty() && FileExists(gSet.backgroundPath))
         {
@@ -2115,8 +2100,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 
         POINT p{ GET_X_LPARAM(l), GET_Y_LPARAM(l) };
 
-        // link click on press? (we open on mouse up)
-        // Dropdown open item click
         for (auto& d : gDropdowns)
         {
             int idx = -1;
@@ -2173,7 +2156,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
             ClearTextFocus();
         }
 
-        // Titlebar drag region
         if (p.y <= 54 && p.x < ui.w - 120)
         {
             dragging = true;
@@ -2193,7 +2175,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 
         POINT p{ GET_X_LPARAM(l), GET_Y_LPARAM(l) };
 
-        // If News page: check link hits
         if (gPage == Page::News)
         {
             for (const auto& lh : gLinkHits)
@@ -2325,9 +2306,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
 {
+    // Recommended: initialize COM (also makes GDI+/Shell/streams happier)
+    HRESULT hrCo = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    (void)hrCo;
+
     GdiplusStartupInput gdiplusStartupInput;
     if (GdiplusStartup(&gGdiToken, &gdiplusStartupInput, NULL) != Ok)
+    {
+        CoUninitialize();
         return 0;
+    }
 
     LoadSettings();
 
@@ -2378,247 +2366,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
 
     if (gBgImage) { delete gBgImage; gBgImage = nullptr; }
     GdiplusShutdown(gGdiToken);
+
+    CoUninitialize();
     return 0;
 }
-Сборка начата в 15:15...
-1>------ Сборка начата: проект: WindowsProject4, Конфигурация: Debug x64 ------
-1>WindowsProject4.cpp
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusImaging.h(84,1): error C4430: отсутствует спецификатор типа - предполагается int. Примечание. C++ не поддерживает int по умолчанию
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusImaging.h(84,15): error C2440: инициализация: невозможно преобразовать "const char [37]" в "int"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusImaging.h(84,15):
-1>    Не существует контекста, в котором такое преобразование возможно
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusImaging.h(85,1): error C2146: синтаксическая ошибка: отсутствие ";" перед идентификатором "IImageBytes"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusImaging.h(85,15): error C2059: синтаксическая ошибка: public
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusImaging.h(86,1): error C2143: синтаксическая ошибка: отсутствие ";" перед "{"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusImaging.h(86,1): error C2447: {: отсутствует заголовок функции (возможно, используется формальный список старого типа)
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusImaging.h(291,13): error C3646: id: неизвестный спецификатор переопределения
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusImaging.h(291,5): error C4430: отсутствует спецификатор типа - предполагается int. Примечание. C++ не поддерживает int по умолчанию
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(397,12): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(407,12): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(417,20): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(455,34): error C2061: синтаксическая ошибка: идентификатор "PROPID"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(456,33): error C2061: синтаксическая ошибка: идентификатор "PROPID"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(457,31): error C2061: синтаксическая ошибка: идентификатор "PROPID"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(465,34): error C2061: синтаксическая ошибка: идентификатор "PROPID"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(483,5): error C2535: Gdiplus::Image::Image(void): функция-член уже определена или объявлена
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(396,5):
-1>     см. объявление "Gdiplus::Image::Image"
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(519,12): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(529,12): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(773,17): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(829,12): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(828,5): error C2535: Gdiplus::Metafile::Metafile(void): функция-член уже определена или объявлена
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(773,5):
-1>     см. объявление "Gdiplus::Metafile::Metafile"
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(836,12): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(835,5): error C2535: Gdiplus::Metafile::Metafile(void): функция-член уже определена или объявлена
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(773,5):
-1>     см. объявление "Gdiplus::Metafile::Metafile"
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(845,12): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(844,5): error C2535: Gdiplus::Metafile::Metafile(void): функция-член уже определена или объявлена
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(773,5):
-1>     см. объявление "Gdiplus::Metafile::Metafile"
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(870,12): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(938,5): error C2535: Gdiplus::Metafile::Metafile(void): функция-член уже определена или объявлена
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusHeaders.h(773,5):
-1>     см. объявление "Gdiplus::Metafile::Metafile"
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1145,1): warning C4229: устаревший элемент: пропуск модификаторов для данных
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1145,25): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1145,34): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1145,52): error C2065: image: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1145,42): error C2275: "Gdiplus::GpImage": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1151,1): warning C4229: устаревший элемент: пропуск модификаторов для данных
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1151,28): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1151,37): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1151,55): error C2065: image: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1151,45): error C2275: "Gdiplus::GpImage": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1168,39): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1256,59): error C2061: синтаксическая ошибка: идентификатор "PROPID"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1259,41): error C2061: синтаксическая ошибка: идентификатор "PROPID"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1262,37): error C2061: синтаксическая ошибка: идентификатор "PROPID"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1274,40): error C2061: синтаксическая ошибка: идентификатор "PROPID"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1298,1): warning C4229: устаревший элемент: пропуск модификаторов для данных
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1298,28): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1298,37): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1298,56): error C2065: bitmap: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1298,45): error C2275: "Gdiplus::GpBitmap": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1304,1): warning C4229: устаревший элемент: пропуск модификаторов для данных
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1304,31): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1304,40): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1304,59): error C2065: bitmap: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(1304,48): error C2275: "Gdiplus::GpBitmap": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2234,1): warning C4229: устаревший элемент: пропуск модификаторов для данных
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2235,5): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2235,25): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2236,25): error C2065: header: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2236,5): error C2275: "Gdiplus::MetafileHeader": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2255,24): error C2061: синтаксическая ошибка: идентификатор "IStream"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2275,1): warning C4229: устаревший элемент: пропуск модификаторов для данных
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2275,30): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2275,40): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2275,61): error C2065: metafile: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2275,48): error C2275: "Gdiplus::GpMetafile": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2321,1): warning C4229: устаревший элемент: пропуск модификаторов для данных
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2322,5): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2322,25): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2323,5): error C2275: "HDC": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2323,25): error C2146: синтаксическая ошибка: отсутствие ")" перед идентификатором "referenceHdc"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2332,1): warning C4229: устаревший элемент: пропуск модификаторов для данных
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2333,5): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2333,25): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2334,5): error C2275: "HDC": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusFlat.h(2334,25): error C2146: синтаксическая ошибка: отсутствие ")" перед идентификатором "referenceHdc"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(145,35): error C2061: синтаксическая ошибка: идентификатор "byte"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(80,11): error C7550: "Gdiplus::Metafile::{ctor}": полное имя в этом контексте называет конструктор, а не тип.
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(80,23): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(80,32): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(81,1): error C2143: синтаксическая ошибка: отсутствие ";" перед "{"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(81,1): error C2447: {: отсутствует заголовок функции (возможно, используется формальный список старого типа)
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(198,11): error C7550: "Gdiplus::Metafile::{ctor}": полное имя в этом контексте называет конструктор, а не тип.
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(199,8): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(199,28): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(200,8): error C2275: "HDC": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(200,28): error C2146: синтаксическая ошибка: отсутствие ")" перед идентификатором "referenceHdc"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(204,1): error C2143: синтаксическая ошибка: отсутствие ";" перед "{"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(204,1): error C2447: {: отсутствует заголовок функции (возможно, используется формальный список старого типа)
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(215,11): error C7550: "Gdiplus::Metafile::{ctor}": полное имя в этом контексте называет конструктор, а не тип.
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(216,8): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(216,28): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(217,8): error C2275: "HDC": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(217,28): error C2146: синтаксическая ошибка: отсутствие ")" перед идентификатором "referenceHdc"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(223,1): error C2143: синтаксическая ошибка: отсутствие ";" перед "{"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(223,1): error C2447: {: отсутствует заголовок функции (возможно, используется формальный список старого типа)
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(234,11): error C7550: "Gdiplus::Metafile::{ctor}": полное имя в этом контексте называет конструктор, а не тип.
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(235,8): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(235,28): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(236,8): error C2275: "HDC": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(236,28): error C2146: синтаксическая ошибка: отсутствие ")" перед идентификатором "referenceHdc"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(242,1): error C2143: синтаксическая ошибка: отсутствие ";" перед "{"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(242,1): error C2447: {: отсутствует заголовок функции (возможно, используется формальный список старого типа)
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(283,11): error C2761: "GetMetafileHeader": повторное объявление члена запрещено.
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(284,8): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(284,28): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(285,28): error C2065: header: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(285,9): error C2275: "Gdiplus::MetafileHeader": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(287,1): error C2143: синтаксическая ошибка: отсутствие ";" перед "{"
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusMetafile.h(287,1): error C2447: {: отсутствует заголовок функции (возможно, используется формальный список старого типа)
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusBitmap.h(49,8): error C7550: "Gdiplus::Image::{ctor}": полное имя в этом контексте называет конструктор, а не тип.
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusBitmap.h(50,8): error C2065: IStream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusBitmap.h(50,17): error C2065: stream: необъявленный идентификатор
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusBitmap.h(51,8): error C2275: "BOOL": ожидается выражение вместо типа
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusBitmap.h(51,8): error C1003: число ошибок превышает 100; остановка компиляции
-1>(компиляция исходного файла "WindowsProject4.cpp")
-1>Сборка проекта "WindowsProject4.vcxproj" завершена с ошибкой.
-========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
-========== Сборка завершено в 15:15 и заняло 00,504 с ==========
