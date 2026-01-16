@@ -11,132 +11,175 @@
 using namespace Gdiplus;
 
 // ================= CONFIG =================
-int WINDOW_WIDTH  = 1000;
+int WINDOW_WIDTH = 1000;
 int WINDOW_HEIGHT = 600;
+
+const wchar_t* BG_URL = L"https://static0.srcdn.com/wordpress/wp-content/uploads/2025/05/gta-6-trailer-2-1.jpg?w=1600&h=900&fit=crop";
+const wchar_t* BG_FILE = L"background.jpg";
 
 ULONG_PTR gdiToken;
 Image* background = nullptr;
 
 // ================= UI =================
-struct Button {
+struct Button
+{
     RECT rect;
     const wchar_t* text;
     bool hover;
+    bool isControl;
+    float glowAlpha;
 };
 
-Button btnPlay     = { {400, 400, 600, 460}, L"ИГРАТЬ", false };
-Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false };
-Button btnNews     = { {650, 520, 830, 560}, L"НОВОСТИ", false };
+// Верхние кнопки
+Button btnClose = { {960, 10, 990, 40}, L"X", false, true, 0.0f };
+Button btnMinimize = { {910, 10, 940, 40}, L"_", false, true, 0.0f };
+Button btnMaximize = { {860, 10, 890, 40}, L"□", false, true, 0.0f };
+Button btnFullscreen = { {810, 10, 840, 40}, L"⛶", false, true, 0.0f };
 
-std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnNews };
+// Основные кнопки
+Button btnPlay = { {400, 400, 600, 460}, L"ИГРАТЬ", false, false, 0.0f };
+Button btnSettings = { {30, 520, 180, 560},  L"НАСТРОЙКИ", false, false, 0.0f };
+Button btnDiscord = { {200, 520, 360, 560}, L"DISCORD", false, false, 0.0f };
+
+std::vector<Button*> buttons = { &btnPlay, &btnSettings, &btnDiscord, &btnClose, &btnMinimize, &btnMaximize, &btnFullscreen };
 
 // Новости
-struct NewsItem {
-    std::wstring title;
-    std::wstring text;
-    std::wstring imageFile;
+std::vector<std::wstring> newsItems = {
+    L"[01.01.2026] Новый ивент: Зимний фестиваль!",
+    L"[02.01.2026] Исправлены баги транспорта",
+    L"[05.01.2026] Розыгрыш внутриигровых денег",
+    L"[10.01.2026] Новая система фракций в разработке"
 };
-std::vector<NewsItem> newsItems = {
-    { L"Зимний фестиваль!", L"Присоединяйтесь к зимнему событию в Majestic RP!", L"news1.jpg" },
-    { L"Исправлены баги", L"Исправлены баги транспорта и улучшена стабильность.", L"news2.jpg" }
-};
-int currentNewsIndex = 0;
-
-// Соцсети
-struct SocialIcon {
-    RECT rect;
-    const wchar_t* url;
-};
-SocialIcon iconDiscord = { {20, 340, 60, 380}, L"https://discord.gg/majestic" };
-SocialIcon iconVK      = { {70, 340, 110, 380}, L"https://vk.com/majestic" };
-SocialIcon iconTG      = { {120, 340, 160, 380}, L"https://t.me/majestic" };
-std::vector<SocialIcon> socialIcons = { iconDiscord, iconVK, iconTG };
+int newsIndex = 0;
 
 // ================= HELPERS =================
-bool InRect(POINT p, RECT r) {
-    return p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom;
-}
-
-void DrawButton(Graphics& g, Button& b) {
-    RectF r((REAL)b.rect.left, (REAL)b.rect.top,
-            (REAL)(b.rect.right - b.rect.left),
-            (REAL)(b.rect.bottom - b.rect.top));
-    Color c = b.hover ? Color(255, 255, 180, 0) : Color(255, 180, 140, 0);
-    SolidBrush brush(c);
-    g.FillRectangle(&brush, r);
-    FontFamily ff(L"Segoe UI");
-    Font font(&ff, 22, FontStyleBold);
-    SolidBrush text(Color::White);
-    g.DrawString(b.text, -1, &font, PointF(r.X + 20, r.Y + 14), &text);
-}
-
-// ================= NEWS WINDOW =================
-LRESULT CALLBACK NewsWndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
+bool InRect(const POINT& p, const RECT& r)
 {
-    switch(msg)
-    {
-    case WM_PAINT:
-    {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-        Graphics g(hdc);
-        g.SetSmoothingMode(SmoothingModeAntiAlias);
-        g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-
-        NewsItem& n = newsItems[currentNewsIndex];
-
-        // фон новости
-        Image* img = Image::FromFile(n.imageFile.c_str());
-        if(img) g.DrawImage(img, 0, 0, 600, 400);
-
-        // прозрачный оверлей
-        SolidBrush overlay(Color(150, 0, 0, 0));
-        g.FillRectangle(&overlay, 0, 0, 600, 400);
-
-        // текст
-        FontFamily ff(L"Segoe UI");
-        Font title(&ff, 26.0f, FontStyleBold);
-        Font info(&ff, 16.0f, FontStyleRegular);
-        SolidBrush white(Color::White);
-
-        g.DrawString(n.title.c_str(), -1, &title, PointF(20, 20), &white);
-        g.DrawString(n.text.c_str(), -1, &info, PointF(20, 60), &white);
-
-        // соцсети
-        SolidBrush iconBrush(Color(255, 255, 255, 255));
-        for(auto& s : socialIcons)
-            g.FillEllipse(&iconBrush, (REAL)s.rect.left, (REAL)s.rect.top, (REAL)(s.rect.right - s.rect.left), (REAL)(s.rect.bottom - s.rect.top));
-
-        delete img;
-        EndPaint(hwnd, &ps);
-        break;
-    }
-    case WM_LBUTTONDOWN:
-    {
-        POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
-        for(auto& s : socialIcons)
-        {
-            if(InRect(p, s.rect))
-                ShellExecuteW(nullptr, L"open", s.url, nullptr, nullptr, SW_SHOW);
-        }
-        break;
-    }
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-    default: return DefWindowProcW(hwnd, msg, w, l);
-    }
-    return 0;
+    return p.x >= r.left && p.x <= r.right &&
+        p.y >= r.top && p.y <= r.bottom;
 }
 
-// ================= MAIN WINDOW =================
+// ================= DRAW =================
+void DrawOverlay(Graphics& g)
+{
+    SolidBrush overlay(Color(120, 0, 0, 0));
+    g.FillRectangle(&overlay, 0.0f, 0.0f, (REAL)WINDOW_WIDTH, (REAL)WINDOW_HEIGHT);
+}
+
+void DrawButton(Graphics& g, Button& b)
+{
+    RectF r((REAL)b.rect.left, (REAL)b.rect.top,
+        (REAL)(b.rect.right - b.rect.left),
+        (REAL)(b.rect.bottom - b.rect.top));
+
+    Color c1 = b.hover ? Color(255, 255, 180, 0) : Color(255, 180, 140, 0);
+    Color c2 = b.hover ? Color(255, 255, 220, 50) : Color(255, 140, 80, 0);
+
+    LinearGradientBrush grad(r, c1, c2, LinearGradientModeVertical);
+    GraphicsPath path;
+    float radius = b.isControl ? 2.0f : 12.0f;
+
+    path.AddArc(r.X, r.Y, radius, radius, 180, 90);
+    path.AddArc(r.X + r.Width - radius, r.Y, radius, radius, 270, 90);
+    path.AddArc(r.X + r.Width - radius, r.Y + r.Height - radius, radius, radius, 0, 90);
+    path.AddArc(r.X, r.Y + r.Height - radius, radius, radius, 90, 90);
+    path.CloseFigure();
+
+    g.FillPath(&grad, &path);
+
+    if (b.hover)
+    {
+        b.glowAlpha += 10.0f;
+        if (b.glowAlpha > 255.0f) b.glowAlpha = 255.0f;
+    }
+    else
+    {
+        b.glowAlpha -= 10.0f;
+        if (b.glowAlpha < 0.0f) b.glowAlpha = 0.0f;
+    }
+
+    if (b.glowAlpha > 0.0f)
+    {
+        Color glowColor((BYTE)b.glowAlpha, 255, 255, 255);
+        Pen glow(glowColor, 3.0f);
+        g.DrawPath(&glow, &path);
+    }
+
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, b.isControl ? 14.0f : 22.0f, FontStyleBold);
+    SolidBrush text(Color::White);
+    PointF textPos(r.X + (b.isControl ? 3.0f : 20.0f), r.Y + (b.isControl ? 2.0f : 14.0f));
+    g.DrawString(b.text, -1, &font, textPos, &text);
+}
+
+void DrawLauncherText(Graphics& g)
+{
+    FontFamily ff(L"Segoe UI");
+    Font title(&ff, 34.0f, FontStyleBold);
+    Font info(&ff, 16.0f, FontStyleRegular);
+
+    SolidBrush white(Color::White);
+    SolidBrush green(Color(255, 0, 200, 0));
+
+    g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, PointF(30.0f, 30.0f), &white);
+    g.DrawString(L"STATUS: ONLINE", -1, &info, PointF(30.0f, 80.0f), &green);
+    g.DrawString(L"Launcher v1.0", -1, &info, PointF(30.0f, 110.0f), &white);
+}
+
+// ================= NEWS =================
+void DrawNews(Graphics& g)
+{
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, 18.0f, FontStyleRegular);
+
+    RectF newsRect(400.0f, 200.0f, 580.0f, 180.0f);
+    SolidBrush bg(Color(150, 0, 0, 0));
+    g.FillRectangle(&bg, newsRect);
+
+    Pen border(Color(200, 255, 255, 255), 2.0f);
+    g.DrawRectangle(&border, newsRect.X, newsRect.Y, newsRect.Width, newsRect.Height);
+
+    if (!newsItems.empty())
+    {
+        SolidBrush text(Color::White);
+        g.DrawString(newsItems[newsIndex].c_str(), -1, &font,
+            PointF(newsRect.X + 10, newsRect.Y + 10),
+            &text);
+    }
+}
+
+// ================= WINDOW PROC =================
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 {
-    switch(msg)
+    static bool isFullscreen = false;
+    static RECT prevRect = { 0 };
+    static int newsTimerID = 2;
+
+    switch (msg)
     {
     case WM_CREATE:
-        URLDownloadToFileW(nullptr, L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13", L"background.jpg", 0, nullptr);
-        background = Image::FromFile(L"background.jpg");
+        URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
+        background = Image::FromFile(BG_FILE);
+
+        SetTimer(hwnd, 1, 10, nullptr);     // fade-in
+        SetTimer(hwnd, newsTimerID, 5000, nullptr); // авто-новости
+        SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+        break;
+
+    case WM_TIMER:
+        if (w == 1) // fade-in
+        {
+            static BYTE alpha = 0;
+            if (alpha < 255) alpha += 5;
+            SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
+            if (alpha >= 255) KillTimer(hwnd, 1);
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        else if (w == newsTimerID) // автоперелистывание новостей
+        {
+            newsIndex = (newsIndex + 1) % newsItems.size();
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
         break;
 
     case WM_PAINT:
@@ -147,22 +190,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         g.SetSmoothingMode(SmoothingModeAntiAlias);
         g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
 
-        if(background) g.DrawImage(background, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        if (background)
+            g.DrawImage(background, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        SolidBrush overlay(Color(120, 0, 0, 0));
-        g.FillRectangle(&overlay, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        DrawOverlay(g);
+        DrawLauncherText(g);
+        DrawNews(g);
 
-        FontFamily ff(L"Segoe UI");
-        Font title(&ff, 34.0f, FontStyleBold);
-        Font info(&ff, 16.0f, FontStyleRegular);
-        SolidBrush white(Color::White);
-        SolidBrush green(Color(255, 0, 200, 0));
-
-        g.DrawString(L"MAJESTIC ROLEPLAY", -1, &title, PointF(30,30), &white);
-        g.DrawString(L"STATUS: ONLINE", -1, &info, PointF(30,80), &green);
-        g.DrawString(L"Launcher v1.0", -1, &info, PointF(30,110), &white);
-
-        for(auto* b : buttons)
+        for (Button* b : buttons)
             DrawButton(g, *b);
 
         EndPaint(hwnd, &ps);
@@ -172,11 +207,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     case WM_MOUSEMOVE:
     {
         POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
-        for(auto* b : buttons)
+        for (Button* b : buttons)
         {
             bool old = b->hover;
             b->hover = InRect(p, b->rect);
-            if(old != b->hover) InvalidateRect(hwnd, nullptr, FALSE);
+            if (old != b->hover) InvalidateRect(hwnd, nullptr, FALSE);
         }
         break;
     }
@@ -185,35 +220,62 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
     {
         POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p);
 
-        if(InRect(p, btnPlay.rect))
-            ShellExecuteW(nullptr, L"open", L"C:\\Games\\GTA5\\GTA5.exe", nullptr, nullptr, SW_SHOW);
-        else if(InRect(p, btnSettings.rect))
-            MessageBoxW(hwnd, L"Настройки в разработке", L"Info", MB_ICONINFORMATION);
-        else if(InRect(p, btnNews.rect))
+        if (InRect(p, btnClose.rect)) PostQuitMessage(0);
+        else if (InRect(p, btnMinimize.rect)) ShowWindow(hwnd, SW_MINIMIZE);
+        else if (InRect(p, btnMaximize.rect))
         {
-            WNDCLASSW wc{};
-            wc.lpfnWndProc = NewsWndProc;
-            wc.hInstance = GetModuleHandle(nullptr);
-            wc.lpszClassName = L"NEWS_WINDOW";
-            wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-            RegisterClassW(&wc);
-
-            HWND newsHWND = CreateWindowExW(0, L"NEWS_WINDOW", L"Новости Majestic RP",
-                                            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                                            200,100,600,400,
-                                            nullptr,nullptr,GetModuleHandle(nullptr),nullptr);
-            ShowWindow(newsHWND, SW_SHOW);
+            static bool maximized = false;
+            maximized = !maximized;
+            ShowWindow(hwnd, maximized ? SW_MAXIMIZE : SW_RESTORE);
+        }
+        else if (InRect(p, btnFullscreen.rect))
+        {
+            if (!isFullscreen)
+            {
+                GetWindowRect(hwnd, &prevRect);
+                SetWindowLong(hwnd, GWL_STYLE, WS_POPUP);
+                SetWindowPos(hwnd, HWND_TOP, 0, 0,
+                    GetSystemMetrics(SM_CXSCREEN),
+                    GetSystemMetrics(SM_CYSCREEN),
+                    SWP_SHOWWINDOW);
+                isFullscreen = true;
+                WINDOW_WIDTH = GetSystemMetrics(SM_CXSCREEN);
+                WINDOW_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
+            }
+            else
+            {
+                SetWindowLong(hwnd, GWL_STYLE, WS_POPUP);
+                SetWindowPos(hwnd, HWND_TOP, prevRect.left, prevRect.top,
+                    prevRect.right - prevRect.left,
+                    prevRect.bottom - prevRect.top,
+                    SWP_SHOWWINDOW);
+                isFullscreen = false;
+                WINDOW_WIDTH = prevRect.right - prevRect.left;
+                WINDOW_HEIGHT = prevRect.bottom - prevRect.top;
+            }
+        }
+        else
+        {
+            // Клик по основным кнопкам листает новости
+            if (InRect(p, btnPlay.rect) || InRect(p, btnSettings.rect) || InRect(p, btnDiscord.rect))
+            {
+                newsIndex = (newsIndex + 1) % newsItems.size();
+                InvalidateRect(hwnd, nullptr, FALSE);
+            }
+            else
+                SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
         }
         break;
     }
 
     case WM_DESTROY:
-        if(background) delete background;
+        delete background;
         GdiplusShutdown(gdiToken);
         PostQuitMessage(0);
         break;
 
-    default: return DefWindowProcW(hwnd,w,l);
+    default:
+        return DefWindowProcW(hwnd, msg, w, l);
     }
     return 0;
 }
@@ -231,14 +293,22 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     RegisterClassW(&wc);
 
-    HWND hwnd = CreateWindowExW(0, wc.lpszClassName, L"Majestic RP Launcher",
-                                WS_POPUP | WS_VISIBLE,
-                                100,50,WINDOW_WIDTH,WINDOW_HEIGHT,
-                                nullptr,nullptr,h,nullptr);
-    ShowWindow(hwnd, SW_SHOW);
+    HWND hwnd = CreateWindowExW(
+        WS_EX_LAYERED | WS_EX_TOPMOST,
+        wc.lpszClassName,
+        L"Majestic RP Launcher",
+        WS_POPUP,
+        100, 50,
+        WINDOW_WIDTH, WINDOW_HEIGHT,
+        nullptr,
+        nullptr,
+        h,
+        nullptr
+    );
 
+    ShowWindow(hwnd, SW_SHOW);
     MSG msg{};
-    while(GetMessageW(&msg,nullptr,0,0))
+    while (GetMessageW(&msg, nullptr, 0, 0))
     {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
