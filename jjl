@@ -16,7 +16,7 @@ const int H = 700;
 
 const wchar_t* BG_URL = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
 const wchar_t* BG_FILE = L"background.jpg";
-const wchar_t* LOGO_URL = L"https://i.imgur.com/placeholder.png";
+const wchar_t* LOGO_URL = L"https://i.imgur.com/placeholder.png"; // Replace with actual logo URL
 const wchar_t* LOGO_FILE = L"logo.png";
 
 const wchar_t* GTA_PATH = L"C:\\Games\\GTA5\\GTA5.exe";
@@ -27,6 +27,7 @@ Image* background = nullptr;
 Image* logo = nullptr;
 bool isFullscreen = false;
 RECT normalRect;
+float progress = 0.0f; // For simulated progress bar
 
 // ================= UI СТРУКТУРЫ =================
 struct Button
@@ -37,6 +38,7 @@ struct Button
     Color normalColor;
     Color hoverColor;
     int fontSize;
+    const wchar_t* tooltip;
 };
 
 struct Panel
@@ -48,39 +50,46 @@ struct Panel
 
 // ================= КНОПКИ =================
 Button btnPlay = { {450, 500, 750, 580}, L"ЗАПУСТИТЬ ИГРУ", false, 
-    Color(80, 255, 140, 0), Color(255, 255, 165, 0), 24 };
+    Color(80, 255, 140, 0), Color(255, 255, 165, 0), 24, L"Запустить GTA V" };
 
 Button btnNews = { {50, 180, 350, 250}, L"НОВОСТИ", false,
-    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18 };
+    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18, L"Просмотреть последние новости сервера" };
 
 Button btnSettings = { {50, 270, 350, 340}, L"НАСТРОЙКИ", false,
-    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18 };
+    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18, L"Настроить лаунчер" };
 
 Button btnDiscord = { {50, 360, 350, 430}, L"DISCORD", false,
-    Color(120, 88, 101, 242), Color(200, 88, 101, 242), 18 };
+    Color(120, 88, 101, 242), Color(200, 88, 101, 242), 18, L"Присоединиться к Discord сообществу" };
 
 Button btnForum = { {50, 450, 350, 520}, L"ФОРУМ", false,
-    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18 };
+    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18, L"Посетить форум" };
 
 Button btnDonate = { {850, 180, 1150, 250}, L"ДОНАТ", false,
-    Color(120, 255, 215, 0), Color(200, 255, 215, 0), 18 };
+    Color(120, 255, 215, 0), Color(200, 255, 215, 0), 18, L"Поддержать сервер" };
 
 Button btnStats = { {850, 270, 1150, 340}, L"СТАТИСТИКА", false,
-    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18 };
+    Color(120, 30, 30, 35), Color(180, 40, 40, 45), 18, L"Просмотреть статистику" };
+
+// Новые оригинальные кнопки
+Button btnRules = { {850, 360, 1150, 430}, L"ПРАВИЛА", false,
+    Color(120, 200, 0, 0), Color(180, 220, 20, 20), 18, L"Ознакомиться с правилами сервера" };
+
+Button btnEvents = { {50, 540, 350, 610}, L"СОБЫТИЯ", false,
+    Color(120, 0, 200, 200), Color(180, 20, 220, 220), 18, L"Просмотреть текущие события" };
 
 // Системные кнопки
 Button btnMinimize = { {W-140, 10, W-100, 40}, L"—", false,
-    Color(0, 0, 0, 0), Color(100, 255, 255, 255), 20 };
+    Color(0, 0, 0, 0), Color(100, 255, 255, 255), 20, L"Свернуть" };
 
 Button btnMaximize = { {W-90, 10, W-50, 40}, L"□", false,
-    Color(0, 0, 0, 0), Color(100, 255, 255, 255), 20 };
+    Color(0, 0, 0, 0), Color(100, 255, 255, 255), 20, L"Развернуть/Свернуть" };
 
 Button btnClose = { {W-40, 10, W-10, 40}, L"✕", false,
-    Color(0, 0, 0, 0), Color(200, 255, 0, 0), 20 };
+    Color(0, 0, 0, 0), Color(200, 255, 0, 0), 20, L"Закрыть" };
 
 // ================= ПАНЕЛИ =================
-Panel mainPanel = { {30, 150, 370, 540}, Color(140, 15, 15, 20), 15 };
-Panel rightPanel = { {830, 150, 1170, 360}, Color(140, 15, 15, 20), 15 };
+Panel mainPanel = { {30, 150, 370, 640}, Color(140, 15, 15, 20), 15 }; // Увеличена для новых кнопок
+Panel rightPanel = { {830, 150, 1170, 460}, Color(140, 15, 15, 20), 15 }; // Увеличена
 Panel playPanel = { {430, 480, 770, 600}, Color(0, 0, 0, 0), 20 };
 
 // ================= УТИЛИТЫ =================
@@ -93,10 +102,10 @@ bool InRect(const POINT& p, const RECT& r)
 void DrawRoundedRect(Graphics& g, Brush* brush, const RectF& rect, float radius)
 {
     GraphicsPath path;
-    path.AddArc(rect.X, rect.Y, radius, radius, 180, 90);
-    path.AddArc(rect.X + rect.Width - radius, rect.Y, radius, radius, 270, 90);
-    path.AddArc(rect.X + rect.Width - radius, rect.Y + rect.Height - radius, radius, radius, 0, 90);
-    path.AddArc(rect.X, rect.Y + rect.Height - radius, radius, radius, 90, 90);
+    path.AddArc(rect.X, rect.Y, radius * 2, radius * 2, 180, 90);
+    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y, radius * 2, radius * 2, 270, 90);
+    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 0, 90);
+    path.AddArc(rect.X, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 90, 90);
     path.CloseFigure();
     
     g.FillPath(brush, &path);
@@ -113,6 +122,14 @@ void DrawPanel(Graphics& g, const Panel& p)
         DrawRoundedRect(g, &brush, rect, (float)p.borderRadius);
     else
         g.FillRectangle(&brush, rect);
+
+    // Добавлена тень для панелей
+    Pen shadowPen(Color(50, 0, 0, 0), 2.0f);
+    GraphicsPath shadowPath;
+    shadowPath.AddRectangle(rect);
+    g.TranslateTransform(2.0f, 2.0f);
+    g.DrawPath(&shadowPen, &shadowPath);
+    g.ResetTransform();
 }
 
 void DrawButton(Graphics& g, const Button& b)
@@ -126,10 +143,11 @@ void DrawButton(Graphics& g, const Button& b)
     
     DrawRoundedRect(g, &brush, rect, 10.0f);
     
-    // Тень при наведении
+    // Улучшенная тень при наведении
     if (b.hover)
     {
-        Pen shadowPen(Color(150, 255, 255, 255), 2.0f);
+        Pen shadowPen(Color(150, 255, 255, 255), 3.0f);
+        shadowPen.SetDashStyle(DashStyleDot);
         GraphicsPath path;
         path.AddRectangle(rect);
         g.DrawPath(&shadowPen, &path);
@@ -146,35 +164,74 @@ void DrawButton(Graphics& g, const Button& b)
     g.DrawString(b.text, -1, &font, rect, &format, &textBrush);
 }
 
+void DrawTooltip(Graphics& g, const wchar_t* text, POINT p)
+{
+    if (!text) return;
+    
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, 12.0f, FontStyleRegular);
+    SolidBrush bgBrush(Color(200, 20, 20, 20));
+    SolidBrush textBrush(Color::White);
+    
+    RectF boundRect;
+    g.MeasureString(text, -1, &font, PointF(0,0), &boundRect);
+    
+    RectF tooltipRect((REAL)p.x + 20, (REAL)p.y, boundRect.Width + 20, boundRect.Height + 10);
+    DrawRoundedRect(g, &bgBrush, tooltipRect, 5.0f);
+    
+    g.DrawString(text, -1, &font, PointF(tooltipRect.X + 10, tooltipRect.Y + 5), &textBrush);
+}
+
 void DrawGradientOverlay(Graphics& g)
 {
-    // Градиент сверху вниз
+    // Улучшенный градиент: от черного сверху к прозрачному снизу
     LinearGradientBrush gradient(
         Point(0, 0),
         Point(0, H),
-        Color(180, 0, 0, 0),
-        Color(220, 0, 0, 0)
+        Color(220, 0, 0, 0),
+        Color(0, 0, 0, 0)
     );
-    
     g.FillRectangle(&gradient, 0, 0, W, H);
+    
+    // Добавлен боковой градиент для глубины
+    LinearGradientBrush sideGradient(
+        Point(0, 0),
+        Point(W, 0),
+        Color(100, 0, 0, 0),
+        Color(0, 0, 0, 0)
+    );
+    g.FillRectangle(&sideGradient, 0, 0, W, H);
 }
 
 void DrawHeader(Graphics& g)
 {
-    // Затемнение верхней панели
-    SolidBrush headerBg(Color(180, 10, 10, 15));
-    g.FillRectangle(&headerBg, 0, 0, W, 60);
+    // Улучшенная верхняя панель с градиентом
+    LinearGradientBrush headerGradient(
+        Point(0, 0),
+        Point(0, 60),
+        Color(200, 10, 10, 15),
+        Color(100, 10, 10, 15)
+    );
+    g.FillRectangle(&headerGradient, 0, 0, W, 60);
     
-    // Логотип/название
+    // Логотип
+    if (logo)
+        g.DrawImage(logo, 20, 10, 50, 50); // Добавлено рисование логотипа
+    
+    // Название с тенью
     FontFamily ff(L"Segoe UI");
     Font titleFont(&ff, 32.0f, FontStyleBold);
-    Font subtitleFont(&ff, 12.0f, FontStyleRegular);
     
-    SolidBrush white(Color::White);
+    SolidBrush shadow(Color(100, 0, 0, 0));
     SolidBrush orange(Color(255, 255, 140, 0));
+    SolidBrush white(Color::White);
     
-    g.DrawString(L"MAJESTIC", -1, &titleFont, PointF(20.0f, 10.0f), &orange);
-    g.DrawString(L"ROLEPLAY", -1, &titleFont, PointF(200.0f, 10.0f), &white);
+    // Тень для текста
+    g.DrawString(L"MAJESTIC", -1, &titleFont, PointF(82.0f, 12.0f), &shadow);
+    g.DrawString(L"ROLEPLAY", -1, &titleFont, PointF(262.0f, 12.0f), &shadow);
+    
+    g.DrawString(L"MAJESTIC", -1, &titleFont, PointF(80.0f, 10.0f), &orange);
+    g.DrawString(L"ROLEPLAY", -1, &titleFont, PointF(260.0f, 10.0f), &white);
 }
 
 void DrawServerInfo(Graphics& g)
@@ -190,7 +247,7 @@ void DrawServerInfo(Graphics& g)
     // Статус сервера
     g.DrawString(L"● ONLINE", -1, &infoFont, PointF(W - 250.0f, 20.0f), &green);
     
-    // Онлайн игроков
+    // Онлайн игроков с анимацией (статично, но можно расширить)
     g.DrawString(L"Онлайн: 2847/3000", -1, &smallFont, PointF(W - 380.0f, 23.0f), &gray);
 }
 
@@ -203,12 +260,19 @@ void DrawInfoBoxes(Graphics& g)
     SolidBrush white(Color::White);
     SolidBrush gray(Color(220, 200, 200, 200));
     
-    // Информационные блоки
+    // Информационные блоки с рамками
     const wchar_t* info1 = L"Версия игры";
     const wchar_t* value1 = L"3095.2";
     
     const wchar_t* info2 = L"Последнее обновление";
     const wchar_t* value2 = L"15.01.2025";
+    
+    // Добавлена рамка
+    SolidBrush boxBg(Color(50, 255, 255, 255));
+    RectF box1(440.0f, 390.0f, 140.0f, 60.0f);
+    RectF box2(590.0f, 390.0f, 170.0f, 60.0f);
+    DrawRoundedRect(g, &boxBg, box1, 5.0f);
+    DrawRoundedRect(g, &boxBg, box2, 5.0f);
     
     g.DrawString(info1, -1, &textFont, PointF(450.0f, 400.0f), &gray);
     g.DrawString(value1, -1, &titleFont, PointF(450.0f, 420.0f), &white);
@@ -219,19 +283,35 @@ void DrawInfoBoxes(Graphics& g)
 
 void DrawProgressBar(Graphics& g, float progress)
 {
-    RectF bgRect(450.0f, 630.0f, 300.0f, 8.0f);
-    RectF progressRect(450.0f, 630.0f, 300.0f * progress, 8.0f);
+    RectF bgRect(450.0f, 630.0f, 300.0f, 12.0f); // Увеличена высота
+    RectF progressRect(450.0f, 630.0f, 300.0f * progress, 12.0f);
     
-    SolidBrush bgBrush(Color(100, 255, 255, 255));
-    SolidBrush progressBrush(Color(255, 255, 140, 0));
+    SolidBrush bgBrush(Color(100, 50, 50, 50));
+    LinearGradientBrush progressBrush(
+        PointF(450.0f, 630.0f),
+        PointF(750.0f, 630.0f),
+        Color(255, 255, 140, 0),
+        Color(255, 200, 0, 0)
+    );
     
-    DrawRoundedRect(g, &bgBrush, bgRect, 4.0f);
-    DrawRoundedRect(g, &progressBrush, progressRect, 4.0f);
+    DrawRoundedRect(g, &bgBrush, bgRect, 6.0f);
+    DrawRoundedRect(g, &progressBrush, progressRect, 6.0f);
+    
+    // Текст прогресса
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, 10.0f, FontStyleRegular);
+    SolidBrush textBrush(Color::White);
+    wchar_t progText[16];
+    swprintf(progText, 16, L"%.0f%%", progress * 100);
+    g.DrawString(progText, -1, &font, PointF(580.0f, 632.0f), &textBrush);
 }
 
 // ================= WINDOW PROC =================
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 {
+    static POINT mousePos;
+    static const Button* hoveredButton = nullptr;
+
     switch (msg)
     {
     case WM_CREATE:
@@ -244,6 +324,23 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         URLDownloadToFileW(nullptr, BG_URL, BG_FILE, 0, nullptr);
         background = Image::FromFile(BG_FILE);
         
+        URLDownloadToFileW(nullptr, LOGO_URL, LOGO_FILE, 0, nullptr);
+        logo = Image::FromFile(LOGO_FILE);
+        
+        // Симуляция прогресса (таймер для анимации)
+        SetTimer(hwnd, 1, 50, nullptr); // Оригинальное добавление: анимированный прогресс бар
+        
+        break;
+    }
+
+    case WM_TIMER:
+    {
+        if (w == 1)
+        {
+            progress += 0.01f;
+            if (progress > 1.0f) progress = 1.0f;
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
         break;
     }
 
@@ -281,14 +378,22 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         DrawButton(g, btnForum);
         DrawButton(g, btnDonate);
         DrawButton(g, btnStats);
+        DrawButton(g, btnRules); // Новая
+        DrawButton(g, btnEvents); // Новая
         
         DrawInfoBoxes(g);
         DrawButton(g, btnPlay);
+        
+        DrawProgressBar(g, progress); // Добавлено рисование прогресс бара (симулирует загрузку/обновление)
         
         // Системные кнопки
         DrawButton(g, btnMinimize);
         DrawButton(g, btnMaximize);
         DrawButton(g, btnClose);
+        
+        // Тултип если есть
+        if (hoveredButton)
+            DrawTooltip(g, hoveredButton->tooltip, mousePos);
         
         BitBlt(hdc, 0, 0, W, H, memDC, 0, 0, SRCCOPY);
         
@@ -303,23 +408,45 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         POINT p;
         GetCursorPos(&p);
         ScreenToClient(hwnd, &p);
+        mousePos = p;
         
         Button* buttons[] = { 
             &btnPlay, &btnNews, &btnSettings, &btnDiscord, 
-            &btnForum, &btnDonate, &btnStats,
+            &btnForum, &btnDonate, &btnStats, &btnRules, &btnEvents,
             &btnMinimize, &btnMaximize, &btnClose
         };
         
         bool needRedraw = false;
+        const Button* newHover = nullptr;
         for (Button* b : buttons)
         {
             bool old = b->hover;
             b->hover = InRect(p, b->rect);
             if (old != b->hover) needRedraw = true;
+            if (b->hover) newHover = b;
+        }
+        
+        if (hoveredButton != newHover)
+        {
+            hoveredButton = newHover;
+            needRedraw = true;
         }
         
         if (needRedraw)
             InvalidateRect(hwnd, nullptr, FALSE);
+        
+        // Трекинг для тултипов
+        TRACKMOUSEEVENT tme = { sizeof(tme) };
+        tme.dwFlags = TME_LEAVE;
+        tme.hwndTrack = hwnd;
+        TrackMouseEvent(&tme);
+        break;
+    }
+
+    case WM_MOUSELEAVE:
+    {
+        hoveredButton = nullptr;
+        InvalidateRect(hwnd, nullptr, FALSE);
         break;
     }
 
@@ -356,6 +483,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
         else if (InRect(p, btnStats.rect))
         {
             MessageBoxW(hwnd, L"Статистика персонажа", L"Статистика", MB_ICONINFORMATION);
+        }
+        else if (InRect(p, btnRules.rect))
+        {
+            MessageBoxW(hwnd, L"Правила сервера: Не читерить, уважать других и т.д.", L"Правила", MB_ICONINFORMATION);
+        }
+        else if (InRect(p, btnEvents.rect))
+        {
+            MessageBoxW(hwnd, L"Текущие события: Конкурс на лучший билд!", L"События", MB_ICONINFORMATION);
         }
         else if (InRect(p, btnClose.rect))
         {
