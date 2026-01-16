@@ -2227,3 +2227,119 @@ NEXT UP (if you want "real launcher"):
 - Anti-cheat bootstrapper / integrity checks
 ============================================================
 */
+Сборка начата в 14:50...
+1>------ Сборка начата: проект: WindowsProject4, Конфигурация: Debug x64 ------
+1>WindowsProject4.cpp
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(19,9): warning C4005: UNICODE: изменение макроопределения
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(19,9):
+1>    "UNICODE" ранее объявлен в командной строке
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(20,9): warning C4005: _UNICODE: изменение макроопределения
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(20,9):
+1>    "_UNICODE" ранее объявлен в командной строке
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15): error C2664: "BOOL CreateProcessW(LPCWSTR,LPWSTR,LPSECURITY_ATTRIBUTES,LPSECURITY_ATTRIBUTES,BOOL,DWORD,LPVOID,LPCWSTR,LPSTARTUPINFOW,LPPROCESS_INFORMATION)": невозможно преобразовать аргумент 2 из "const _Elem *" в "LPWSTR"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15): error C2664:         with
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15): error C2664:         [
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15): error C2664:             _Elem=wchar_t
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15): error C2664:         ]
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(136,24):
+1>    В результате преобразования теряются квалификаторы
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\processthreadsapi.h(386,1):
+1>     см. объявление "CreateProcessW"
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(134,15):
+1>    при попытке сопоставить список аргументов "(int, const _Elem *, int, int, int, int, int, const _Elem *, STARTUPINFOW *, PROCESS_INFORMATION *)"
+1>        with
+1>        [
+1>            _Elem=wchar_t
+1>        ]
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(160,19): error C2589: (: недопустимая лексема справа от "::"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(160,19): error C2059: синтаксическая ошибка: )
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(558,5): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(625,28): error C2589: (: недопустимая лексема справа от "::"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(625,28): error C2059: синтаксическая ошибка: )
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(635,11): error C2666: "Gdiplus::Graphics::FillRectangle": перегруженные функции имеют похожие преобразования
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(997,12):
+1>    может быть "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,INT,INT,INT,INT)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(967,12):
+1>    или       "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(635,11):
+1>    при попытке сопоставить список аргументов "(Gdiplus::SolidBrush *, int, int, Gdiplus::REAL, Gdiplus::REAL)"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(662,7): error C2666: "Gdiplus::Graphics::FillRectangle": перегруженные функции имеют похожие преобразования
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(997,12):
+1>    может быть "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,INT,INT,INT,INT)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(967,12):
+1>    или       "Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(662,7):
+1>    при попытке сопоставить список аргументов "(Gdiplus::SolidBrush *, int, int, Gdiplus::REAL, Gdiplus::REAL)"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(862,7): error C2666: "Gdiplus::Graphics::DrawLine": перегруженные функции имеют похожие преобразования
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(460,12):
+1>    может быть "Gdiplus::Status Gdiplus::Graphics::DrawLine(const Gdiplus::Pen *,INT,INT,INT,INT)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(433,12):
+1>    или       "Gdiplus::Status Gdiplus::Graphics::DrawLine(const Gdiplus::Pen *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(862,7):
+1>    при попытке сопоставить список аргументов "(Gdiplus::Pen *, int, int, Gdiplus::REAL, int)"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1035,22): error C2589: (: недопустимая лексема справа от "::"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1035,22): error C2059: синтаксическая ошибка: )
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1120,28): error C2589: (: недопустимая лексема справа от "::"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1120,28): error C2059: синтаксическая ошибка: )
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1126,34): error C2589: (: недопустимая лексема справа от "::"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1126,34): error C2059: синтаксическая ошибка: )
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1191,23): error C2666: "Gdiplus::GraphicsPath::AddEllipse": перегруженные функции имеют похожие преобразования
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(512,12):
+1>    может быть "Gdiplus::Status Gdiplus::GraphicsPath::AddEllipse(INT,INT,INT,INT)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(495,12):
+1>    или       "Gdiplus::Status Gdiplus::GraphicsPath::AddEllipse(Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1191,23):
+1>    при попытке сопоставить список аргументов "(Gdiplus::REAL, Gdiplus::REAL, int, int)"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1196,7): error C2666: "Gdiplus::Graphics::FillEllipse": перегруженные функции имеют похожие преобразования
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(1079,12):
+1>    может быть "Gdiplus::Status Gdiplus::Graphics::FillEllipse(const Gdiplus::Brush *,INT,INT,INT,INT)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(1062,12):
+1>    или       "Gdiplus::Status Gdiplus::Graphics::FillEllipse(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1196,7):
+1>    при попытке сопоставить список аргументов "(Gdiplus::PathGradientBrush *, Gdiplus::REAL, Gdiplus::REAL, int, int)"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1198,25): error C2666: "Gdiplus::GraphicsPath::AddEllipse": перегруженные функции имеют похожие преобразования
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(512,12):
+1>    может быть "Gdiplus::Status Gdiplus::GraphicsPath::AddEllipse(INT,INT,INT,INT)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(495,12):
+1>    или       "Gdiplus::Status Gdiplus::GraphicsPath::AddEllipse(Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1198,25):
+1>    при попытке сопоставить список аргументов "(Gdiplus::REAL, Gdiplus::REAL, int, int)"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1203,7): error C2666: "Gdiplus::Graphics::FillEllipse": перегруженные функции имеют похожие преобразования
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(1079,12):
+1>    может быть "Gdiplus::Status Gdiplus::Graphics::FillEllipse(const Gdiplus::Brush *,INT,INT,INT,INT)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusGraphics.h(1062,12):
+1>    или       "Gdiplus::Status Gdiplus::Graphics::FillEllipse(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)"
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1203,7):
+1>    при попытке сопоставить список аргументов "(Gdiplus::PathGradientBrush *, Gdiplus::REAL, Gdiplus::REAL, int, int)"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1253,34): error C2589: (: недопустимая лексема справа от "::"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1253,34): error C2059: синтаксическая ошибка: )
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1295,29): error C2589: (: недопустимая лексема справа от "::"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1295,29): error C2059: синтаксическая ошибка: )
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1338,21): error C2589: (: недопустимая лексема справа от "::"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1338,21): error C2059: синтаксическая ошибка: )
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1409,24): error C2589: (: недопустимая лексема справа от "::"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1409,24): error C2059: синтаксическая ошибка: )
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1417,36): error C2589: (: недопустимая лексема справа от "::"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1417,11): error C2660: ClampI: функция не принимает 2 аргументов
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(53,21):
+1>     см. объявление "ClampI"
+1>    C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1417,11):
+1>    при попытке сопоставить список аргументов "(int, int)"
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1417,72): error C2059: синтаксическая ошибка: )
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1550,14): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1560,9): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1583,13): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1612,21): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1614,22): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1635,13): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1664,17): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1665,14): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1677,9): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1686,13): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1692,9): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(1706,13): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(2079,21): error C3861: toast: идентификатор не найден
+1>C:\Users\User\source\repos\WindowsProject4\WindowsProject4\WindowsProject4.cpp(2192,9): error C3861: toast: идентификатор не найден
+1>Сборка проекта "WindowsProject4.vcxproj" завершена с ошибкой.
+========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
+========== Сборка завершено в 14:50 и заняло 00,886 с ==========
