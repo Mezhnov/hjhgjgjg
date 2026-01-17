@@ -5,6 +5,7 @@
 #include <dwmapi.h>
 #include <wchar.h>
 #include <cmath>
+#include <string>
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "urlmon.lib")
@@ -13,12 +14,12 @@
 using namespace Gdiplus;
 
 // ================= CONFIG =================
-const int W = 1200;
-const int H = 700;
+const int W = 1400;
+const int H = 800;
 
 const wchar_t* BG_URL    = L"https://images.unsplash.com/photo-1557683311-973673bafdbd?w=1800";
 const wchar_t* BG_FILE   = L"background.jpg";
-const wchar_t* LOGO_URL  = L"https://i.imgur.com/placeholder.png"; // ← замените
+const wchar_t* LOGO_URL  = L"https://i.imgur.com/placeholder.png";
 const wchar_t* LOGO_FILE = L"logo.png";
 
 const wchar_t* GTA_PATH = L"C:\\Games\\GTA5\\GTA5.exe";
@@ -32,7 +33,23 @@ RECT normalRect;
 float progress = 0.0f;
 bool showNews = false;
 bool showSettings = false;
+bool showDiscord = false;
+bool showForum = false;
+bool showDonate = false;
+bool showStats = false;
+bool showRules = false;
+bool showEvents = false;
 int currentNewsIndex = 0;
+
+// Вход/Регистрация
+enum AppScreen { SCREEN_LOGIN, SCREEN_REGISTER, SCREEN_MAIN };
+AppScreen currentScreen = SCREEN_LOGIN;
+std::wstring loginUsername;
+std::wstring loginPassword;
+std::wstring regUsername;
+std::wstring regPassword;
+std::wstring regEmail;
+int activeInput = 0; // 0 - нет, 1-3 для логина, 4-6 для регистрации
 
 // ================= НОВОСТИ =================
 struct NewsItem {
@@ -43,18 +60,22 @@ struct NewsItem {
 };
 
 NewsItem newsItems[] = {
-    { L"Обновление 1.5: Новые машины!", L"Добавлены новые автомобили и миссии. Подробности на форуме.", L"https://picsum.photos/760/120?random=1", L"news1.jpg" },
-    { L"Конкурс на лучший билд", L"Участвуйте и выигрывайте призы! Срок до 20.01.2026.", L"https://picsum.photos/760/120?random=2", L"news2.jpg" },
-    { L"Бан волна читеров", L"Очищаем сервер от нарушителей. Спасибо за репорты!", L"https://picsum.photos/760/120?random=3", L"news3.jpg" },
+    { L"🔥 Обновление 1.5: Новые машины!", L"Добавлены 15 новых премиальных автомобилей и 5 захватывающих миссий.\nПодробности на официальном форуме.", L"https://picsum.photos/900/160?random=1", L"news1.jpg" },
+    { L"🏆 Конкурс на лучший билд", L"Участвуйте и выигрывайте эксклюзивные призы! Главный приз - 50.000.000$\nСрок подачи заявок до 20 января 2026.", L"https://picsum.photos/900/160?random=2", L"news2.jpg" },
+    { L"⚔️ Масштабная бан волна читеров", L"Наша команда модераторов очистила сервер от 847 нарушителей.\nСпасибо игрокам за активные репорты!", L"https://picsum.photos/900/160?random=3", L"news3.jpg" },
+    { L"🎉 Праздничное событие", L"С 25 декабря по 10 января - новогодние квесты с уникальными наградами!", L"https://picsum.photos/900/160?random=4", L"news4.jpg" },
 };
 const int numNews = sizeof(newsItems) / sizeof(NewsItem);
-Image* newsImages[3] = { nullptr };
+Image* newsImages[4] = { nullptr };
 
 // ================= НАСТРОЙКИ =================
 bool settingFullscreen    = false;
 bool settingAutoUpdate    = true;
 bool settingSoundEffects  = true;
-int  settingVolume        = 75;   // 0–100
+bool settingNotifications = true;
+bool settingFPS           = false;
+int  settingVolume        = 75;
+int  settingGraphics      = 1; // 0=Low, 1=Medium, 2=High
 
 // ================= UI СТРУКТУРЫ =================
 struct Button {
@@ -73,37 +94,76 @@ struct Panel {
     int borderRadius;
 };
 
-// ================= КНОПКИ =================
-Button btnPlay       { {450,500,750,580}, L"ЗАПУСТИТЬ ИГРУ", false, Color(80, 220,140,220), Color(100,255,180,255), 24, L"Запустить GTA V" };
-Button btnNews       { {50, 180,350,250}, L"НОВОСТИ",        false, Color(50, 50, 70,160),  Color(80, 80,100,200),  18, L"Последние новости" };
-Button btnSettings   { {50, 270,350,340}, L"НАСТРОЙКИ",      false, Color(50, 50, 70,160),  Color(80, 80,100,200),  18, L"Настройки лаунчера" };
-Button btnDiscord    { {50, 360,350,430}, L"DISCORD",        false, Color(88,101,242,220),  Color(110,130,255,255),18, L"Discord сообщество" };
-Button btnForum      { {50, 450,350,520}, L"ФОРУМ",          false, Color(50, 50, 70,160),  Color(80, 80,100,200),  18, L"Форум Majestic" };
-Button btnDonate     { {850,180,1150,250},L"ДОНАТ",          false, Color(255,215,80,220),  Color(255,235,120,255),18, L"Поддержать проект" };
-Button btnStats      { {850,270,1150,340},L"СТАТИСТИКА",     false, Color(50, 50, 70,160),  Color(80, 80,100,200),  18, L"Ваша статистика" };
-Button btnRules      { {850,360,1150,430},L"ПРАВИЛА",        false, Color(220,60,60,180),   Color(240,90,90,220),   18, L"Правила сервера" };
-Button btnEvents     { {50, 540,350,610}, L"СОБЫТИЯ",        false, Color(140,0,200,200),   Color(180,40,240,240),  18, L"Ближайшие ивенты" };
+struct InputField {
+    RECT rect;
+    std::wstring* value;
+    const wchar_t* placeholder;
+    bool isPassword;
+    bool active;
+    bool hover;
+    int cursorPos;
+};
 
-Button btnMinimize   { {W-140,10,W-100,40}, L"—", false, Color(0,0,0,0), Color(180,180,180,220), 20, L"Свернуть" };
-Button btnMaximize   { {W-90, 10,W-50, 40}, L"□", false, Color(0,0,0,0), Color(180,180,180,220), 20, L"Развернуть" };
-Button btnClose      { {W-40, 10,W-10, 40}, L"✕", false, Color(0,0,0,0), Color(220,60,60,240),   20, L"Закрыть" };
+// ================= КНОПКИ ГЛАВНОГО ЭКРАНА =================
+Button btnPlay       { {500,550,900,640}, L"▶ ЗАПУСТИТЬ ИГРУ", false, Color(100, 60,180,255), Color(120, 80,200,255), 28, L"Запустить GTA V" };
+Button btnNews       { {50, 200,370,280}, L"📰 НОВОСТИ",         false, Color(70, 40, 50,140),  Color(100, 60, 80,200),  20, L"Последние обновления" };
+Button btnSettings   { {50, 300,370,380}, L"⚙ НАСТРОЙКИ",       false, Color(70, 40, 50,140),  Color(100, 60, 80,200),  20, L"Настройки лаунчера" };
+Button btnDiscord    { {50, 400,370,480}, L"💬 DISCORD",         false, Color(88, 88,101,242),  Color(110, 110,130,255), 20, L"Наше Discord сообщество" };
+Button btnForum      { {50, 500,370,580}, L"🌐 ФОРУМ",           false, Color(70, 40, 50,140),  Color(100, 60, 80,200),  20, L"Официальный форум" };
+Button btnDonate     { {1030,200,1350,280},L"💎 ДОНАТ",          false, Color(100, 255,215,80), Color(120, 255,235,100), 20, L"Поддержать проект" };
+Button btnStats      { {1030,300,1350,380},L"📊 СТАТИСТИКА",     false, Color(70, 40, 50,140),  Color(100, 60, 80,200),  20, L"Игровая статистика" };
+Button btnRules      { {1030,400,1350,480},L"📜 ПРАВИЛА",        false, Color(100, 220,60,60),  Color(120, 240,90,90),   20, L"Правила сервера" };
+Button btnEvents     { {1030,500,1350,580},L"🎪 СОБЫТИЯ",        false, Color(100, 140,0,200),  Color(120, 180,40,240),  20, L"Ближайшие ивенты" };
 
-Button btnNewsBack   { {50,  50,150,100}, L"НАЗАД", false, Color(60,60,80,180), Color(100,100,130,220), 18, L"Вернуться" };
-Button btnNewsPrev   { {400,600,500,650}, L"<",    false, Color(60,60,80,180), Color(100,100,130,220), 24, L"Предыдущая новость" };
-Button btnNewsNext   { {700,600,800,650}, L">",    false, Color(60,60,80,180), Color(100,100,130,220), 24, L"Следующая новость" };
+Button btnMinimize   { {W-150,10,W-110,50}, L"—", false, Color(0,0,0,0), Color(180, 180,180,220), 22, L"Свернуть" };
+Button btnMaximize   { {W-100,10,W-60, 50}, L"□", false, Color(0,0,0,0), Color(180, 180,180,220), 22, L"Развернуть" };
+Button btnClose      { {W-50, 10,W-10, 50}, L"✕", false, Color(0,0,0,0), Color(220, 220,60,60),   22, L"Закрыть" };
 
-Button btnSettingsBack { {50,  50,150,100}, L"НАЗАД", false, Color(60,60,80,180), Color(100,100,130,220), 18, L"Вернуться" };
+// ================= КНОПКИ ВЛОЖЕННЫХ ЭКРАНОВ =================
+Button btnNewsBack   { {50,  80,200,140}, L"← НАЗАД", false, Color(80, 60,60,100), Color(120, 100,100,150), 20, L"Вернуться" };
+Button btnNewsPrev   { {450,680,580,740}, L"◄",       false, Color(80, 60,60,100), Color(120, 100,100,150), 28, L"Предыдущая" };
+Button btnNewsNext   { {820,680,950,740}, L"►",       false, Color(80, 60,60,100), Color(120, 100,100,150), 28, L"Следующая" };
 
-Button btnCheckFullscreen  { {250,180,700,220}, L"Запускать игру в полноэкранном режиме", false, Color(0,0,0,0), Color(90,90,110,140), 16, L"" };
-Button btnCheckAutoUpdate  { {250,240,700,280}, L"Автоматически проверять обновления",     false, Color(0,0,0,0), Color(90,90,110,140), 16, L"" };
-Button btnCheckSound       { {250,300,700,340}, L"Включить звуковые эффекты лаунчера",     false, Color(0,0,0,0), Color(90,90,110,140), 16, L"" };
+Button btnSettingsBack { {50,  80,200,140}, L"← НАЗАД", false, Color(80, 60,60,100), Color(120, 100,100,150), 20, L"Вернуться" };
+
+Button btnCheckFullscreen  { {280,210,1100,255}, L"🖥 Запускать игру в полноэкранном режиме",      false, Color(0,0,0,0), Color(90, 90,90,110), 18, L"" };
+Button btnCheckAutoUpdate  { {280,275,1100,320}, L"🔄 Автоматически проверять обновления",        false, Color(0,0,0,0), Color(90, 90,90,110), 18, L"" };
+Button btnCheckSound       { {280,340,1100,385}, L"🔊 Включить звуковые эффекты",                 false, Color(0,0,0,0), Color(90, 90,90,110), 18, L"" };
+Button btnCheckNotify      { {280,405,1100,450}, L"🔔 Показывать уведомления",                    false, Color(0,0,0,0), Color(90, 90,90,110), 18, L"" };
+Button btnCheckFPS         { {280,470,1100,515}, L"📈 Отображать FPS в игре",                     false, Color(0,0,0,0), Color(90, 90,90,110), 18, L"" };
+
+// Кнопки других экранов
+Button btnDiscordBack { {50,  80,200,140}, L"← НАЗАД", false, Color(80, 60,60,100), Color(120, 100,100,150), 20, L"Вернуться" };
+Button btnForumBack   { {50,  80,200,140}, L"← НАЗАД", false, Color(80, 60,60,100), Color(120, 100,100,150), 20, L"Вернуться" };
+Button btnDonateBack  { {50,  80,200,140}, L"← НАЗАД", false, Color(80, 60,60,100), Color(120, 100,100,150), 20, L"Вернуться" };
+Button btnStatsBack   { {50,  80,200,140}, L"← НАЗАД", false, Color(80, 60,60,100), Color(120, 100,100,150), 20, L"Вернуться" };
+Button btnRulesBack   { {50,  80,200,140}, L"← НАЗАД", false, Color(80, 60,60,100), Color(120, 100,100,150), 20, L"Вернуться" };
+Button btnEventsBack  { {50,  80,200,140}, L"← НАЗАД", false, Color(80, 60,60,100), Color(120, 100,100,150), 20, L"Вернуться" };
+
+// Кнопки входа/регистрации
+Button btnLogin       { {W/2-280,500,W/2-20,570}, L"ВОЙТИ",          false, Color(120, 60,180,255), Color(150, 80,200,255), 22, L"Войти в аккаунт" };
+Button btnToRegister  { {W/2-280,600,W/2-20,660}, L"Регистрация",   false, Color(80, 60,60,100),   Color(120, 100,100,150), 18, L"Создать аккаунт" };
+Button btnRegister    { {W/2+20,500,W/2+280,570}, L"СОЗДАТЬ АККАУНТ", false, Color(120, 60,180,255), Color(150, 80,200,255), 22, L"Зарегистрироваться" };
+Button btnToLogin     { {W/2+20,600,W/2+280,660}, L"Уже есть аккаунт", false, Color(80, 60,60,100),  Color(120, 100,100,150), 18, L"Вернуться ко входу" };
+
+// ================= ПОЛЯ ВВОДА =================
+InputField loginUsernameField { {W/2-280,320,W/2-20,370}, &loginUsername, L"Логин", false, false, false, 0 };
+InputField loginPasswordField { {W/2-280,390,W/2-20,440}, &loginPassword, L"Пароль", true, false, false, 0 };
+
+InputField regUsernameField   { {W/2+20,280,W/2+280,330}, &regUsername, L"Логин", false, false, false, 0 };
+InputField regEmailField      { {W/2+20,350,W/2+280,400}, &regEmail,    L"Email", false, false, false, 0 };
+InputField regPasswordField   { {W/2+20,420,W/2+280,470}, &regPassword, L"Пароль", true, false, false, 0 };
 
 // ================= ПАНЕЛИ =================
-Panel mainPanel    { {30,  150,370,640}, Color(30,30,45,140), 16 };
-Panel rightPanel   { {830, 150,1170,460},Color(30,30,45,140), 16 };
-Panel playPanel    { {430, 480,770,600}, Color(20,20,35,100), 24 };
-Panel newsPanel    { {200, 100,1000,550},Color(35,35,50,160), 20 };
-Panel settingsPanel{ {200, 100,1000,550},Color(35,35,50,160), 20 };
+Panel mainPanelLeft   { {30,  170,390,610}, Color(50, 25,25,35), 20 };
+Panel mainPanelRight  { {1010,170,1370,610},Color(50, 25,25,35), 20 };
+Panel playPanel       { {480, 530,920,660}, Color(40, 15,15,25), 28 };
+Panel newsPanel       { {220, 120,1180,760},Color(60, 30,30,45), 24 };
+Panel settingsPanel   { {220, 120,1180,760},Color(60, 30,30,45), 24 };
+Panel contentPanel    { {220, 120,1180,760},Color(60, 30,30,45), 24 };
+
+Panel loginPanel      { {W/2-320,200,W/2-20,690}, Color(60, 30,30,45), 24 };
+Panel registerPanel   { {W/2+20,200,W/2+320,690}, Color(60, 30,30,45), 24 };
 
 // ================= УТИЛИТЫ =================
 bool InRect(const POINT& p, const RECT& r) {
@@ -120,188 +180,405 @@ void DrawRoundedRect(Graphics& g, Brush* brush, const RectF& rect, REAL radius) 
     g.FillPath(brush, &path);
 }
 
+void DrawRoundedRectOutline(Graphics& g, Pen* pen, const RectF& rect, REAL radius) {
+    GraphicsPath path;
+    path.AddArc(rect.X, rect.Y, radius*2, radius*2, 180, 90);
+    path.AddArc(rect.X + rect.Width - radius*2, rect.Y, radius*2, radius*2, 270, 90);
+    path.AddArc(rect.X + rect.Width - radius*2, rect.Y + rect.Height - radius*2, radius*2, radius*2, 0, 90);
+    path.AddArc(rect.X, rect.Y + rect.Height - radius*2, radius*2, radius*2, 90, 90);
+    path.CloseFigure();
+    g.DrawPath(pen, &path);
+}
+
 void DrawPanel(Graphics& g, const Panel& p) {
     SolidBrush brush(p.bgColor);
     RectF rect((REAL)p.rect.left, (REAL)p.rect.top, (REAL)(p.rect.right - p.rect.left), (REAL)(p.rect.bottom - p.rect.top));
     DrawRoundedRect(g, &brush, rect, (REAL)p.borderRadius);
 
-    // лёгкая обводка
-    Pen border(Color(120, 140, 160, 80), 1.2f);
-    g.DrawPath(&border, [&rect, radius = (REAL)p.borderRadius](GraphicsPath& path){
-        path.AddArc(rect.X, rect.Y, radius*2, radius*2, 180, 90);
-        path.AddArc(rect.X + rect.Width - radius*2, rect.Y, radius*2, radius*2, 270, 90);
-        path.AddArc(rect.X + rect.Width - radius*2, rect.Y + rect.Height - radius*2, radius*2, radius*2, 0, 90);
-        path.AddArc(rect.X, rect.Y + rect.Height - radius*2, radius*2, radius*2, 90, 90);
-        path.CloseFigure();
-    });
+    Pen border(Color(100, 140, 160, 100), 1.5f);
+    DrawRoundedRectOutline(g, &border, rect, (REAL)p.borderRadius);
 }
 
 void DrawButton(Graphics& g, const Button& b) {
     Color bg = b.hover ? b.hoverColor : b.normalColor;
     SolidBrush brush(bg);
     RectF r((REAL)b.rect.left, (REAL)b.rect.top, (REAL)(b.rect.right - b.rect.left), (REAL)(b.rect.bottom - b.rect.top));
-    DrawRoundedRect(g, &brush, r, 12.0f);
+    DrawRoundedRect(g, &brush, r, 14.0f);
 
     if (b.hover) {
-        Pen pen(Color(220, 255, 255, 220), 2.0f);
-        pen.SetDashStyle(DashStyleDot);
-        g.DrawRectangle(&pen, r);
+        Pen pen(Color(180, 255, 255, 255), 2.5f);
+        DrawRoundedRectOutline(g, &pen, r, 14.0f);
     }
 
     FontFamily ff(L"Segoe UI");
     Font font(&ff, (REAL)b.fontSize, FontStyleBold);
-    SolidBrush text(Color(245,245,255));
-    SolidBrush shadow(Color(60,0,0,0));
+    SolidBrush text(Color(255, 255, 255));
+    SolidBrush shadow(Color(100, 0, 0, 0));
 
     StringFormat fmt;
     fmt.SetAlignment(StringAlignmentCenter);
     fmt.SetLineAlignment(StringAlignmentCenter);
 
-    // тень под текстом
-    g.DrawString(b.text, -1, &font, PointF(r.X+1.5f, r.Y+1.5f), &fmt, &shadow);
+    g.DrawString(b.text, -1, &font, PointF(r.X+2, r.Y+2), &fmt, &shadow);
     g.DrawString(b.text, -1, &font, r, &fmt, &text);
 }
 
 void DrawCheckbox(Graphics& g, const Button& b, bool checked) {
     RectF r((REAL)b.rect.left, (REAL)b.rect.top, (REAL)(b.rect.right - b.rect.left), (REAL)(b.rect.bottom - b.rect.top));
 
-    SolidBrush bg(b.hover ? Color(70,70,90,160) : Color(50,50,60,120));
-    g.FillRectangle(&bg, r);
+    SolidBrush bg(b.hover ? Color(80, 70,70,90) : Color(50, 50,50,60));
+    DrawRoundedRect(g, &bg, r, 10.0f);
 
-    RectF box(r.X + 12, r.Y + (r.Height-24)/2, 24, 24);
-    Pen pen(Color(220,220,230), 2.2f);
-    g.DrawRectangle(&pen, box);
-
+    RectF box(r.X + 18, r.Y + (r.Height-30)/2, 30, 30);
+    
     if (checked) {
-        SolidBrush fill(Color(60,220,100));
-        g.FillRectangle(&fill, box.X+4, box.Y+4, box.Width-8, box.Height-8);
+        LinearGradientBrush fill(PointF(box.X, box.Y), PointF(box.X+30, box.Y+30), Color(80, 200, 100), Color(60, 160, 80));
+        DrawRoundedRect(g, &fill, box, 6.0f);
+        
+        // Галочка
+        Pen check(Color(255, 255, 255), 3.0f);
+        check.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
+        g.DrawLine(&check, box.X+7, box.Y+15, box.X+13, box.Y+21);
+        g.DrawLine(&check, box.X+13, box.Y+21, box.X+23, box.Y+9);
+    } else {
+        Pen pen(Color(150, 200, 200, 200), 2.5f);
+        DrawRoundedRectOutline(g, &pen, box, 6.0f);
     }
 
     FontFamily ff(L"Segoe UI");
-    Font font(&ff, 16);
-    SolidBrush text(Color(235,235,245));
-    RectF textRect(r.X + 48, r.Y, r.Width - 50, r.Height);
-    StringFormat fmt; fmt.SetLineAlignment(StringAlignmentCenter);
+    Font font(&ff, 18);
+    SolidBrush text(Color(240, 240, 250));
+    RectF textRect(r.X + 60, r.Y, r.Width - 70, r.Height);
+    StringFormat fmt; 
+    fmt.SetLineAlignment(StringAlignmentCenter);
     g.DrawString(b.text, -1, &font, textRect, &fmt, &text);
 }
 
+void DrawInputField(Graphics& g, const InputField& field) {
+    RectF r((REAL)field.rect.left, (REAL)field.rect.top, (REAL)(field.rect.right - field.rect.left), (REAL)(field.rect.bottom - field.rect.top));
+    
+    Color bgColor = field.active ? Color(80, 60, 60, 80) : (field.hover ? Color(70, 50, 50, 70) : Color(60, 40, 40, 60));
+    SolidBrush bg(bgColor);
+    DrawRoundedRect(g, &bg, r, 10.0f);
+
+    Pen border(field.active ? Color(200, 100, 200, 255) : Color(120, 100, 120, 180), field.active ? 2.5f : 1.5f);
+    DrawRoundedRectOutline(g, &border, r, 10.0f);
+
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, 18.0f);
+    SolidBrush textBrush(Color(240, 240, 250));
+    SolidBrush placeholderBrush(Color(140, 150, 150, 150));
+
+    RectF textRect(r.X + 15, r.Y, r.Width - 30, r.Height);
+    StringFormat fmt;
+    fmt.SetLineAlignment(StringAlignmentCenter);
+    fmt.SetTrimming(StringTrimmingNone);
+
+    if (field.value->empty()) {
+        g.DrawString(field.placeholder, -1, &font, textRect, &fmt, &placeholderBrush);
+    } else {
+        if (field.isPassword) {
+            std::wstring masked(field.value->length(), L'●');
+            g.DrawString(masked.c_str(), -1, &font, textRect, &fmt, &textBrush);
+        } else {
+            g.DrawString(field.value->c_str(), -1, &font, textRect, &fmt, &textBrush);
+        }
+        
+        // Курсор
+        if (field.active && ((GetTickCount() / 500) % 2 == 0)) {
+            RectF bound;
+            if (field.isPassword) {
+                std::wstring masked(field.value->length(), L'●');
+                g.MeasureString(masked.c_str(), -1, &font, textRect, &fmt, &bound);
+            } else {
+                g.MeasureString(field.value->c_str(), -1, &font, textRect, &fmt, &bound);
+            }
+            Pen cursor(Color(200, 200, 250), 2.0f);
+            REAL cursorX = r.X + 15 + bound.Width;
+            g.DrawLine(&cursor, cursorX, r.Y + 12, cursorX, r.Y + r.Height - 12);
+        }
+    }
+}
+
 void DrawVolumeSlider(Graphics& g, int volume) {
-    RectF track(250, 380, 500, 10);
-    SolidBrush trackBg(Color(60,60,70));
-    g.FillRectangle(&trackBg, track);
+    RectF track(280, 570, 820, 16);
+    SolidBrush trackBg(Color(80, 60, 60, 70));
+    DrawRoundedRect(g, &trackBg, track, 8);
 
     float pos = volume / 100.0f;
-    RectF fill(250, 380, 500 * pos, 10);
-    LinearGradientBrush grad(PointF(250,380), PointF(750,380), Color(80,200,255), Color(0,140,255));
-    g.FillRectangle(&grad, fill);
+    RectF fill(280, 570, 820 * pos, 16);
+    LinearGradientBrush grad(PointF(280, 570), PointF(1100, 570), Color(100, 160, 255), Color(80, 100, 220));
+    DrawRoundedRect(g, &grad, fill, 8);
 
-    REAL x = 250 + 500 * pos - 14;
-    RectF circle(x, 380 - 14, 28, 28);
-    SolidBrush circleBrush(Color(240,240,255));
+    REAL x = 280 + 820 * pos - 18;
+    RectF circle(x, 570 - 16, 36, 36);
+    LinearGradientBrush circleBrush(PointF(x, 570-16), PointF(x+36, 570+20), Color(255, 255, 255), Color(220, 220, 240));
     g.FillEllipse(&circleBrush, circle);
 
-    Pen border(Color(180,180,200), 2.5f);
-    g.DrawEllipse(&border, circle);
+    Pen borderPen(Color(180, 180, 200), 3.0f);
+    g.DrawEllipse(&borderPen, circle);
 
-    wchar_t txt[32];
-    swprintf_s(txt, L"Громкость: %d%%", volume);
+    wchar_t txt[64];
+    swprintf_s(txt, L"🔊 Громкость звуков: %d%%", volume);
     FontFamily ff(L"Segoe UI");
-    Font font(&ff, 14);
-    SolidBrush text(Color(220,220,240));
-    g.DrawString(txt, -1, &font, PointF(250, 410), &text);
+    Font font(&ff, 16.0f);
+    SolidBrush text(Color(220, 220, 240));
+    g.DrawString(txt, -1, &font, PointF(280, 610), &text);
+}
+
+void DrawGraphicsSelector(Graphics& g, int level) {
+    const wchar_t* levels[] = { L"Низкая", L"Средняя", L"Высокая" };
+    
+    FontFamily ff(L"Segoe UI");
+    Font font(&ff, 16.0f);
+    SolidBrush text(Color(220, 220, 240));
+    g.DrawString(L"🎨 Качество графики:", -1, &font, PointF(280, 675), &text);
+
+    for (int i = 0; i < 3; ++i) {
+        RectF r(280 + i * 280, 710, 260, 45);
+        Color bg = (i == level) ? Color(100, 60, 180, 255) : Color(70, 50, 50, 70);
+        SolidBrush brush(bg);
+        DrawRoundedRect(g, &brush, r, 10);
+
+        if (i == level) {
+            Pen border(Color(180, 120, 255, 255), 2.5f);
+            DrawRoundedRectOutline(g, &border, r, 10);
+        }
+
+        Font btnFont(&ff, 18.0f, FontStyleBold);
+        SolidBrush btnText(Color(255, 255, 255));
+        StringFormat fmt;
+        fmt.SetAlignment(StringAlignmentCenter);
+        fmt.SetLineAlignment(StringAlignmentCenter);
+        g.DrawString(levels[i], -1, &btnFont, r, &fmt, &btnText);
+    }
 }
 
 void DrawGradientOverlay(Graphics& g) {
-    LinearGradientBrush gradient(Point(0,0), Point(0,H), Color(180,0,0,0), Color(220,0,0,0));
+    LinearGradientBrush gradient(Point(0, 0), Point(0, H), Color(200, 0, 0, 0), Color(240, 10, 10, 15));
     g.FillRectangle(&gradient, 0, 0, W, H);
 }
 
 void DrawHeader(Graphics& g) {
-    LinearGradientBrush headerGrad(Point(0,0), Point(0,70), Color(160,20,20,50), Color(60,10,10,30));
-    g.FillRectangle(&headerGrad, 0, 0, W, 70);
+    LinearGradientBrush headerGrad(Point(0, 0), Point(0, 90), Color(180, 15, 15, 30), Color(80, 5, 5, 15));
+    g.FillRectangle(&headerGrad, 0, 0, W, 90);
 
-    if (logo) g.DrawImage(logo, 24, 10, 50, 50);
+    if (logo) {
+        g.DrawImage(logo, 30, 15, 60, 60);
+    }
 
     FontFamily ff(L"Segoe UI");
-    Font titleFont(&ff, 34.0f, FontStyleBold);
-    SolidBrush shadow(Color(120,0,0,0));
-    SolidBrush orange(Color(255,220,100));
-    SolidBrush white(Color(255,255,255));
+    Font titleFont(&ff, 42.0f, FontStyleBold);
+    SolidBrush shadow(Color(150, 0, 0, 0));
+    
+    LinearGradientBrush orange(PointF(100, 15), PointF(400, 60), Color(255, 230, 120), Color(255, 180, 60));
+    LinearGradientBrush white(PointF(400, 15), PointF(700, 60), Color(255, 255, 255), Color(220, 220, 240));
 
-    g.DrawString(L"MAJESTIC", -1, &titleFont, PointF(90,14), &shadow);
-    g.DrawString(L"MAJESTIC", -1, &titleFont, PointF(86,10), &orange);
+    g.DrawString(L"MAJESTIC", -1, &titleFont, PointF(108, 20), &shadow);
+    g.DrawString(L"MAJESTIC", -1, &titleFont, PointF(105, 16), &orange);
 
-    g.DrawString(L"ROLEPLAY", -1, &titleFont, PointF(280,14), &shadow);
-    g.DrawString(L"ROLEPLAY", -1, &titleFont, PointF(276,10), &white);
+    g.DrawString(L"ROLEPLAY", -1, &titleFont, PointF(378, 20), &shadow);
+    g.DrawString(L"ROLEPLAY", -1, &titleFont, PointF(375, 16), &white);
 }
 
 void DrawServerInfo(Graphics& g) {
     FontFamily ff(L"Segoe UI");
-    Font infoFont(&ff, 15.0f, FontStyleBold);
-    Font smallFont(&ff, 12.0f);
-    SolidBrush white(Color::White), green(Color(40,255,80)), gray(Color(200,220,220,220));
+    Font infoFont(&ff, 17.0f, FontStyleBold);
+    Font smallFont(&ff, 14.0f);
+    SolidBrush white(Color::White);
+    SolidBrush green(Color(60, 255, 100));
+    SolidBrush gray(Color(200, 220, 220, 220));
 
-    g.DrawString(L"● ONLINE", -1, &infoFont, PointF((REAL)W - 260, 22), &green);
-    g.DrawString(L"Онлайн: 2847 / 3000", -1, &smallFont, PointF((REAL)W - 400, 25), &gray);
+    g.DrawString(L"● СЕРВЕР ОНЛАЙН", -1, &infoFont, PointF((REAL)W - 360, 28), &green);
+    g.DrawString(L"Игроков: 2847 / 3000", -1, &smallFont, PointF((REAL)W - 360, 52), &gray);
 }
 
 void DrawTooltip(Graphics& g, const wchar_t* text, POINT mouse) {
     if (!text || !*text) return;
 
     FontFamily ff(L"Segoe UI");
-    Font font(&ff, 14.0f);
+    Font font(&ff, 15.0f);
     RectF bound;
-    g.MeasureString(text, -1, &font, PointF(0,0), &bound);
+    g.MeasureString(text, -1, &font, PointF(0, 0), &bound);
 
-    REAL w = bound.Width + 24;
-    REAL h = bound.Height + 16;
-    REAL x = mouse.x + 20;
-    REAL y = mouse.y + 28;
+    REAL w = bound.Width + 28;
+    REAL h = bound.Height + 20;
+    REAL x = mouse.x + 24;
+    REAL y = mouse.y + 32;
 
-    if (x + w > W) x = mouse.x - w - 12;
-    if (y + h > H) y = mouse.y - h - 12;
+    if (x + w > W) x = mouse.x - w - 16;
+    if (y + h > H) y = mouse.y - h - 16;
 
     RectF rect(x, y, w, h);
-    SolidBrush bg(Color(240, 35, 35, 55));
-    DrawRoundedRect(g, &bg, rect, 10.0f);
+    LinearGradientBrush bg(PointF(x, y), PointF(x, y+h), Color(250, 40, 40, 60), Color(250, 25, 25, 45));
+    DrawRoundedRect(g, &bg, rect, 12.0f);
 
-    Pen border(Color(160, 140, 180, 220), 1.4f);
-    g.DrawRectangle(&border, rect);
+    Pen border(Color(200, 160, 180, 240), 1.8f);
+    DrawRoundedRectOutline(g, &border, rect, 12.0f);
 
-    SolidBrush txtBrush(Color::WhiteSmoke);
+    SolidBrush txtBrush(Color(255, 255, 255));
     StringFormat fmt;
     fmt.SetAlignment(StringAlignmentCenter);
     fmt.SetLineAlignment(StringAlignmentCenter);
     g.DrawString(text, -1, &font, rect, &fmt, &txtBrush);
 }
 
-// остальные Draw-функции (DrawProgressBar, DrawNews, DrawSettings) остаются почти без изменений
-
 void DrawProgressBar(Graphics& g, float progress) {
-    RectF bgRect(450, 630, 300, 14);
-    RectF progressRect(450, 630, 300 * progress, 14);
+    RectF bgRect(500, 680, 400, 20);
+    RectF progressRect(500, 680, 400 * progress, 20);
 
-    SolidBrush bgBrush(Color(70, 50, 50, 60));
-    LinearGradientBrush progressBrush(PointF(450,630), PointF(750,630), Color(255,240,100), Color(255,180,40));
+    SolidBrush bgBrush(Color(100, 50, 50, 60));
+    DrawRoundedRect(g, &bgBrush, bgRect, 10);
 
-    DrawRoundedRect(g, &bgBrush, bgRect, 7);
-    DrawRoundedRect(g, &progressBrush, progressRect, 7);
+    LinearGradientBrush progressBrush(PointF(500, 680), PointF(900, 680), Color(255, 240, 120), Color(255, 200, 80));
+    DrawRoundedRect(g, &progressBrush, progressRect, 10);
 
-    wchar_t txt[16];
+    Pen border(Color(150, 200, 200, 100), 1.5f);
+    DrawRoundedRectOutline(g, &border, bgRect, 10);
+
+    wchar_t txt[32];
     swprintf_s(txt, L"%.0f%%", progress * 100);
     FontFamily ff(L"Segoe UI");
-    Font font(&ff, 11.0f);
-    SolidBrush textBrush(Color(255,255,240));
-    g.DrawString(txt, -1, &font, PointF(580, 633), &textBrush);
+    Font font(&ff, 13.0f, FontStyleBold);
+    SolidBrush textBrush(Color(255, 255, 250));
+    StringFormat fmt;
+    fmt.SetAlignment(StringAlignmentCenter);
+    fmt.SetLineAlignment(StringAlignmentCenter);
+    g.DrawString(txt, -1, &font, bgRect, &fmt, &textBrush);
 }
 
-// ... (DrawNews и DrawSettings остаются как были, только цвета можно подправить аналогично)
+// ================= ЭКРАНЫ =================
+void DrawNews(Graphics& g) {
+    DrawPanel(g, newsPanel);
+
+    FontFamily ff(L"Segoe UI");
+    Font titleFont(&ff, 32.0f, FontStyleBold);
+    Font descFont(&ff, 18.0f);
+    SolidBrush white(Color(255, 255, 255));
+    SolidBrush gray(Color(200, 200, 210));
+
+    g.DrawString(L"📰 НОВОСТИ СЕРВЕРА", -1, &titleFont, PointF(260, 150), &white);
+
+    NewsItem& news = newsItems[currentNewsIndex];
+    
+    if (newsImages[currentNewsIndex]) {
+        RectF imgRect(250, 240, 900, 180);
+        g.DrawImage(newsImages[currentNewsIndex], imgRect);
+    }
+
+    g.DrawString(news.title, -1, &titleFont, PointF(250, 450), &white);
+    
+    RectF descRect(250, 510, 900, 120);
+    StringFormat fmt;
+    fmt.SetAlignment(StringAlignmentNear);
+    g.DrawString(news.description, -1, &descFont, descRect, &fmt, &gray);
+
+    wchar_t counter[32];
+    swprintf_s(counter, L"%d / %d", currentNewsIndex + 1, numNews);
+    Font counterFont(&ff, 20.0f, FontStyleBold);
+    StringFormat ctrFmt;
+    ctrFmt.SetAlignment(StringAlignmentCenter);
+    g.DrawString(counter, -1, &counterFont, PointF(700, 700), &ctrFmt, &white);
+
+    DrawButton(g, btnNewsBack);
+    DrawButton(g, btnNewsPrev);
+    DrawButton(g, btnNewsNext);
+}
+
+void DrawSettings(Graphics& g) {
+    DrawPanel(g, settingsPanel);
+
+    FontFamily ff(L"Segoe UI");
+    Font titleFont(&ff, 32.0f, FontStyleBold);
+    SolidBrush white(Color(255, 255, 255));
+
+    g.DrawString(L"⚙ НАСТРОЙКИ ЛАУНЧЕРА", -1, &titleFont, PointF(260, 150), &white);
+
+    DrawCheckbox(g, btnCheckFullscreen, settingFullscreen);
+    DrawCheckbox(g, btnCheckAutoUpdate, settingAutoUpdate);
+    DrawCheckbox(g, btnCheckSound, settingSoundEffects);
+    DrawCheckbox(g, btnCheckNotify, settingNotifications);
+    DrawCheckbox(g, btnCheckFPS, settingFPS);
+
+    DrawVolumeSlider(g, settingVolume);
+    DrawGraphicsSelector(g, settingGraphics);
+
+    DrawButton(g, btnSettingsBack);
+}
+
+void DrawContentScreen(Graphics& g, const wchar_t* title, const wchar_t* content) {
+    DrawPanel(g, contentPanel);
+
+    FontFamily ff(L"Segoe UI");
+    Font titleFont(&ff, 32.0f, FontStyleBold);
+    Font textFont(&ff, 18.0f);
+    SolidBrush white(Color(255, 255, 255));
+    SolidBrush gray(Color(200, 200, 210));
+
+    g.DrawString(title, -1, &titleFont, PointF(260, 150), &white);
+
+    RectF contentRect(260, 220, 900, 500);
+    StringFormat fmt;
+    g.DrawString(content, -1, &textFont, contentRect, &fmt, &gray);
+}
+
+void DrawLoginScreen(Graphics& g) {
+    DrawPanel(g, loginPanel);
+
+    FontFamily ff(L"Segoe UI");
+    Font titleFont(&ff, 28.0f, FontStyleBold);
+    Font subtitleFont(&ff, 16.0f);
+    SolidBrush white(Color(255, 255, 255));
+    SolidBrush gray(Color(180, 180, 200));
+
+    StringFormat center;
+    center.SetAlignment(StringAlignmentCenter);
+
+    RectF titleRect(W/2-320, 230, 300, 40);
+    g.DrawString(L"🔐 ВХОД В АККАУНТ", -1, &titleFont, titleRect, &center, &white);
+
+    RectF subtitleRect(W/2-320, 270, 300, 30);
+    g.DrawString(L"Войдите для продолжения", -1, &subtitleFont, subtitleRect, &center, &gray);
+
+    DrawInputField(g, loginUsernameField);
+    DrawInputField(g, loginPasswordField);
+    DrawButton(g, btnLogin);
+    DrawButton(g, btnToRegister);
+}
+
+void DrawRegisterScreen(Graphics& g) {
+    DrawPanel(g, registerPanel);
+
+    FontFamily ff(L"Segoe UI");
+    Font titleFont(&ff, 28.0f, FontStyleBold);
+    Font subtitleFont(&ff, 16.0f);
+    SolidBrush white(Color(255, 255, 255));
+    SolidBrush gray(Color(180, 180, 200));
+
+    StringFormat center;
+    center.SetAlignment(StringAlignmentCenter);
+
+    RectF titleRect(W/2+20, 220, 300, 40);
+    g.DrawString(L"✨ РЕГИСТРАЦИЯ", -1, &titleFont, titleRect, &center, &white);
+
+    RectF subtitleRect(W/2+20, 260, 300, 30);
+    g.DrawString(L"Создайте новый аккаунт", -1, &subtitleFont, subtitleRect, &center, &gray);
+
+    DrawInputField(g, regUsernameField);
+    DrawInputField(g, regEmailField);
+    DrawInputField(g, regPasswordField);
+    DrawButton(g, btnRegister);
+    DrawButton(g, btnToLogin);
+}
 
 // ================= WINDOW PROC =================
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     static POINT mousePos;
     static const Button* hoveredButton = nullptr;
+    static bool isDragging = false;
+    static POINT dragOffset;
+    static bool isResizingVolume = false;
 
     switch (msg)
     {
@@ -320,15 +597,60 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             newsImages[i] = Image::FromFile(newsItems[i].imageFile);
         }
 
-        SetTimer(hwnd, 1, 33, nullptr); // ~30 fps — достаточно плавно и экономно
+        SetTimer(hwnd, 1, 50, nullptr);
         break;
     }
 
     case WM_TIMER:
         if (wParam == 1) {
-            progress += 0.008f;
-            if (progress > 1.0f) progress = 1.0f;
+            if (currentScreen == SCREEN_MAIN) {
+                progress += 0.005f;
+                if (progress > 1.0f) progress = 1.0f;
+            }
             InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        break;
+
+    case WM_CHAR:
+        if (currentScreen == SCREEN_LOGIN) {
+            if (activeInput == 1) {
+                if (wParam == VK_BACK && !loginUsername.empty()) {
+                    loginUsername.pop_back();
+                } else if (wParam >= 32 && wParam < 127) {
+                    loginUsername += (wchar_t)wParam;
+                }
+                InvalidateRect(hwnd, nullptr, FALSE);
+            } else if (activeInput == 2) {
+                if (wParam == VK_BACK && !loginPassword.empty()) {
+                    loginPassword.pop_back();
+                } else if (wParam >= 32 && wParam < 127) {
+                    loginPassword += (wchar_t)wParam;
+                }
+                InvalidateRect(hwnd, nullptr, FALSE);
+            }
+        } else if (currentScreen == SCREEN_REGISTER) {
+            if (activeInput == 3) {
+                if (wParam == VK_BACK && !regUsername.empty()) {
+                    regUsername.pop_back();
+                } else if (wParam >= 32 && wParam < 127) {
+                    regUsername += (wchar_t)wParam;
+                }
+                InvalidateRect(hwnd, nullptr, FALSE);
+            } else if (activeInput == 4) {
+                if (wParam == VK_BACK && !regEmail.empty()) {
+                    regEmail.pop_back();
+                } else if (wParam >= 32 && wParam < 127) {
+                    regEmail += (wchar_t)wParam;
+                }
+                InvalidateRect(hwnd, nullptr, FALSE);
+            } else if (activeInput == 5) {
+                if (wParam == VK_BACK && !regPassword.empty()) {
+                    regPassword.pop_back();
+                } else if (wParam >= 32 && wParam < 127) {
+                    regPassword += (wchar_t)wParam;
+                }
+                InvalidateRect(hwnd, nullptr, FALSE);
+            }
         }
         break;
 
@@ -349,28 +671,53 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         if (background) g.DrawImage(background, 0, 0, W, H);
         DrawGradientOverlay(g);
         DrawHeader(g);
-        DrawServerInfo(g);
+        
+        if (currentScreen == SCREEN_LOGIN) {
+            DrawLoginScreen(g);
+            DrawRegisterScreen(g);
+        } else if (currentScreen == SCREEN_REGISTER) {
+            DrawLoginScreen(g);
+            DrawRegisterScreen(g);
+        } else if (currentScreen == SCREEN_MAIN) {
+            DrawServerInfo(g);
 
-        if (!showNews && !showSettings) {
-            DrawPanel(g, mainPanel);
-            DrawPanel(g, rightPanel);
-            DrawButton(g, btnNews);
-            DrawButton(g, btnSettings);
-            DrawButton(g, btnDiscord);
-            DrawButton(g, btnForum);
-            DrawButton(g, btnDonate);
-            DrawButton(g, btnStats);
-            DrawButton(g, btnRules);
-            DrawButton(g, btnEvents);
-            // DrawInfoBoxes(g);  // закомментировано — выглядит устаревше
-            DrawButton(g, btnPlay);
-            DrawProgressBar(g, progress);
-        }
-        else if (showNews) {
-            DrawNews(g);
-        }
-        else if (showSettings) {
-            DrawSettings(g);
+            if (!showNews && !showSettings && !showDiscord && !showForum && 
+                !showDonate && !showStats && !showRules && !showEvents) {
+                DrawPanel(g, mainPanelLeft);
+                DrawPanel(g, mainPanelRight);
+                DrawButton(g, btnNews);
+                DrawButton(g, btnSettings);
+                DrawButton(g, btnDiscord);
+                DrawButton(g, btnForum);
+                DrawButton(g, btnDonate);
+                DrawButton(g, btnStats);
+                DrawButton(g, btnRules);
+                DrawButton(g, btnEvents);
+                DrawButton(g, btnPlay);
+                DrawProgressBar(g, progress);
+            } else if (showNews) {
+                DrawNews(g);
+            } else if (showSettings) {
+                DrawSettings(g);
+            } else if (showDiscord) {
+                DrawContentScreen(g, L"💬 DISCORD СЕРВЕР", L"Присоединяйтесь к нашему Discord сообществу!\n\nЗдесь вы найдете:\n• Актуальные новости проекта\n• Общение с игроками\n• Техническую поддержку\n• Конкурсы и розыгрыши\n\nСсылка: discord.gg/majesticrp");
+                DrawButton(g, btnDiscordBack);
+            } else if (showForum) {
+                DrawContentScreen(g, L"🌐 ФОРУМ СЕРВЕРА", L"Официальный форум Majestic RP\n\nРазделы форума:\n• Новости и обновления\n• Правила сервера\n• Репорты и баны\n• Предложения\n• Помощь игрокам\n\nАдрес: forum.majesticrp.ru");
+                DrawButton(g, btnForumBack);
+            } else if (showDonate) {
+                DrawContentScreen(g, L"💎 ПОДДЕРЖКА ПРОЕКТА", L"Поддержите развитие Majestic RP!\n\nВаши донаты помогают:\n• Поддерживать серверы\n• Разрабатывать новый контент\n• Проводить события\n• Улучшать игровой опыт\n\nДоступные пакеты:\n• VIP - 299₽/месяц\n• Premium - 599₽/месяц\n• Diamond - 999₽/месяц");
+                DrawButton(g, btnDonateBack);
+            } else if (showStats) {
+                DrawContentScreen(g, L"📊 ВАША СТАТИСТИКА", L"Игровая статистика персонажа\n\nОсновная информация:\n• Уровень: 47\n• Часов в игре: 234\n• Деньги: $2,847,500\n• Репутация: 89%\n\nДостижения:\n• Получено: 34/120\n• Редкие: 5\n• Легендарные: 1");
+                DrawButton(g, btnStatsBack);
+            } else if (showRules) {
+                DrawContentScreen(g, L"📜 ПРАВИЛА СЕРВЕРА", L"Основные правила Majestic RP\n\n1. Запрещен читерство и использование багов\n2. Уважайте других игроков\n3. Не оскорбляйте администрацию\n4. Следуйте RP правилам\n5. Не нарушайте правила дорожного движения без RP причин\n6. Запрещен GTA Online контент\n\nПолные правила на форуме");
+                DrawButton(g, btnRulesBack);
+            } else if (showEvents) {
+                DrawContentScreen(g, L"🎪 БЛИЖАЙШИЕ СОБЫТИЯ", L"Календарь событий на Majestic RP\n\nБлижайшие события:\n• 15.01 - Гонки на выживание (20:00 МСК)\n• 17.01 - Захват территорий (19:00 МСК)\n• 20.01 - Турнир 1v1 (18:00 МСК)\n• 25.01 - Розыгрыш автомобилей (21:00 МСК)\n\nСледите за анонсами в Discord!");
+                DrawButton(g, btnEventsBack);
+            }
         }
 
         DrawButton(g, btnMinimize);
@@ -395,48 +742,54 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         ScreenToClient(hwnd, &p);
         mousePos = p;
 
-        static Button* mainButtons[] = {
-            &btnPlay, &btnNews, &btnSettings, &btnDiscord,
-            &btnForum, &btnDonate, &btnStats, &btnRules,
-            &btnEvents, &btnMinimize, &btnMaximize, &btnClose
-        };
+        if (isDragging) {
+            POINT screenPos;
+            GetCursorPos(&screenPos);
+            SetWindowPos(hwnd, nullptr, 
+                screenPos.x - dragOffset.x, 
+                screenPos.y - dragOffset.y, 
+                0, 0, SWP_NOSIZE | SWP_NOZORDER);
+        }
 
-        static Button* newsButtons[] = {
+        if (isResizingVolume && currentScreen == SCREEN_MAIN && showSettings) {
+            int newVolume = (int)((p.x - 280) / 820.0f * 100);
+            if (newVolume < 0) newVolume = 0;
+            if (newVolume > 100) newVolume = 100;
+            settingVolume = newVolume;
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+
+        Button* allButtons[] = {
+            &btnPlay, &btnNews, &btnSettings, &btnDiscord, &btnForum,
+            &btnDonate, &btnStats, &btnRules, &btnEvents,
+            &btnMinimize, &btnMaximize, &btnClose,
             &btnNewsBack, &btnNewsPrev, &btnNewsNext,
-            &btnMinimize, &btnMaximize, &btnClose
+            &btnSettingsBack, &btnCheckFullscreen, &btnCheckAutoUpdate,
+            &btnCheckSound, &btnCheckNotify, &btnCheckFPS,
+            &btnDiscordBack, &btnForumBack, &btnDonateBack,
+            &btnStatsBack, &btnRulesBack, &btnEventsBack,
+            &btnLogin, &btnToRegister, &btnRegister, &btnToLogin
         };
 
-        static Button* settingsButtons[] = {
-            &btnSettingsBack, &btnCheckFullscreen,
-            &btnCheckAutoUpdate, &btnCheckSound,
-            &btnMinimize, &btnMaximize, &btnClose
+        InputField* allInputs[] = {
+            &loginUsernameField, &loginPasswordField,
+            &regUsernameField, &regEmailField, &regPasswordField
         };
-
-        Button** buttons = nullptr;
-        int count = 0;
-
-        if (showSettings) {
-            buttons = settingsButtons;
-            count = _countof(settingsButtons);
-        }
-        else if (showNews) {
-            buttons = newsButtons;
-            count = _countof(newsButtons);
-        }
-        else {
-            buttons = mainButtons;
-            count = _countof(mainButtons);
-        }
 
         bool needRedraw = false;
         const Button* newHover = nullptr;
 
-        for (int i = 0; i < count; ++i) {
-            Button* b = buttons[i];
-            bool old = b->hover;
-            b->hover = InRect(p, b->rect);
-            if (old != b->hover) needRedraw = true;
-            if (b->hover) newHover = b;
+        for (auto btn : allButtons) {
+            bool old = btn->hover;
+            btn->hover = InRect(p, btn->rect);
+            if (old != btn->hover) needRedraw = true;
+            if (btn->hover) newHover = btn;
+        }
+
+        for (auto input : allInputs) {
+            bool old = input->hover;
+            input->hover = InRect(p, input->rect);
+            if (old != input->hover) needRedraw = true;
         }
 
         if (hoveredButton != newHover) {
@@ -456,7 +809,160 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         InvalidateRect(hwnd, nullptr, FALSE);
         break;
 
-    // WM_LBUTTONDOWN, WM_DESTROY — без изменений (оставлены как в оригинале)
+    case WM_LBUTTONDOWN:
+    {
+        POINT p;
+        GetCursorPos(&p);
+        ScreenToClient(hwnd, &p);
+
+        // Управление окном
+        if (InRect(p, btnMinimize.rect)) {
+            ShowWindow(hwnd, SW_MINIMIZE);
+        } else if (InRect(p, btnMaximize.rect)) {
+            if (!isFullscreen) {
+                GetWindowRect(hwnd, &normalRect);
+                SetWindowPos(hwnd, nullptr, 0, 0, 
+                    GetSystemMetrics(SM_CXSCREEN), 
+                    GetSystemMetrics(SM_CYSCREEN), 
+                    SWP_NOZORDER);
+                isFullscreen = true;
+            } else {
+                SetWindowPos(hwnd, nullptr, 
+                    normalRect.left, normalRect.top,
+                    normalRect.right - normalRect.left,
+                    normalRect.bottom - normalRect.top,
+                    SWP_NOZORDER);
+                isFullscreen = false;
+            }
+        } else if (InRect(p, btnClose.rect)) {
+            DestroyWindow(hwnd);
+        }
+        // Перетаскивание окна
+        else if (p.y < 90 && p.x < W - 160) {
+            isDragging = true;
+            POINT screenPos;
+            GetCursorPos(&screenPos);
+            RECT windowRect;
+            GetWindowRect(hwnd, &windowRect);
+            dragOffset.x = screenPos.x - windowRect.left;
+            dragOffset.y = screenPos.y - windowRect.top;
+            SetCapture(hwnd);
+        }
+        // Вход/Регистрация
+        else if (currentScreen == SCREEN_LOGIN || currentScreen == SCREEN_REGISTER) {
+            activeInput = 0;
+            loginUsernameField.active = false;
+            loginPasswordField.active = false;
+            regUsernameField.active = false;
+            regEmailField.active = false;
+            regPasswordField.active = false;
+
+            if (InRect(p, loginUsernameField.rect)) {
+                activeInput = 1;
+                loginUsernameField.active = true;
+            } else if (InRect(p, loginPasswordField.rect)) {
+                activeInput = 2;
+                loginPasswordField.active = true;
+            } else if (InRect(p, regUsernameField.rect)) {
+                activeInput = 3;
+                regUsernameField.active = true;
+            } else if (InRect(p, regEmailField.rect)) {
+                activeInput = 4;
+                regEmailField.active = true;
+            } else if (InRect(p, regPasswordField.rect)) {
+                activeInput = 5;
+                regPasswordField.active = true;
+            } else if (InRect(p, btnLogin.rect)) {
+                currentScreen = SCREEN_MAIN;
+                progress = 0.0f;
+            } else if (InRect(p, btnRegister.rect)) {
+                currentScreen = SCREEN_MAIN;
+                progress = 0.0f;
+            } else if (InRect(p, btnToRegister.rect)) {
+                currentScreen = SCREEN_REGISTER;
+            } else if (InRect(p, btnToLogin.rect)) {
+                currentScreen = SCREEN_LOGIN;
+            }
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        // Главный экран
+        else if (currentScreen == SCREEN_MAIN) {
+            if (showNews) {
+                if (InRect(p, btnNewsBack.rect)) {
+                    showNews = false;
+                } else if (InRect(p, btnNewsPrev.rect)) {
+                    currentNewsIndex = (currentNewsIndex - 1 + numNews) % numNews;
+                } else if (InRect(p, btnNewsNext.rect)) {
+                    currentNewsIndex = (currentNewsIndex + 1) % numNews;
+                }
+            } else if (showSettings) {
+                if (InRect(p, btnSettingsBack.rect)) {
+                    showSettings = false;
+                } else if (InRect(p, btnCheckFullscreen.rect)) {
+                    settingFullscreen = !settingFullscreen;
+                } else if (InRect(p, btnCheckAutoUpdate.rect)) {
+                    settingAutoUpdate = !settingAutoUpdate;
+                } else if (InRect(p, btnCheckSound.rect)) {
+                    settingSoundEffects = !settingSoundEffects;
+                } else if (InRect(p, btnCheckNotify.rect)) {
+                    settingNotifications = !settingNotifications;
+                } else if (InRect(p, btnCheckFPS.rect)) {
+                    settingFPS = !settingFPS;
+                } else if (p.y >= 570 && p.y <= 586 && p.x >= 280 && p.x <= 1100) {
+                    isResizingVolume = true;
+                    SetCapture(hwnd);
+                    int newVolume = (int)((p.x - 280) / 820.0f * 100);
+                    if (newVolume < 0) newVolume = 0;
+                    if (newVolume > 100) newVolume = 100;
+                    settingVolume = newVolume;
+                } else if (p.y >= 710 && p.y <= 755) {
+                    if (p.x >= 280 && p.x < 540) settingGraphics = 0;
+                    else if (p.x >= 560 && p.x < 820) settingGraphics = 1;
+                    else if (p.x >= 840 && p.x < 1100) settingGraphics = 2;
+                }
+            } else if (showDiscord && InRect(p, btnDiscordBack.rect)) {
+                showDiscord = false;
+            } else if (showForum && InRect(p, btnForumBack.rect)) {
+                showForum = false;
+            } else if (showDonate && InRect(p, btnDonateBack.rect)) {
+                showDonate = false;
+            } else if (showStats && InRect(p, btnStatsBack.rect)) {
+                showStats = false;
+            } else if (showRules && InRect(p, btnRulesBack.rect)) {
+                showRules = false;
+            } else if (showEvents && InRect(p, btnEventsBack.rect)) {
+                showEvents = false;
+            } else {
+                if (InRect(p, btnPlay.rect)) {
+                    ShellExecuteW(nullptr, L"open", GTA_PATH, nullptr, nullptr, SW_SHOW);
+                } else if (InRect(p, btnNews.rect)) {
+                    showNews = true;
+                } else if (InRect(p, btnSettings.rect)) {
+                    showSettings = true;
+                } else if (InRect(p, btnDiscord.rect)) {
+                    showDiscord = true;
+                } else if (InRect(p, btnForum.rect)) {
+                    showForum = true;
+                } else if (InRect(p, btnDonate.rect)) {
+                    showDonate = true;
+                } else if (InRect(p, btnStats.rect)) {
+                    showStats = true;
+                } else if (InRect(p, btnRules.rect)) {
+                    showRules = true;
+                } else if (InRect(p, btnEvents.rect)) {
+                    showEvents = true;
+                }
+            }
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        break;
+    }
+
+    case WM_LBUTTONUP:
+        isDragging = false;
+        isResizingVolume = false;
+        ReleaseCapture();
+        break;
 
     case WM_DESTROY:
         delete background;
@@ -472,6 +978,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
+// ================= ENTRY POINT =================
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 {
     GdiplusStartupInput gdiplusStartupInput;
