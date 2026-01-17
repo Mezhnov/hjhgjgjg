@@ -1015,3 +1015,66 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 
     return (int)msg.wParam;
 }
+"WindowsProject4.exe" (Win32). Загружено "C:\Users\User\source\repos\WindowsProject4\x64\Debug\WindowsProject4.exe". Символы загружены.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\ntdll.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\kernel32.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\KernelBase.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\user32.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\win32u.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\gdi32.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\gdi32full.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\msvcp_win.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\ucrtbase.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\shell32.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\WinTypes.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\combase.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\rpcrt4.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\dwmapi.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\urlmon.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\WinSxS\amd64_microsoft.windows.gdiplus_6595b64144ccf1df_1.1.26100.7309_none_6ef0f1d03dc91a12\GdiPlus.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\msvcrt.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\msvcp140d.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\vcruntime140d.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\ucrtbased.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\vcruntime140_1d.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\iertutil.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\windows.storage.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\advapi32.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\advapi32.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Выгружено "C:\Windows\System32\advapi32.dll"
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\sechost.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\srvcli.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\netutils.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\imm32.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\uxtheme.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\msctf.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\kernel.appcore.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\ole32.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\SHCore.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\oleaut32.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\wininet.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\sspicli.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\shlwapi.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\profapi.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\ws2_32.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\OnDemandConnRouteHelper.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\winhttp.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\mswsock.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\IPHLPAPI.DLL". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\winnsi.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\nsi.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\bcryptprimitives.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\dnsapi.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\rasadhlp.dll". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\FWPUCLNT.DLL". Загрузка символов отключена параметром включения и исключения.
+"WindowsProject4.exe" (Win32). Загружено "C:\Windows\System32\schannel.dll". Загрузка символов отключена параметром включения и исключения.
+Поток 25308 завершился с кодом 0 (0x0).
+Поток 24272 завершился с кодом 0 (0x0).
+Поток 9480 завершился с кодом 0 (0x0).
+Поток 19680 завершился с кодом 0 (0x0).
+Поток 16084 завершился с кодом 0 (0x0).
+Поток 8120 завершился с кодом 0 (0x0).
+Поток 6528 завершился с кодом 0 (0x0).
+Поток 21792 завершился с кодом 0 (0x0).
+Поток 23548 завершился с кодом 0 (0x0).
+Программа "[1436] WindowsProject4.exe" завершилась с кодом 0 (0x0).
