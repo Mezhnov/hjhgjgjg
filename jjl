@@ -1,11 +1,35 @@
-=== RP Registration Client ===
-Login: sf
-Password: sf
-"mysql" не является внутренней или внешней
-командой, исполняемой программой или пакетным файлом.
-Registration failed (login exists?)
-Для продолжения нажмите любую клавишу . . .
+#include <iostream>
+#include <string>
+#include <cstdlib>
 
-C:\Users\User\source\repos\ConsoleApplication2\x64\Debug\ConsoleApplication2.exe (процесс 31520) завершил работу с кодом 0 (0x0).
-Чтобы автоматически закрывать консоль при остановке отладки, включите параметр "Сервис" ->"Параметры" ->"Отладка" -> "Автоматически закрыть консоль при остановке отладки".
-Нажмите любую клавишу, чтобы закрыть это окно:
+int main()
+{
+    std::string login, password;
+
+    std::cout << "=== RP Registration Client ===\n";
+    std::cout << "Login: ";
+    std::cin >> login;
+
+    std::cout << "Password: ";
+    std::cin >> password;
+
+    // SQL запрос
+    std::string sql =
+        "INSERT INTO accounts (login, password) VALUES ('" +
+        login + "', '" + password + "');";
+
+    // Команда mysql
+    std::string command =
+        "mysql -h 192.168.0.119 -u rp -p12345 rp_server -e \"" +
+        sql + "\"";
+
+    int result = system(command.c_str());
+
+    if (result == 0)
+        std::cout << "Registration successful!\n";
+    else
+        std::cout << "Registration failed (login exists?)\n";
+
+    system("pause");
+    return 0;
+}
