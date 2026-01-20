@@ -1,8 +1,11 @@
-Сборка начата в 15:37...
-1>------ Сборка начата: проект: WindowsProject5, Конфигурация: Debug x64 ------
-1>WindowsProject5.cpp
-1>MSVCRTD.lib(exe_winmain.obj) : error LNK2019: ссылка на неразрешенный внешний символ WinMain в функции "int __cdecl invoke_main(void)" (?invoke_main@@YAHXZ).
-1>C:\Users\User\source\repos\WindowsProject5\x64\Debug\WindowsProject5.exe : fatal error LNK1120: неразрешенных внешних элементов: 1
-1>Сборка проекта "WindowsProject5.vcxproj" завершена с ошибкой.
-========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
-========== Сборка завершено в 15:37 и заняло 00,931 с ==========
+=== RP Registration Client ===
+Login: sf
+Password: sf
+"mysql" не является внутренней или внешней
+командой, исполняемой программой или пакетным файлом.
+Registration failed (login exists?)
+Для продолжения нажмите любую клавишу . . .
+
+C:\Users\User\source\repos\ConsoleApplication2\x64\Debug\ConsoleApplication2.exe (процесс 31520) завершил работу с кодом 0 (0x0).
+Чтобы автоматически закрывать консоль при остановке отладки, включите параметр "Сервис" ->"Параметры" ->"Отладка" -> "Автоматически закрыть консоль при остановке отладки".
+Нажмите любую клавишу, чтобы закрыть это окно:
