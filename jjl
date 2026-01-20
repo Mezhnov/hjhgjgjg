@@ -13,22 +13,22 @@ int main()
     std::cout << "Password: ";
     std::cin >> password;
 
-    // SQL запрос
     std::string sql =
-        "INSERT INTO accounts (login, password) VALUES ('" +
+        "INSERT INTO accounts (login, password_hash) VALUES ('" +
         login + "', '" + password + "');";
 
-    // Команда mysql
     std::string command =
         "mysql -h 192.168.0.119 -u rp -p12345 rp_server -e \"" +
         sql + "\"";
+
+    std::cout << "DEBUG CMD:\n" << command << "\n";
 
     int result = system(command.c_str());
 
     if (result == 0)
         std::cout << "Registration successful!\n";
     else
-        std::cout << "Registration failed (login exists?)\n";
+        std::cout << "Registration failed\n";
 
     system("pause");
     return 0;
