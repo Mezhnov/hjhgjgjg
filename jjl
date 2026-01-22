@@ -1,8 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Templates;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Styling;
 using System.Collections.Generic;
 using System.IO;
@@ -14,8 +16,9 @@ public class App : Application
 {
     public override void Initialize()
     {
+        // Загружаем XAML прямо из строки
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(Xaml));
-        AvaloniaXamlLoader.Load(this, stream);
+        AvaloniaXamlLoader.Load((IServiceProvider?)this, stream);
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -26,12 +29,14 @@ public class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private const string Xaml = @"
-<Application xmlns=""https://github.com/avaloniaui"">
+    // ВЕСЬ XAML ВНУТРИ ФАЙЛА
+    private const string Xaml = """
+<Application xmlns="https://github.com/avaloniaui">
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>
-</Application>";
+</Application>
+""";
 }
 
 public class MainWindow : Window
@@ -40,15 +45,15 @@ public class MainWindow : Window
 
     public MainWindow()
     {
-        Title = ""Магазин игр"";
+        Title = "Магазин игр";
         Width = 500;
         Height = 400;
 
         var games = new List<Game>
         {
-            new Game(""Space Adventure"", 499),
-            new Game(""Dungeon RPG"", 799),
-            new Game(""Indie Puzzle"", 299),
+            new("Space Adventure", 499),
+            new("Dungeon RPG", 799),
+            new("Indie Puzzle", 299),
         };
 
         _statusText = new TextBlock
@@ -64,7 +69,7 @@ public class MainWindow : Window
             {
                 new TextBlock
                 {
-                    Text = ""🎮 Магазин игр"",
+                    Text = "🎮 Магазин игр",
                     FontSize = 22,
                     HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center
                 },
@@ -80,11 +85,12 @@ public class MainWindow : Window
                             Children =
                             {
                                 new TextBlock { Text = game.Name, Width = 200 },
-                                new TextBlock { Text = game.Price + "" ₽"", Width = 80 },
+                                new TextBlock { Text = $"{game.Price} ₽", Width = 80 },
                                 new Button
                                 {
-                                    Content = ""Купить"",
-                                    Click = (_, _) => BuyGame(game)
+                                    Content = "Купить",
+                                    Command = new Avalonia.Controls.Primitives.RelayCommand(
+                                        _ => BuyGame(game))
                                 }
                             }
                         })
@@ -97,21 +103,11 @@ public class MainWindow : Window
 
     private void BuyGame(Game game)
     {
-        _statusText.Text = ""Вы купили: "" + game.Name + "" 🎉"";
+        _statusText.Text = $"Вы купили: {game.Name} 🎉";
     }
 }
 
-public class Game
-{
-    public string Name { get; }
-    public int Price { get; }
-
-    public Game(string name, int price)
-    {
-        Name = name;
-        Price = price;
-    }
-}
+public record Game(string Name, int Price);
 
 class Program
 {
@@ -119,4 +115,12 @@ class Program
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .StartWithClassicDesktopLifetime(args);
-}
+}Сборка начата в 4:23...
+1>------ Сборка начата: проект: ConsoleApp1, Конфигурация: Debug Any CPU ------
+1>Анализаторы пропускаются для ускорения сборки. Для запуска анализаторов можно выполнить команды "Собрать" или "Пересобрать".
+1>C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\Avalonia\Controls\Primitives\RelayCommand.cs(5,35,5,43): error CS0535: "RelayCommand" не реализует член интерфейса "ICommand.CanExecute(object?)".
+1>C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\Avalonia\Controls\Primitives\RelayCommand.cs(5,35,5,43): error CS0535: "RelayCommand" не реализует член интерфейса "ICommand.Execute(object?)".
+1>C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\Avalonia\Controls\Primitives\RelayCommand.cs(5,35,5,43): error CS0535: "RelayCommand" не реализует член интерфейса "ICommand.CanExecuteChanged".
+1>Сборка проекта "ConsoleApp1.csproj" завершена с ошибкой.
+========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
+========== Сборка завершено в 4:23 и заняло 00,312 с ==========
