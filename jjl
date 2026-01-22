@@ -1,151 +1,113 @@
-using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Markup.Xaml;
-using Avalonia.Media;
-using Avalonia.Input;
-using LibVLCSharp.Shared;
-using LibVLCSharp.Avalonia;
+package com.example.tvplayer
 
-class Program
-{
-    [STAThread]
-    public static void Main(string[] args)
-    {
-        Core.Initialize();
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-    }
+import android.net.Uri
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.MaterialTheme
+import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.ui.PlayerView
 
-    static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
-            .UsePlatformDetect()
-            .LogToTrace();
-}
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
-class App : Application
-{
-    public override void OnFrameworkInitializationCompleted()
-    {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.MainWindow = new MainWindow();
-
-        base.OnFrameworkInitializationCompleted();
-    }
-}
-
-class MainWindow : Window
-{
-    private LibVLC _vlc;
-    private MediaPlayer _player;
-
-    public MainWindow()
-    {
-        var xaml = """
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
-        Background="#0D0D0D"
-        Width="1280"
-        Height="720"
-        Title="TV Video Player">
-
-    <DockPanel>
-
-        <!-- Панель управления (низ экрана) -->
-        <Border DockPanel.Dock="Bottom"
-                Background="#000"
-                Padding="24">
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Center"
-                        Spacing="20">
-
-                <Button Name="OpenBtn"
-                        Content="📂 ОТКРЫТЬ"
-                        FontSize="28"
-                        Padding="32,18"/>
-
-                <Button Name="PlayBtn"
-                        Content="▶ PLAY"
-                        FontSize="28"
-                        Padding="32,18"/>
-
-                <Button Name="PauseBtn"
-                        Content="⏸ PAUSE"
-                        FontSize="28"
-                        Padding="32,18"/>
-
-                <Button Name="StopBtn"
-                        Content="⏹ STOP"
-                        FontSize="28"
-                        Padding="32,18"/>
-            </StackPanel>
-        </Border>
-
-        <!-- Видео -->
-        <vlc:VideoView Name="Video"
-                       HorizontalAlignment="Stretch"
-                       VerticalAlignment="Stretch"/>
-    </DockPanel>
-</Window>
-""";
-
-        AvaloniaXamlLoader.Load(this, xaml);
-
-        _vlc = new LibVLC();
-        _player = new MediaPlayer(_vlc);
-
-        var video = this.FindControl<VideoView>("Video");
-        video.MediaPlayer = _player;
-
-        this.FindControl<Button>("OpenBtn").Click += OpenVideo;
-        this.FindControl<Button>("PlayBtn").Click += (_, _) => _player.Play();
-        this.FindControl<Button>("PauseBtn").Click += (_, _) => _player.Pause();
-        this.FindControl<Button>("StopBtn").Click += (_, _) => _player.Stop();
-
-        // Управление с пульта / клавиатуры
-        KeyDown += (_, e) =>
-        {
-            switch (e.Key)
-            {
-                case Key.Space:
-                case Key.Enter:
-                    _player.Pause();
-                    break;
-                case Key.P:
-                    _player.Play();
-                    break;
-                case Key.S:
-                    _player.Stop();
-                    break;
+        setContent {
+            MaterialTheme(colorScheme = androidx.tv.material3.darkColorScheme()) {
+                TvVideoPlayerUI()
             }
-        };
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvVideoPlayerUI() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Инициализация плеера
+    val player = remember {
+        ExoPlayer.Builder(context).build().apply {
+            val mediaItem = MediaItem.fromUri(
+                Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
+            )
+            setMediaItem(mediaItem)
+            prepare()
+        }
     }
 
-    private async void OpenVideo(object? sender, EventArgs e)
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Выберите видео",
-            Filters =
-            {
-                new FileDialogFilter
-                {
-                    Name = "Видео",
-                    Extensions = { "mp4", "mkv", "avi" }
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Видеоплеер
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = {
+                PlayerView(it).apply {
+                    useController = false
+                    this.player = player
                 }
             }
-        };
+        )
 
-        var files = await dialog.ShowAsync(this);
-        if (files?.Length > 0)
-            _player.Play(new Media(_vlc, files[0]));
+        // Панель управления
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color(0xAA000000))
+                .padding(24.dp)
+        ) {
+            Text(
+                text = "Big Buck Bunny",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                TvControlButton("Play") { player.play() }
+                TvControlButton("Pause") { player.pause() }
+                TvControlButton("Stop") {
+                    player.pause()
+                    player.seekTo(0)
+                }
+            }
+        }
     }
+}
 
-    protected override void OnClosed(EventArgs e)
-    {
-        _player.Dispose();
-        _vlc.Dispose();
-        base.OnClosed(e);
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvControlButton(text: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .height(56.dp)
+            .focusable(),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.colors(
+            containerColor = Color.DarkGray,
+            focusedContainerColor = Color(0xFF1EB980)
+        )
+    ) {
+        Text(text = text, fontSize = 18.sp)
     }
 }
