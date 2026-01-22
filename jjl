@@ -3,7 +3,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Input;
 using LibVLCSharp.Shared;
 using LibVLCSharp.Avalonia;
 
@@ -24,72 +25,113 @@ class Program
 
 class App : Application
 {
-    public override void Initialize()
-    {
-        // XAML приложения (минимум)
-        AvaloniaXamlLoader.Load(this);
-    }
-
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-        {
             desktop.MainWindow = new MainWindow();
-        }
+
         base.OnFrameworkInitializationCompleted();
     }
 }
 
 class MainWindow : Window
 {
-    private LibVLC _libVLC;
+    private LibVLC _vlc;
     private MediaPlayer _player;
-    private VideoView _video;
 
     public MainWindow()
     {
-        // 🔹 XAML прямо здесь
         var xaml = """
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
-        Width="800" Height="450"
-        Title="Avalonia Video Player">
+        Background="#0D0D0D"
+        Width="1280"
+        Height="720"
+        Title="TV Video Player">
 
     <DockPanel>
-        <StackPanel DockPanel.Dock="Top"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Center"
-                    Margin="5">
-            <Button Name="OpenBtn" Content="Открыть видео"/>
-        </StackPanel>
 
-        <vlc:VideoView Name="Video"/>
+        <!-- Панель управления (низ экрана) -->
+        <Border DockPanel.Dock="Bottom"
+                Background="#000"
+                Padding="24">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        Spacing="20">
+
+                <Button Name="OpenBtn"
+                        Content="📂 ОТКРЫТЬ"
+                        FontSize="28"
+                        Padding="32,18"/>
+
+                <Button Name="PlayBtn"
+                        Content="▶ PLAY"
+                        FontSize="28"
+                        Padding="32,18"/>
+
+                <Button Name="PauseBtn"
+                        Content="⏸ PAUSE"
+                        FontSize="28"
+                        Padding="32,18"/>
+
+                <Button Name="StopBtn"
+                        Content="⏹ STOP"
+                        FontSize="28"
+                        Padding="32,18"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Видео -->
+        <vlc:VideoView Name="Video"
+                       HorizontalAlignment="Stretch"
+                       VerticalAlignment="Stretch"/>
     </DockPanel>
 </Window>
 """;
 
         AvaloniaXamlLoader.Load(this, xaml);
 
-        _libVLC = new LibVLC();
-        _player = new MediaPlayer(_libVLC);
+        _vlc = new LibVLC();
+        _player = new MediaPlayer(_vlc);
 
-        _video = this.FindControl<VideoView>("Video");
-        _video.MediaPlayer = _player;
+        var video = this.FindControl<VideoView>("Video");
+        video.MediaPlayer = _player;
 
-        var openBtn = this.FindControl<Button>("OpenBtn");
-        openBtn.Click += OpenVideo;
+        this.FindControl<Button>("OpenBtn").Click += OpenVideo;
+        this.FindControl<Button>("PlayBtn").Click += (_, _) => _player.Play();
+        this.FindControl<Button>("PauseBtn").Click += (_, _) => _player.Pause();
+        this.FindControl<Button>("StopBtn").Click += (_, _) => _player.Stop();
+
+        // Управление с пульта / клавиатуры
+        KeyDown += (_, e) =>
+        {
+            switch (e.Key)
+            {
+                case Key.Space:
+                case Key.Enter:
+                    _player.Pause();
+                    break;
+                case Key.P:
+                    _player.Play();
+                    break;
+                case Key.S:
+                    _player.Stop();
+                    break;
+            }
+        };
     }
 
     private async void OpenVideo(object? sender, EventArgs e)
     {
         var dialog = new OpenFileDialog
         {
+            Title = "Выберите видео",
             Filters =
             {
                 new FileDialogFilter
                 {
-                    Name = "Video",
+                    Name = "Видео",
                     Extensions = { "mp4", "mkv", "avi" }
                 }
             }
@@ -97,15 +139,13 @@ class MainWindow : Window
 
         var files = await dialog.ShowAsync(this);
         if (files?.Length > 0)
-        {
-            _player.Play(new Media(_libVLC, files[0]));
-        }
+            _player.Play(new Media(_vlc, files[0]));
     }
 
     protected override void OnClosed(EventArgs e)
     {
         _player.Dispose();
-        _libVLC.Dispose();
+        _vlc.Dispose();
         base.OnClosed(e);
     }
 }
