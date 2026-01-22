@@ -1,76 +1,60 @@
-using System;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
-using Avalonia.Markup.Xaml.Styling;
-using Avalonia.Styling;
+using Avalonia.Themes.Fluent;
 
 namespace SingleFileAvaloniaApp;
 
-// Главное окно приложения
-public partial class MainWindow : Window
-{
-    public MainWindow()
-    {
-        InitializeComponent();
-    }
-
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
-}
-
-// Класс приложения
-public partial class App : Application
+public class App : Application
 {
     public override void Initialize()
     {
-        // Загружаем светлую тему
-        Styles.Add(new StyleInclude(new Uri("avares://Avalonia.Themes.Default"))
+        Styles.Add(new FluentTheme()
         {
-            Source = new Uri("avares://Avalonia.Themes.Default/Accents/BaseLight.xaml")
+            Mode = FluentThemeMode.Light
         });
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
-        var window = new MainWindow();
-        window.Show();
+        new MainWindow().Show();
         base.OnFrameworkInitializationCompleted();
     }
 }
 
-// Точка входа
-public class Program
+public class MainWindow : Window
+{
+    public MainWindow()
+    {
+        Title = "Однофайловое приложение";
+        Width = 400;
+        Height = 300;
+
+        Content = new StackPanel
+        {
+            Margin = new Thickness(20),
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "Привет из Avalonia!",
+                    FontSize = 18,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center
+                },
+                new Button
+                {
+                    Content = "Нажми меня",
+                    Margin = new Thickness(0,20),
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center
+                }
+            }
+        };
+    }
+}
+
+class Program
 {
     public static void Main(string[] args)
-    {
-        BuildAvaloniaApp()
-            .StartWithClassicDesktopLifetime(args);
-    }
-
-    public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
-            .LogToTrace();
+            .StartWithClassicDesktopLifetime(args);
 }
-
-// XAML-разметка окна (встроена в код как строка)
-static class XamlLoader
-{
-    public static string GetMainWindowXaml() => @"
-<Window xmlns='https://github.com/avaloniaui'
-        Title='Однофайловое приложение'
-        Width='400' Height='300'>
-    <StackPanel Margin='20'>
-        <TextBlock Text='Привет из Avalonia!' 
-                   FontSize='18'
-                   HorizontalAlignment='Center'/>
-        <Button Content='Нажми меня'
-                HorizontalAlignment='Center'
-                Margin='0,20'/>
-    </StackPanel>
-</Window>";
-}
-Avalonia.Markup.Xaml.XamlLoadException: "No precompiled XAML found for avares://Avalonia.Themes.Default/Accents/BaseLight.xaml (baseUri: avares://Avalonia.Themes.Default/), make sure to specify x:Class and include your XAML file as AvaloniaResource"
