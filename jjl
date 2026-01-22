@@ -1,18 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Themes.Fluent;
 
 namespace SingleFileAvaloniaApp;
 
 public class App : Application
 {
-    public override void Initialize()
-    {
-        Styles.Add(new FluentTheme()
-        {
-            Mode = FluentThemeMode.Light
-        });
-    }
+
 
     public override void OnFrameworkInitializationCompleted()
     {
