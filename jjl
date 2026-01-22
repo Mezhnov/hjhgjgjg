@@ -1,7 +1,129 @@
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Templates;
+using Avalonia.Interactivity;
+using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
+
+namespace SingleFileAvaloniaApp;
+
+public class App : Application
+{
+    public override void Initialize()
+    {
+        // Загружаем XAML из строки
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(Xaml));
+
+    }
+
+    public override void OnFrameworkInitializationCompleted()
+    {
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.MainWindow = new MainWindow();
+
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    // XAML для приложения
+    private const string Xaml = @"
+<Application xmlns=""https://github.com/avaloniaui"">
+    <Application.Styles>
+        <FluentTheme Mode=""Light""/>
+    </Application.Styles>
+</Application>";
+}
+
+public class MainWindow : Window
+{
+    private TextBlock _statusText;
+
+    public MainWindow()
+    {
+        Title = "Магазин игр";
+        Width = 500;
+        Height = 400;
+
+        var games = new List<Game>
+        {
+            new Game("Space Adventure", 499),
+            new Game("Dungeon RPG", 799),
+            new Game("Indie Puzzle", 299),
+        };
+
+        _statusText = new TextBlock
+        {
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center
+        };
+
+        // Список игр
+        var listBox = new ListBox
+        {
+            ItemsSource = games, // В Avalonia 11+ нужно использовать ItemsSource
+            ItemTemplate = new FuncDataTemplate<Game>((game, _) =>
+            {
+                var buyButton = new Button { Content = "Купить" };
+                buyButton.Click += (_, _) => BuyGame(game); // += для события
+
+                return new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    Spacing = 10,
+                    Children =
+                    {
+                        new TextBlock { Text = game.Name, Width = 200 },
+                        new TextBlock { Text = game.Price + " ₽", Width = 80 },
+                        buyButton
+                    }
+                };
+            })
+        };
+
+        Content = new StackPanel
+        {
+            Margin = new Thickness(20),
+            Spacing = 10,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "🎮 Магазин игр",
+                    FontSize = 22,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center
+                },
+                listBox,
+                _statusText
+            }
+        };
+    }
+
+    private void BuyGame(Game game)
+    {
+        _statusText.Text = "Вы купили: " + game.Name + " 🎉";
+    }
+}
+
+// Класс модели игры
+public class Game
+{
+    public string Name { get; }
+    public int Price { get; }
+
+    public Game(string name, int price)
+    {
+        Name = name;
+        Price = price;
+    }
+}
+
+// Старт приложения
 class Program
 {
     public static void Main(string[] args)
-        => AppBuilder.Configure(() => new App()) // <- лямбда вместо App
+        => AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .StartWithClassicDesktopLifetime(args);
 }
