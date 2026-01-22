@@ -1,41 +1,111 @@
-"ConsoleApp1.exe" (CoreCLR: DefaultDomain). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Private.CoreLib.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\ConsoleApp1.dll". Символы загружены.
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Runtime.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "c:\program files\microsoft visual studio\2022\community\common7\ide\commonextensions\microsoft\hotreload\Microsoft.Extensions.DotNetDeltaApplier.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.IO.Pipes.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Linq.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Collections.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Console.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Threading.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Runtime.InteropServices.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Threading.Overlapped.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Security.AccessControl.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Security.Principal.Windows.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Security.Claims.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Runtime.Loader.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\Avalonia.Controls.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Collections.Concurrent.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\Avalonia.Base.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.ObjectModel.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\Avalonia.Desktop.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\Avalonia.Win32.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\MicroCom.Runtime.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Numerics.Vectors.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\Avalonia.Skia.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.ComponentModel.Primitives.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Private.Uri.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Memory.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\SkiaSharp.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\Avalonia.OpenGL.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\Microsoft.Win32.Primitives.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.ComponentModel.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\System.Threading.Thread.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\Avalonia.Vulkan.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\Avalonia.MicroCom.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\dotnet\shared\Microsoft.NETCore.App\8.0.22\netstandard.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Users\User\source\repos\ConsoleApp1\ConsoleApp1\bin\Debug\net8.0\Avalonia.Metal.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
-Вызвано исключение: "System.NotImplementedException" в ConsoleApp1.dll
-Необработанное исключение типа "System.NotImplementedException" в ConsoleApp1.dll
-The method or operation is not implemented.
+using System;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Markup.Xaml;
+using Avalonia.Layout;
+using LibVLCSharp.Shared;
+using LibVLCSharp.Avalonia;
 
-"ConsoleApp1.exe" (CoreCLR: clrhost). Загружено "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\PrivateAssemblies\Runtime\Microsoft.VisualStudio.Debugger.Runtime.NetCoreApp.dll". Загрузка символов пропущена. Модуль оптимизирован, включен параметр отладчика "Только мой код".
+class Program
+{
+    [STAThread]
+    public static void Main(string[] args)
+    {
+        Core.Initialize();
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
+
+    static AppBuilder BuildAvaloniaApp()
+        => AppBuilder.Configure<App>()
+            .UsePlatformDetect()
+            .LogToTrace();
+}
+
+class App : Application
+{
+    public override void Initialize()
+    {
+        // XAML приложения (минимум)
+        AvaloniaXamlLoader.Load(this);
+    }
+
+    public override void OnFrameworkInitializationCompleted()
+    {
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.MainWindow = new MainWindow();
+        }
+        base.OnFrameworkInitializationCompleted();
+    }
+}
+
+class MainWindow : Window
+{
+    private LibVLC _libVLC;
+    private MediaPlayer _player;
+    private VideoView _video;
+
+    public MainWindow()
+    {
+        // 🔹 XAML прямо здесь
+        var xaml = """
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
+        Width="800" Height="450"
+        Title="Avalonia Video Player">
+
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Margin="5">
+            <Button Name="OpenBtn" Content="Открыть видео"/>
+        </StackPanel>
+
+        <vlc:VideoView Name="Video"/>
+    </DockPanel>
+</Window>
+""";
+
+        AvaloniaXamlLoader.Load(this, xaml);
+
+        _libVLC = new LibVLC();
+        _player = new MediaPlayer(_libVLC);
+
+        _video = this.FindControl<VideoView>("Video");
+        _video.MediaPlayer = _player;
+
+        var openBtn = this.FindControl<Button>("OpenBtn");
+        openBtn.Click += OpenVideo;
+    }
+
+    private async void OpenVideo(object? sender, EventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filters =
+            {
+                new FileDialogFilter
+                {
+                    Name = "Video",
+                    Extensions = { "mp4", "mkv", "avi" }
+                }
+            }
+        };
+
+        var files = await dialog.ShowAsync(this);
+        if (files?.Length > 0)
+        {
+            _player.Play(new Media(_libVLC, files[0]));
+        }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _player.Dispose();
+        _libVLC.Dispose();
+        base.OnClosed(e);
+    }
+}
