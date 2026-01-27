@@ -1,300 +1,3 @@
-Сборка начата в 12:05...
-1>------ Сборка начата: проект: WindowsProject6, Конфигурация: Debug x64 ------
-1>WindowsProject6.cpp
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(273,9): error C2248: Gdiplus::GraphicsPath::GraphicsPath: невозможно обратиться к protected член, объявленному в классе "Gdiplus::GraphicsPath"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(874,5):
-1>     см. объявление "Gdiplus::GraphicsPath::GraphicsPath"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(30,7):
-1>     см. объявление "Gdiplus::GraphicsPath"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(280,5): error C2248: Gdiplus::GraphicsPath::GraphicsPath: невозможно обратиться к protected член, объявленному в классе "Gdiplus::GraphicsPath"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(874,5):
-1>     см. объявление "Gdiplus::GraphicsPath::GraphicsPath"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(30,7):
-1>     см. объявление "Gdiplus::GraphicsPath"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(284,20): error C2248: Gdiplus::GraphicsPath::GraphicsPath: невозможно обратиться к protected член, объявленному в классе "Gdiplus::GraphicsPath"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(874,5):
-1>     см. объявление "Gdiplus::GraphicsPath::GraphicsPath"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(30,7):
-1>     см. объявление "Gdiplus::GraphicsPath"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(289,21): error C2248: Gdiplus::GraphicsPath::GraphicsPath: невозможно обратиться к protected член, объявленному в классе "Gdiplus::GraphicsPath"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(874,5):
-1>     см. объявление "Gdiplus::GraphicsPath::GraphicsPath"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(30,7):
-1>     см. объявление "Gdiplus::GraphicsPath"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(421,9): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(422,9): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(427,20): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(442,9): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(443,9): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(448,11): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(453,41): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(458,44): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(464,31): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(464,56): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(465,30): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(465,56): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(466,30): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(466,55): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(468,54): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(474,45): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(485,22): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(489,16): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(494,20): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(506,32): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(506,57): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(507,35): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(507,60): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(510,35): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(516,31): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(516,67): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(516,94): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(527,9): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(528,9): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(542,9): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(543,9): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(555,24): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(559,41): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(563,41): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(566,23): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(573,41): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(582,27): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(582,51): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(586,31): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(586,56): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(592,44): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(597,24): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(600,44): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(605,25): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(608,53): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(615,34): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(615,58): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(618,19): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(622,44): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(651,19): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(659,21): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(698,13): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(699,13): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(705,14): error C2872: ARGB: неоднозначный символ
-1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
-1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
-1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
-1>    или       "Gdiplus::ARGB"
-1>Сборка проекта "WindowsProject6.vcxproj" завершена с ошибкой.
-========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
-========== Сборка завершено в 12:05 и заняло 00,933 с ==========
-
 #include <windows.h>
 #include <windowsx.h>
 #include <commctrl.h>
@@ -363,8 +66,6 @@ static std::wstring JoinPath(const std::wstring& a, const std::wstring& b) {
     PathCombineW(out, a.c_str(), b.c_str());
     return out;
 }
-
-static Color ARGB(BYTE a, BYTE r, BYTE g, BYTE b) { return Color(a, r, g, b); }
 
 // ============================================================
 //                    GDI+ GLOBALS / RAII
@@ -559,30 +260,31 @@ static void SetHighQuality(Graphics& g) {
     g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
 }
 
-static GraphicsPath MakeRoundRectPath(Rect r, int radius) {
-    GraphicsPath path;
+static void AddRoundRect(GraphicsPath& path, Rect r, int radius) {
     int d = radius * 2;
     if (radius <= 0) {
         path.AddRectangle(r);
         path.CloseFigure();
-        return path;
+        return;
     }
-    path.AddArc(r.X, r.Y, d, d, 180, 90);
-    path.AddArc(r.X + r.Width - d, r.Y, d, d, 270, 90);
-    path.AddArc(r.X + r.Width - d, r.Y + r.Height - d, d, d, 0, 90);
-    path.AddArc(r.X, r.Y + r.Height - d, d, d, 90, 90);
+
+    path.AddArc(r.X, r.Y, d, d, 180.0f, 90.0f);
+    path.AddArc(r.X + r.Width - d, r.Y, d, d, 270.0f, 90.0f);
+    path.AddArc(r.X + r.Width - d, r.Y + r.Height - d, d, d, 0.0f, 90.0f);
+    path.AddArc(r.X, r.Y + r.Height - d, d, d, 90.0f, 90.0f);
     path.CloseFigure();
-    return path;
 }
 
 static void FillRoundRect(Graphics& g, Rect r, int radius, const Brush& b) {
-    GraphicsPath p = MakeRoundRectPath(r, radius);
-    g.FillPath(&b, &p);
+    GraphicsPath path(FillModeAlternate);
+    AddRoundRect(path, r, radius);
+    g.FillPath(&b, &path);
 }
 
 static void DrawRoundRect(Graphics& g, Rect r, int radius, const Pen& p) {
-    GraphicsPath gp = MakeRoundRectPath(r, radius);
-    g.DrawPath(&p, &gp);
+    GraphicsPath path(FillModeAlternate);
+    AddRoundRect(path, r, radius);
+    g.DrawPath(&p, &path);
 }
 
 static void DrawShadowCard(Graphics& g, Rect r, int radius) {
@@ -712,13 +414,13 @@ static void DrawBackground(Graphics& g, const RECT& rc) {
     LinearGradientBrush bg(
         Point(0, 0),
         Point(rc.right, rc.bottom),
-        ARGB(255, 14, 14, 16),
-        ARGB(255, 20, 20, 24)
+        Color(255, 14, 14, 16),
+        Color(255, 20, 20, 24)
     );
     g.FillRectangle(&bg, 0, 0, rc.right, rc.bottom);
 
     // subtle noise-like dots (cheap)
-    SolidBrush dot(ARGB(18, 255, 255, 255));
+    SolidBrush dot(Color(18, 255, 255, 255));
     for (int y = 0; y < rc.bottom; y += 28) {
         for (int x = 0; x < rc.right; x += 36) {
             if (((x + y) / 28) % 3 == 0)
@@ -733,39 +435,39 @@ static void DrawTopBar(Graphics& g) {
     LinearGradientBrush top(
         Point(0, 0),
         Point(0, kTopBarH),
-        ARGB(255, 18, 18, 20),
-        ARGB(255, 14, 14, 16)
+        Color(255, 18, 18, 20),
+        Color(255, 14, 14, 16)
     );
     g.FillRectangle(&top, r);
 
     // bottom border
-    Pen p(ARGB(255, 35, 35, 40), 1);
+    Pen p(Color(255, 35, 35, 40), 1);
     g.DrawLine(&p, 0, kTopBarH - 1, gL.rcClient.right, kTopBarH - 1);
 
     // Brand left
     DrawString(g, L"Majestic", RectF((REAL)gL.rcBrand.left, (REAL)gL.rcBrand.top, (REAL)gL.rcBrand.right, 28),
-               L"Segoe UI", 18, FontStyleBold, ARGB(255, 245, 245, 245),
+               L"Segoe UI", 18, FontStyleBold, Color(255, 245, 245, 245),
                StringAlignmentNear, StringAlignmentNear);
 
     // Version right
     DrawString(g, L"v4.0.127", RectF((REAL)gL.rcVersion.left, (REAL)gL.rcVersion.top, 120, 20),
-               L"Segoe UI", 12, FontStyleRegular, ARGB(160, 230, 230, 230),
+               L"Segoe UI", 12, FontStyleRegular, Color(160, 230, 230, 230),
                StringAlignmentFar, StringAlignmentNear);
 
     // Minimize / close buttons (custom)
     auto drawSysBtn = [&](RECT rcBtn, const wchar_t* glyph, bool hover, bool pressed, bool danger) {
         Rect rr = ToRect(rcBtn);
-        Color base = danger ? ARGB(255, 255, 70, 90) : ARGB(255, 60, 60, 70);
-        Color hov  = danger ? ARGB(255, 255, 80, 100) : ARGB(255, 80, 80, 95);
-        Color prs  = danger ? ARGB(255, 200, 50, 70) : ARGB(255, 55, 55, 65);
+        Color base = danger ? Color(255, 255, 70, 90) : Color(255, 60, 60, 70);
+        Color hov  = danger ? Color(255, 255, 80, 100) : Color(255, 80, 80, 95);
+        Color prs  = danger ? Color(255, 200, 50, 70) : Color(255, 55, 55, 65);
 
-        SolidBrush b(hover ? (pressed ? prs : hov) : ARGB(0,0,0,0));
+        SolidBrush b(hover ? (pressed ? prs : hov) : Color(0,0,0,0));
         if (hover) {
             FillRoundRect(g, rr, 8, b);
         }
 
         DrawString(g, glyph, RectF((REAL)rr.X, (REAL)rr.Y, (REAL)rr.Width, (REAL)rr.Height),
-                   L"Segoe UI", 16, FontStyleBold, ARGB(230, 245, 245, 245),
+                   L"Segoe UI", 16, FontStyleBold, Color(230, 245, 245, 245),
                    StringAlignmentCenter, StringAlignmentCenter);
     };
 
@@ -776,16 +478,16 @@ static void DrawTopBar(Graphics& g) {
 static void DrawNav(Graphics& g) {
     Rect r = ToRect(gL.rcNav);
 
-    SolidBrush navBg(ARGB(255, 16, 16, 18));
+    SolidBrush navBg(Color(255, 16, 16, 18));
     g.FillRectangle(&navBg, r);
 
     // Right border
-    Pen border(ARGB(255, 30, 30, 34), 1);
+    Pen border(Color(255, 30, 30, 34), 1);
     g.DrawLine(&border, r.GetRight() - 1, r.Y, r.GetRight() - 1, r.GetBottom());
 
     // Profile-ish circle bottom
     int circle = 34;
-    SolidBrush cbr(ARGB(40, 255, 255, 255));
+    SolidBrush cbr(Color(40, 255, 255, 255));
     g.FillEllipse(&cbr, 18, gL.rcClient.bottom - circle - 16, circle, circle);
 
     // Items
@@ -797,17 +499,17 @@ static void DrawNav(Graphics& g) {
         bool hover  = (i == gHoverNavIndex);
 
         if (active || hover) {
-            Color a = active ? ARGB(255, 255, 30, 90) : ARGB(255, 40, 40, 46);
-            SolidBrush b(active ? ARGB(255, 255, 30, 90) : ARGB(255, 30, 30, 36));
+            Color a = active ? Color(255, 255, 30, 90) : Color(255, 40, 40, 46);
+            SolidBrush b(active ? Color(255, 255, 30, 90) : Color(255, 30, 30, 36));
             // active left accent
             if (active) {
-                SolidBrush accent(ARGB(255, 255, 30, 90));
+                SolidBrush accent(Color(255, 255, 30, 90));
                 g.FillRectangle(&accent, rr.X - 6, rr.Y + 10, 4, rr.Height - 20);
             }
             FillRoundRect(g, rr, 10, b);
         }
 
-        Color text = active ? ARGB(255, 255, 255, 255) : (hover ? ARGB(230, 240, 240, 240) : ARGB(170, 210, 210, 210));
+        Color text = active ? Color(255, 255, 255, 255) : (hover ? Color(230, 240, 240, 240) : Color(170, 210, 210, 210));
         DrawString(g, gNav[i].text, RectF((REAL)rr.X + 14, (REAL)rr.Y, (REAL)rr.Width - 20, (REAL)rr.Height),
                    L"Segoe UI", 13, FontStyleBold, text, StringAlignmentNear, StringAlignmentCenter);
     }
@@ -818,8 +520,8 @@ static void DrawDivider(Graphics& g) {
     LinearGradientBrush div(
         Point(r.X, r.Y),
         Point(r.GetRight(), r.Y),
-        ARGB(0, 255, 255, 255),
-        ARGB(80, 255, 255, 255)
+        Color(0, 255, 255, 255),
+        Color(80, 255, 255, 255)
     );
     g.FillRectangle(&div, r);
 }
@@ -833,38 +535,39 @@ static void DrawNowPlayingCard(Graphics& g) {
     LinearGradientBrush pink(
         Point(card.X, card.Y),
         Point(card.GetRight(), card.GetBottom()),
-        ARGB(255, 255, 20, 90),
-        ARGB(255, 180, 10, 60)
+        Color(255, 255, 20, 90),
+        Color(255, 180, 10, 60)
     );
     FillRoundRect(g, card, 16, pink);
 
     // darker right wedge
-    GraphicsPath wedge;
-    wedge.AddPolygon((PointF*)std::vector<PointF>{
+    GraphicsPath wedge(FillModeAlternate);
+    PointF pts[4] = {
         PointF((REAL)card.GetRight() - 140, (REAL)card.Y),
         PointF((REAL)card.GetRight(),       (REAL)card.Y),
         PointF((REAL)card.GetRight(),       (REAL)card.GetBottom()),
         PointF((REAL)card.GetRight() - 90,  (REAL)card.GetBottom())
-    }.data(), 4);
-    SolidBrush wedgeBr(ARGB(50, 0, 0, 0));
+    };
+    wedge.AddPolygon(pts, 4);
+    SolidBrush wedgeBr(Color(50, 0, 0, 0));
     g.FillPath(&wedgeBr, &wedge);
 
     DrawString(g, L"Сейчас играют:", RectF((REAL)card.X + 18, (REAL)card.Y + 10, (REAL)card.Width - 36, 18),
-               L"Segoe UI", 12, FontStyleBold, ARGB(235, 255, 255, 255), StringAlignmentNear, StringAlignmentNear);
+               L"Segoe UI", 12, FontStyleBold, Color(235, 255, 255, 255), StringAlignmentNear, StringAlignmentNear);
 
     // big number
     DrawString(g, std::to_wstring(gNowPlaying), RectF((REAL)card.X + 18, (REAL)card.Y + 26, (REAL)card.Width - 36, 40),
-               L"Segoe UI", 26, FontStyleBold, ARGB(255, 255, 255, 255), StringAlignmentNear, StringAlignmentNear);
+               L"Segoe UI", 26, FontStyleBold, Color(255, 255, 255, 255), StringAlignmentNear, StringAlignmentNear);
 
     // small icon circle
-    SolidBrush iconBr(ARGB(70, 255, 255, 255));
+    SolidBrush iconBr(Color(70, 255, 255, 255));
     g.FillEllipse(&iconBr, card.X + 140, card.Y + 30, 30, 30);
 }
 
 static void DrawSectionTitle(Graphics& g, const RECT& rc, const std::wstring& title) {
     Rect r = ToRect(rc);
     DrawString(g, title, RectF((REAL)r.X, (REAL)r.Y, (REAL)r.Width, (REAL)r.Height),
-               L"Segoe UI", 12, FontStyleBold, ARGB(230, 255, 255, 255),
+               L"Segoe UI", 12, FontStyleBold, Color(230, 255, 255, 255),
                StringAlignmentNear, StringAlignmentCenter);
 }
 
@@ -873,47 +576,47 @@ static void DrawServerRow(Graphics& g, const RECT& rcRow, const ServerRow& row, 
 
     DrawShadowCard(g, r, 14);
 
-    SolidBrush bg(hover ? ARGB(255, 28, 28, 34) : ARGB(255, 22, 22, 26));
+    SolidBrush bg(hover ? Color(255, 28, 28, 34) : Color(255, 22, 22, 26));
     FillRoundRect(g, r, 14, bg);
 
     // Online dot
-    Color dotC = row.online ? ARGB(255, 50, 220, 90) : ARGB(255, 160, 160, 160);
+    Color dotC = row.online ? Color(255, 50, 220, 90) : Color(255, 160, 160, 160);
     SolidBrush dot(dotC);
     g.FillEllipse(&dot, r.X + 16, r.Y + r.Height / 2 - 4, 8, 8);
 
     // City
     DrawString(g, row.city, RectF((REAL)r.X + 34, (REAL)r.Y + 8, (REAL)r.Width - 160, 22),
-               L"Segoe UI", 12.5f, FontStyleBold, ARGB(240, 245, 245, 245),
+               L"Segoe UI", 12.5f, FontStyleBold, Color(240, 245, 245, 245),
                StringAlignmentNear, StringAlignmentNear);
 
     // rate badge
     Rect badge(r.X + 34, r.Y + 30, 52, 20);
-    SolidBrush badgeBg(ARGB(255, 36, 36, 44));
+    SolidBrush badgeBg(Color(255, 36, 36, 44));
     FillRoundRect(g, badge, 10, badgeBg);
     DrawString(g, row.rate, RectF((REAL)badge.X, (REAL)badge.Y, (REAL)badge.Width, (REAL)badge.Height),
-               L"Segoe UI", 10.5f, FontStyleBold, ARGB(220, 230, 230, 230),
+               L"Segoe UI", 10.5f, FontStyleBold, Color(220, 230, 230, 230),
                StringAlignmentCenter, StringAlignmentCenter);
 
     // small droplet icon badge (text)
     Rect badge2(badge.GetRight() + 8, badge.Y, 26, 20);
-    SolidBrush badgeBg2(ARGB(255, 36, 36, 44));
+    SolidBrush badgeBg2(Color(255, 36, 36, 44));
     FillRoundRect(g, badge2, 10, badgeBg2);
     DrawString(g, row.badge, RectF((REAL)badge2.X, (REAL)badge2.Y, (REAL)badge2.Width, (REAL)badge2.Height),
-               L"Segoe UI Emoji", 10.0f, FontStyleRegular, ARGB(220, 230, 230, 230),
+               L"Segoe UI Emoji", 10.0f, FontStyleRegular, Color(220, 230, 230, 230),
                StringAlignmentCenter, StringAlignmentCenter);
 
     // Play button
     RECT rcBtn = ServerPlayButtonRect(rcRow);
     Rect b = ToRect(rcBtn);
 
-    SolidBrush btnBg(hoverPlay ? ARGB(255, 40, 40, 48) : ARGB(255, 32, 32, 38));
+    SolidBrush btnBg(hoverPlay ? Color(255, 40, 40, 48) : Color(255, 32, 32, 38));
     FillRoundRect(g, b, 10, btnBg);
 
-    Pen btnBorder(ARGB(80, 255, 255, 255), 1);
+    Pen btnBorder(Color(80, 255, 255, 255), 1);
     DrawRoundRect(g, b, 10, btnBorder);
 
     DrawString(g, L"ИГРАТЬ", RectF((REAL)b.X, (REAL)b.Y, (REAL)b.Width, (REAL)b.Height),
-               L"Segoe UI", 11.5f, FontStyleBold, ARGB(235, 255, 255, 255),
+               L"Segoe UI", 11.5f, FontStyleBold, Color(235, 255, 255, 255),
                StringAlignmentCenter, StringAlignmentCenter);
 }
 
@@ -942,7 +645,7 @@ static void DrawRightArt(Graphics& g) {
     Rect r = ToRect(gL.rcRightArt);
 
     // Right panel background
-    SolidBrush bg(ARGB(255, 14, 14, 16));
+    SolidBrush bg(Color(255, 14, 14, 16));
     g.FillRectangle(&bg, r);
 
     // Big pink circle accent like screenshot
@@ -950,7 +653,7 @@ static void DrawRightArt(Graphics& g) {
     int cx = r.X + r.Width - circleD / 2;
     int cy = r.Y + r.Height / 2 - circleD / 2 + 20;
 
-    SolidBrush pink(ARGB(255, 255, 20, 90));
+    SolidBrush pink(Color(255, 255, 20, 90));
     g.FillEllipse(&pink, cx - circleD / 2, cy, circleD, circleD);
 
     // Draw hero image if available
@@ -989,14 +692,14 @@ static void DrawRightArt(Graphics& g) {
         LinearGradientBrush fade(
             Point(r.X, r.Y),
             Point(r.X + 120, r.Y),
-            ARGB(220, 14, 14, 16),
-            ARGB(0, 14, 14, 16)
+            Color(220, 14, 14, 16),
+            Color(0, 14, 14, 16)
         );
         g.FillRectangle(&fade, r.X, r.Y, 140, r.Height);
     }
 
     // subtle line art imitation (few curves)
-    Pen line(ARGB(120, 255, 255, 255), 1.2f);
+    Pen line(Color(120, 255, 255, 255), 1.2f);
     g.DrawArc(&line, r.X + r.Width/2 - 40, r.Y + 130, 220, 220, 210, 120);
     g.DrawArc(&line, r.X + r.Width/2 - 10, r.Y + 220, 180, 180, 250, 120);
 }
@@ -1108,8 +811,6 @@ static void HandleClick(HWND hWnd, POINT ptClient) {
 // ============================================================
 
 static LRESULT HitTestNCA(HWND hWnd, LPARAM lParam) {
-    // allow resize? in screenshot no resize; we keep fixed.
-    // But we need dragging by topbar.
     POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
     ScreenToClient(hWnd, &pt);
 
@@ -1204,8 +905,6 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         gPressedClose = PtInRectI(gL.rcClose, pt);
         gPressedMin   = PtInRectI(gL.rcMin, pt);
 
-        // Dragging is handled by WM_NCHITTEST returning HTCAPTION,
-        // but we also support manual drag if needed.
         return 0;
     }
 
@@ -1309,18 +1008,3 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int nCmdShow) {
     }
     return (int)msg.wParam;
 }
-
-/*
-    NOTES / WHAT TO CHANGE NEXT:
-
-    1) Icons in nav:
-       - Сейчас текст. Можно добавить PNG-иконки и рисовать их слева.
-    2) Scroll in "All servers":
-       - Сейчас список режется по высоте. Можно добавить wheel + offset.
-    3) Real "Play" logic:
-       - OnPlayServer -> ShellExecute / CreateProcess + параметры сервера.
-    4) Fonts:
-       - Использую Segoe UI. Можно подключить кастомный шрифт (AddFontMemResourceEx).
-    5) DPI scaling:
-       - Сейчас фиксированные пиксели. Для DPI нужно умножать на scale.
-*/
