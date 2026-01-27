@@ -1,521 +1,1033 @@
+/ Launcher.cpp - single file WinAPI + GDI+ custom launcher UI (1000+ lines)
+// Build: Visual Studio, /std:c++17
+// Libraries: gdiplus.lib urlmon.lib comctl32.lib shlwapi.lib
+
 #include <windows.h>
 #include <windowsx.h>
 #include <commctrl.h>
 #include <urlmon.h>
 #include <gdiplus.h>
-#include <string>
-#include <memory>
-#include <vector>
 #include <shlwapi.h>
 
-#pragma comment(lib, "urlmon.lib")
+#include <string>
+#include <vector>
+#include <memory>
+#include <algorithm>
+#include <cstdint>
+
 #pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "urlmon.lib")
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "shlwapi.lib")
 
 using namespace Gdiplus;
 
-// Константы для размеров окна и элементов
-const int WINDOW_WIDTH = 800;
-const int WINDOW_HEIGHT = 600;
-const int BUTTON_SIZE = 40;
-const int BUTTON_MARGIN = 10;
-const int TITLE_BAR_HEIGHT = 40;
-const int LAUNCH_BUTTON_WIDTH = 200;
-const int LAUNCH_BUTTON_HEIGHT = 50;
+// ============================================================
+//                         CONFIG
+// ============================================================
 
-// Глобальные переменные
-HWND g_hWnd = nullptr;
-HWND g_hCloseButton = nullptr;
-HWND g_hMinimizeButton = nullptr;
-HWND g_hLaunchButton = nullptr;
-HWND g_hProgressBar = nullptr;
-HWND g_hStatusLabel = nullptr;
-std::wstring g_backgroundImagePath = L"background.jpg";
-std::unique_ptr<Gdiplus::Image> g_backgroundImage;
-bool g_isDragging = false;
-POINT g_dragStartPoint;
-RECT g_windowRect;
+static const int   kWinW = 980;
+static const int   kWinH = 620;
 
-// Прототипы функций
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-void InitializeGdiPlus();
-void ShutdownGdiPlus();
-bool DownloadBackgroundImage(const std::wstring& url);
-void CreateUIElements(HWND hWnd);
-void DrawBackground(HDC hdc, RECT& clientRect);
-void DrawTitleBar(HDC hdc, RECT& clientRect);
-void UpdateProgress(int progress, const std::wstring& status);
-void LaunchGame();
+static const int   kTopBarH = 44;
+static const int   kNavW    = 220;
+static const int   kPad     = 16;
 
-// Точка входа
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
-{
-    // Инициализация GDI+
-    InitializeGdiPlus();
+static const WCHAR kClassName[] = L"MajesticLikeLauncher";
+static const WCHAR kTitle[]     = L"Majestika RP Launcher";
 
-    // Загрузка фона по ссылке (замените на свою ссылку)
-    std::wstring imageUrl = L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
-    if (!DownloadBackgroundImage(imageUrl))
-    {
-        // Если не удалось загрузить, используем стандартный фон
-        MessageBox(NULL, L"Не удалось загрузить фон. Используется стандартный фон.", L"Внимание", MB_OK | MB_ICONINFORMATION);
-    }
+static const WCHAR kCacheHeroPath[] = L"hero_cache.jpg";
+// Replace with your artwork URL (or keep empty to load local file)
+static const wchar_t* kHeroUrl =
+    L"https://avatars.mds.yandex.net/i?id=36cbb9eb6253b776b00360ca303f84d7_l-12608381-images-thumbs&n=13";
 
-    // Регистрация класса окна
-    WNDCLASSEX wc = { 0 };
-    wc.cbSize = sizeof(WNDCLASSEX);
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = WndProc;
-    wc.hInstance = hInstance;
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    wc.lpszClassName = L"LauncherWindowClass";
+// If URL fails - try local file:
+static const wchar_t* kHeroLocalFallback = L"hero.jpg"; // put near exe (or change)
 
-    if (!RegisterClassEx(&wc))
-    {
-        MessageBox(NULL, L"Ошибка регистрации класса окна", L"Ошибка", MB_OK | MB_ICONERROR);
-        return 1;
-    }
+// ============================================================
+//                      SMALL HELPERS
+// ============================================================
 
-    // Создание окна
-    g_hWnd = CreateWindowEx(
-        WS_EX_LAYERED | WS_EX_TOPMOST,  // Стили расширенные
-        L"LauncherWindowClass",
-        L"Majestika RP Launcher",
-        WS_POPUP | WS_VISIBLE,          // Без рамки
-        (GetSystemMetrics(SM_CXSCREEN) - WINDOW_WIDTH) / 2,
-        (GetSystemMetrics(SM_CYSCREEN) - WINDOW_HEIGHT) / 2,
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
-        NULL,
-        NULL,
-        hInstance,
-        NULL
-    );
+static inline int  ClampI(int v, int a, int b) { return (v < a) ? a : (v > b) ? b : v; }
+static inline REAL ClampF(REAL v, REAL a, REAL b) { return (v < a) ? a : (v > b) ? b : v; }
 
-    if (!g_hWnd)
-    {
-        MessageBox(NULL, L"Ошибка создания окна", L"Ошибка", MB_OK | MB_ICONERROR);
-        return 1;
-    }
+static inline Rect ToRect(const RECT& r) { return Rect(r.left, r.top, r.right - r.left, r.bottom - r.top); }
+static inline RECT MakeRECT(int x, int y, int w, int h) { RECT r{ x,y,x + w,y + h }; return r; }
 
-    // Установка прозрачности
-    SetLayeredWindowAttributes(g_hWnd, 0, 255, LWA_ALPHA);
-
-    // Создание элементов UI
-    CreateUIElements(g_hWnd);
-
-    // Показать окно
-    ShowWindow(g_hWnd, nCmdShow);
-    UpdateWindow(g_hWnd);
-
-    // Цикл сообщений
-    MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0))
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-
-    // Очистка
-    ShutdownGdiPlus();
-
-    return (int)msg.wParam;
+static bool PtInRectI(const RECT& r, POINT p) {
+    return p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom;
 }
 
-// Инициализация GDI+
-void InitializeGdiPlus()
-{
-    GdiplusStartupInput gdiplusStartupInput;
-    ULONG_PTR gdiplusToken;
-    GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+static std::wstring GetExeDir() {
+    wchar_t path[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, path, MAX_PATH);
+    PathRemoveFileSpecW(path);
+    return path;
 }
 
-// Завершение работы GDI+
-void ShutdownGdiPlus()
-{
-    // Освобождение ресурсов GDI+ происходит автоматически
+static std::wstring JoinPath(const std::wstring& a, const std::wstring& b) {
+    wchar_t out[MAX_PATH]{};
+    PathCombineW(out, a.c_str(), b.c_str());
+    return out;
 }
 
-// Загрузка фонового изображения по URL
-bool DownloadBackgroundImage(const std::wstring& url)
-{
-    // Удаляем старый файл если существует
-    DeleteFile(g_backgroundImagePath.c_str());
+static Color ARGB(BYTE a, BYTE r, BYTE g, BYTE b) { return Color(a, r, g, b); }
 
-    // Загружаем изображение
-    HRESULT hr = URLDownloadToFile(NULL, url.c_str(), g_backgroundImagePath.c_str(), 0, NULL);
+// ============================================================
+//                    GDI+ GLOBALS / RAII
+// ============================================================
 
-    if (SUCCEEDED(hr))
-    {
-        try
-        {
-            g_backgroundImage = std::make_unique<Gdiplus::Image>(g_backgroundImagePath.c_str());
+struct GdiPlusRAII {
+    ULONG_PTR token{};
+    GdiPlusRAII() {
+        GdiplusStartupInput in;
+        GdiplusStartup(&token, &in, nullptr);
+    }
+    ~GdiPlusRAII() {
+        if (token) GdiplusShutdown(token);
+    }
+};
+
+static std::unique_ptr<Image> gHeroImg;
+
+// ============================================================
+//                       UI MODEL
+// ============================================================
+
+enum class NavItemId : int {
+    Play,
+    Shop,
+    News,
+    Forum,
+    Discord,
+    Mods,
+    Settings
+};
+
+struct NavItem {
+    NavItemId id{};
+    std::wstring text;
+};
+
+struct ServerRow {
+    std::wstring city;
+    std::wstring rate;     // e.g. "x1.2"
+    std::wstring badge;    // e.g. "💧" or "RP"
+    bool online{};
+    bool recommended{};
+};
+
+static std::vector<NavItem> gNav = {
+    {NavItemId::Play,     L"Играть"},
+    {NavItemId::Shop,     L"Магазин"},
+    {NavItemId::News,     L"Новости"},
+    {NavItemId::Forum,    L"Форум"},
+    {NavItemId::Discord,  L"Discord"},
+    {NavItemId::Mods,     L"Моды"},
+    {NavItemId::Settings, L"Настройки"},
+};
+
+static std::vector<ServerRow> gServersRecommended = {
+    {L"San Francisco", L"x1.2", L"💧", true,  true},
+};
+
+static std::vector<ServerRow> gServersLastPlayed = {
+    {L"San Diego", L"x1.2", L"💧", true,  false},
+};
+
+static std::vector<ServerRow> gServersAll = {
+    {L"Las Vegas", L"x1.2",  L"💧", true,  false},
+    {L"Houston",   L"x1.15", L"💧", true,  false},
+    {L"Boston",    L"x1.2",  L"💧", true,  false},
+    {L"Dallas",    L"x1.2",  L"💧", true,  false},
+};
+
+static NavItemId gActiveNav = NavItemId::Play;
+
+// ============================================================
+//                    WINDOW / INPUT STATE
+// ============================================================
+
+static HWND  gWnd{};
+static bool  gDragging = false;
+static POINT gDragStart{};
+static RECT  gDragWin{};
+
+static POINT gMouse{ -1, -1 };
+static bool  gMouseDown = false;
+
+static int gHoverNavIndex = -1;
+static int gHoverServerKind = -1; // 0 recommended, 1 last, 2 all
+static int gHoverServerIndex = -1;
+static bool gHoverPlayButton = false;
+
+static bool gHoverClose = false;
+static bool gHoverMin = false;
+
+static bool gPressedClose = false;
+static bool gPressedMin = false;
+
+static int gNowPlaying = 20623;
+
+// ============================================================
+//                     LAYOUT RECTS
+// ============================================================
+
+struct Layout {
+    RECT rcClient{};
+    RECT rcTop{};
+    RECT rcNav{};
+    RECT rcMain{};
+    RECT rcRightArt{};
+
+    RECT rcClose{};
+    RECT rcMin{};
+
+    RECT rcBrand{};
+    RECT rcVersion{};
+
+    RECT rcNowPlayingCard{};
+    RECT rcRecommendedTitle{};
+    RECT rcLastPlayedTitle{};
+    RECT rcAllServersTitle{};
+
+    RECT rcRecommendedList{};
+    RECT rcLastPlayedList{};
+    RECT rcAllServersList{};
+
+    RECT rcDivider{};
+};
+
+static Layout gL;
+
+static void ComputeLayout(HWND hWnd) {
+    GetClientRect(hWnd, &gL.rcClient);
+
+    gL.rcTop = MakeRECT(0, 0, gL.rcClient.right, kTopBarH);
+    gL.rcNav = MakeRECT(0, kTopBarH, kNavW, gL.rcClient.bottom - kTopBarH);
+
+    int mainX = kNavW;
+    int mainY = kTopBarH;
+    int mainW = gL.rcClient.right - kNavW;
+    int mainH = gL.rcClient.bottom - kTopBarH;
+
+    // Right art panel ~ 42% width
+    int rightW = (int)(mainW * 0.44);
+    gL.rcRightArt = MakeRECT(mainX + (mainW - rightW), mainY, rightW, mainH);
+
+    // Main content (center-left)
+    gL.rcMain = MakeRECT(mainX, mainY, mainW - rightW, mainH);
+
+    // Topbar buttons
+    int btnW = 46;
+    gL.rcClose = MakeRECT(gL.rcClient.right - btnW, 0, btnW, kTopBarH);
+    gL.rcMin   = MakeRECT(gL.rcClient.right - btnW * 2, 0, btnW, kTopBarH);
+
+    // Branding / version
+    gL.rcBrand   = MakeRECT(14, 8, 180, 28);
+    gL.rcVersion = MakeRECT(gL.rcClient.right - 120 - btnW * 2, 12, 120, 20);
+
+    // Main content blocks
+    int cx = gL.rcMain.left + kPad;
+    int cy = gL.rcMain.top + kPad;
+    int cw = (gL.rcMain.right - gL.rcMain.left) - kPad * 2;
+
+    gL.rcNowPlayingCard = MakeRECT(cx, cy, cw, 74);
+    cy += 74 + 18;
+
+    gL.rcRecommendedTitle = MakeRECT(cx, cy, cw, 24);
+    cy += 24 + 10;
+    gL.rcRecommendedList = MakeRECT(cx, cy, cw, 64);
+    cy += 64 + 18;
+
+    gL.rcLastPlayedTitle = MakeRECT(cx, cy, cw, 22);
+    cy += 22 + 10;
+    gL.rcLastPlayedList = MakeRECT(cx, cy, cw, 64);
+    cy += 64 + 18;
+
+    gL.rcAllServersTitle = MakeRECT(cx, cy, cw, 22);
+    cy += 22 + 10;
+
+    int remaining = gL.rcMain.bottom - cy - kPad;
+    gL.rcAllServersList = MakeRECT(cx, cy, cw, max(0, remaining));
+
+    // Divider between main and art
+    gL.rcDivider = MakeRECT(gL.rcMain.right - 1, gL.rcMain.top + 10, 2, mainH - 20);
+}
+
+// ============================================================
+//                 DRAWING PRIMITIVES (GDI+)
+// ============================================================
+
+static void SetHighQuality(Graphics& g) {
+    g.SetSmoothingMode(SmoothingModeHighQuality);
+    g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+    g.SetPixelOffsetMode(PixelOffsetModeHighQuality);
+    g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
+}
+
+static GraphicsPath MakeRoundRectPath(Rect r, int radius) {
+    GraphicsPath path;
+    int d = radius * 2;
+    if (radius <= 0) {
+        path.AddRectangle(r);
+        path.CloseFigure();
+        return path;
+    }
+    path.AddArc(r.X, r.Y, d, d, 180, 90);
+    path.AddArc(r.X + r.Width - d, r.Y, d, d, 270, 90);
+    path.AddArc(r.X + r.Width - d, r.Y + r.Height - d, d, d, 0, 90);
+    path.AddArc(r.X, r.Y + r.Height - d, d, d, 90, 90);
+    path.CloseFigure();
+    return path;
+}
+
+static void FillRoundRect(Graphics& g, Rect r, int radius, const Brush& b) {
+    GraphicsPath p = MakeRoundRectPath(r, radius);
+    g.FillPath(&b, &p);
+}
+
+static void DrawRoundRect(Graphics& g, Rect r, int radius, const Pen& p) {
+    GraphicsPath gp = MakeRoundRectPath(r, radius);
+    g.DrawPath(&p, &gp);
+}
+
+static void DrawShadowCard(Graphics& g, Rect r, int radius) {
+    // Simple shadow: draw a few translucent expanded rounded rects
+    for (int i = 1; i <= 6; ++i) {
+        int a = 18 - i * 2;
+        if (a < 2) a = 2;
+        Pen pen(Color((BYTE)a, 0, 0, 0), (REAL)1.0f);
+        Rect rr(r.X - i, r.Y - i, r.Width + i * 2, r.Height + i * 2);
+        DrawRoundRect(g, rr, radius + i, pen);
+    }
+}
+
+// ============================================================
+//                      TEXT HELPERS
+// ============================================================
+
+static void DrawString(Graphics& g, const std::wstring& s, const RectF& rf,
+                       const wchar_t* fontName, REAL size, INT style,
+                       Color color, StringAlignment align = StringAlignmentNear,
+                       StringAlignment valign = StringAlignmentNear) {
+    FontFamily ff(fontName);
+    Font font(&ff, size, style, UnitPixel);
+    SolidBrush br(color);
+
+    StringFormat fmt;
+    fmt.SetAlignment(align);
+    fmt.SetLineAlignment(valign);
+    fmt.SetTrimming(StringTrimmingEllipsisCharacter);
+    fmt.SetFormatFlags(StringFormatFlagsNoWrap);
+
+    g.DrawString(s.c_str(), (INT)s.size(), &font, rf, &fmt, &br);
+}
+
+static void DrawStringWrap(Graphics& g, const std::wstring& s, const RectF& rf,
+                           const wchar_t* fontName, REAL size, INT style,
+                           Color color, StringAlignment align = StringAlignmentNear,
+                           StringAlignment valign = StringAlignmentNear) {
+    FontFamily ff(fontName);
+    Font font(&ff, size, style, UnitPixel);
+    SolidBrush br(color);
+
+    StringFormat fmt;
+    fmt.SetAlignment(align);
+    fmt.SetLineAlignment(valign);
+    fmt.SetTrimming(StringTrimmingEllipsisCharacter);
+
+    g.DrawString(s.c_str(), (INT)s.size(), &font, rf, &fmt, &br);
+}
+
+// ============================================================
+//                    IMAGE LOADING (URL)
+// ============================================================
+
+static bool LoadHeroFromFile(const std::wstring& path) {
+    try {
+        auto img = std::make_unique<Image>(path.c_str());
+        if (img && img->GetLastStatus() == Ok) {
+            gHeroImg = std::move(img);
             return true;
         }
-        catch (...)
-        {
-            return false;
-        }
-    }
-
+    } catch (...) {}
     return false;
 }
 
-// Создание элементов интерфейса
-void CreateUIElements(HWND hWnd)
-{
-    // Кнопка закрытия (крестик)
-    g_hCloseButton = CreateWindow(
-        L"BUTTON",
-        L"✕",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        WINDOW_WIDTH - BUTTON_SIZE - BUTTON_MARGIN,
-        BUTTON_MARGIN,
-        BUTTON_SIZE,
-        BUTTON_SIZE,
-        hWnd,
-        (HMENU)1001,
-        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-        NULL
-    );
-
-    // Кнопка сворачивания
-    g_hMinimizeButton = CreateWindow(
-        L"BUTTON",
-        L"─",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        WINDOW_WIDTH - (BUTTON_SIZE * 2) - (BUTTON_MARGIN * 2),
-        BUTTON_MARGIN,
-        BUTTON_SIZE,
-        BUTTON_SIZE,
-        hWnd,
-        (HMENU)1002,
-        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-        NULL
-    );
-
-    // Кнопка запуска игры
-    g_hLaunchButton = CreateWindow(
-        L"BUTTON",
-        L"ЗАПУСТИТЬ ИГРУ",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        (WINDOW_WIDTH - LAUNCH_BUTTON_WIDTH) / 2,
-        WINDOW_HEIGHT - 150,
-        LAUNCH_BUTTON_WIDTH,
-        LAUNCH_BUTTON_HEIGHT,
-        hWnd,
-        (HMENU)1003,
-        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-        NULL
-    );
-
-    // Прогресс бар
-    g_hProgressBar = CreateWindowEx(
-        0,
-        PROGRESS_CLASS,
-        NULL,
-        WS_CHILD | WS_VISIBLE | PBS_SMOOTH,
-        (WINDOW_WIDTH - 300) / 2,
-        WINDOW_HEIGHT - 80,
-        300,
-        20,
-        hWnd,
-        (HMENU)1004,
-        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-        NULL
-    );
-
-    // Установка диапазона прогресс бара
-    SendMessage(g_hProgressBar, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
-    SendMessage(g_hProgressBar, PBM_SETPOS, 0, 0);
-
-    // Метка статуса
-    g_hStatusLabel = CreateWindow(
-        L"STATIC",
-        L"Готов к запуску",
-        WS_CHILD | WS_VISIBLE | SS_CENTER,
-        (WINDOW_WIDTH - 300) / 2,
-        WINDOW_HEIGHT - 50,
-        300,
-        20,
-        hWnd,
-        (HMENU)1005,
-        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-        NULL
-    );
-
-    // Установка шрифтов для кнопок
-    HFONT hFont = CreateFont(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Arial");
-
-    HFONT hButtonFont = CreateFont(18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Arial");
-
-    SendMessage(g_hCloseButton, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(g_hMinimizeButton, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(g_hLaunchButton, WM_SETFONT, (WPARAM)hButtonFont, TRUE);
-    SendMessage(g_hStatusLabel, WM_SETFONT, (WPARAM)hButtonFont, TRUE);
-
-    // Установка цветов
-    SendMessage(g_hLaunchButton, BM_SETSTYLE, BS_OWNERDRAW, TRUE);
+static bool DownloadHero(const std::wstring& url, const std::wstring& outPath) {
+    DeleteFileW(outPath.c_str());
+    HRESULT hr = URLDownloadToFileW(nullptr, url.c_str(), outPath.c_str(), 0, nullptr);
+    if (SUCCEEDED(hr)) {
+        return LoadHeroFromFile(outPath);
+    }
+    return false;
 }
 
-// Отрисовка фона
-void DrawBackground(HDC hdc, RECT& clientRect)
-{
-    Graphics graphics(hdc);
+// ============================================================
+//                      HIT TEST HELPERS
+// ============================================================
 
-    // Очистка фона
-    SolidBrush backgroundBrush(Color(30, 30, 30, 230));
-    graphics.FillRectangle(&backgroundBrush, 0, 0, clientRect.right, clientRect.bottom);
+static RECT NavItemRect(int index) {
+    int itemH = 44;
+    int x = 0;
+    int y = kTopBarH + 90 + index * itemH; // leave space for logo/profile area
+    return MakeRECT(x + 10, y, kNavW - 20, itemH);
+}
 
-    // Отрисовка фонового изображения если есть
-    if (g_backgroundImage && g_backgroundImage->GetLastStatus() == Ok)
-    {
-        // Масштабируем изображение под размер окна
-        Rect destRect(0, 0, clientRect.right, clientRect.bottom);
-        graphics.DrawImage(g_backgroundImage.get(), destRect);
+static RECT ServerRowRect(const RECT& listRect, int index) {
+    int rowH = 56;
+    int gap  = 10;
+    int x = listRect.left;
+    int y = listRect.top + index * (rowH + gap);
+    return MakeRECT(x, y, listRect.right - listRect.left, rowH);
+}
 
-        // Затемняем фон для лучшей читаемости текста
-        SolidBrush overlayBrush(Color(100, 0, 0, 0));
-        graphics.FillRectangle(&overlayBrush, 0, 0, clientRect.right, clientRect.bottom);
-    }
+static RECT ServerPlayButtonRect(const RECT& rowRect) {
+    int bw = 92;
+    int bh = 34;
+    int x = rowRect.right - 14 - bw;
+    int y = rowRect.top + (rowRect.bottom - rowRect.top - bh) / 2;
+    return MakeRECT(x, y, bw, bh);
+}
 
-    // Отрисовка градиентного заголовка
-    LinearGradientBrush titleBarBrush(
+static void InvalidateAll(HWND hWnd) {
+    InvalidateRect(hWnd, nullptr, FALSE);
+}
+
+// ============================================================
+//                        ACTIONS
+// ============================================================
+
+static void OnPlayServer(const ServerRow& s) {
+    // TODO: real launch logic
+    std::wstring msg = L"Запуск сервера: " + s.city + L" (" + s.rate + L")";
+    MessageBoxW(gWnd, msg.c_str(), L"Play", MB_OK | MB_ICONINFORMATION);
+}
+
+static void OnNav(NavItemId id) {
+    gActiveNav = id;
+    InvalidateAll(gWnd);
+}
+
+// ============================================================
+//                       RENDER SECTIONS
+// ============================================================
+
+static void DrawBackground(Graphics& g, const RECT& rc) {
+    // Base dark gradient background
+    LinearGradientBrush bg(
         Point(0, 0),
-        Point(0, TITLE_BAR_HEIGHT),
-        Color(180, 40, 40, 40),
-        Color(180, 20, 20, 20)
+        Point(rc.right, rc.bottom),
+        ARGB(255, 14, 14, 16),
+        ARGB(255, 20, 20, 24)
     );
-    graphics.FillRectangle(&titleBarBrush, 0, 0, clientRect.right, TITLE_BAR_HEIGHT);
+    g.FillRectangle(&bg, 0, 0, rc.right, rc.bottom);
 
-    // Отрисовка заголовка
-    FontFamily fontFamily(L"Arial");
-    Font titleFont(&fontFamily, 20, FontStyleBold, UnitPixel);
-    SolidBrush titleBrush(Color(255, 255, 255));
-
-    StringFormat stringFormat;
-    stringFormat.SetAlignment(StringAlignmentCenter);
-
-    graphics.DrawString(
-        L"MAJESTIKA RP LAUNCHER",
-        -1,
-        &titleFont,
-        RectF(0, 10, (REAL)clientRect.right, 30),
-        &stringFormat,
-        &titleBrush
-    );
-
-    // Отрисовка версии
-    Font versionFont(&fontFamily, 12, FontStyleRegular, UnitPixel);
-    SolidBrush versionBrush(Color(180, 255, 255, 255));
-
-    graphics.DrawString(
-        L"Версия 1.0.0 | Разработано для сообщества",
-        -1,
-        &versionFont,
-        RectF(10, (REAL)clientRect.bottom - 25, 300, 20),
-        NULL,
-        &versionBrush
-    );
-}
-
-// Обновление прогресса
-void UpdateProgress(int progress, const std::wstring& status)
-{
-    if (g_hProgressBar)
-    {
-        SendMessage(g_hProgressBar, PBM_SETPOS, progress, 0);
-    }
-
-    if (g_hStatusLabel)
-    {
-        SetWindowText(g_hStatusLabel, status.c_str());
+    // subtle noise-like dots (cheap)
+    SolidBrush dot(ARGB(18, 255, 255, 255));
+    for (int y = 0; y < rc.bottom; y += 28) {
+        for (int x = 0; x < rc.right; x += 36) {
+            if (((x + y) / 28) % 3 == 0)
+                g.FillEllipse(&dot, x + 2, y + 2, 2, 2);
+        }
     }
 }
 
-// Запуск игры (заглушка)
-void LaunchGame()
-{
-    UpdateProgress(10, L"Проверка обновлений...");
-    Sleep(500);
+static void DrawTopBar(Graphics& g) {
+    Rect r = ToRect(gL.rcTop);
 
-    UpdateProgress(30, L"Загрузка файлов...");
-    Sleep(1000);
+    LinearGradientBrush top(
+        Point(0, 0),
+        Point(0, kTopBarH),
+        ARGB(255, 18, 18, 20),
+        ARGB(255, 14, 14, 16)
+    );
+    g.FillRectangle(&top, r);
 
-    UpdateProgress(60, L"Подготовка к запуску...");
-    Sleep(500);
+    // bottom border
+    Pen p(ARGB(255, 35, 35, 40), 1);
+    g.DrawLine(&p, 0, kTopBarH - 1, gL.rcClient.right, kTopBarH - 1);
 
-    UpdateProgress(90, L"Запуск игры...");
-    Sleep(300);
+    // Brand left
+    DrawString(g, L"Majestic", RectF((REAL)gL.rcBrand.left, (REAL)gL.rcBrand.top, (REAL)gL.rcBrand.right, 28),
+               L"Segoe UI", 18, FontStyleBold, ARGB(255, 245, 245, 245),
+               StringAlignmentNear, StringAlignmentNear);
 
-    UpdateProgress(100, L"Игра запущена!");
+    // Version right
+    DrawString(g, L"v4.0.127", RectF((REAL)gL.rcVersion.left, (REAL)gL.rcVersion.top, 120, 20),
+               L"Segoe UI", 12, FontStyleRegular, ARGB(160, 230, 230, 230),
+               StringAlignmentFar, StringAlignmentNear);
 
-    // Здесь будет реальный запуск игры
-    // ShellExecute(NULL, L"open", L"game.exe", NULL, NULL, SW_SHOW);
+    // Minimize / close buttons (custom)
+    auto drawSysBtn = [&](RECT rcBtn, const wchar_t* glyph, bool hover, bool pressed, bool danger) {
+        Rect rr = ToRect(rcBtn);
+        Color base = danger ? ARGB(255, 255, 70, 90) : ARGB(255, 60, 60, 70);
+        Color hov  = danger ? ARGB(255, 255, 80, 100) : ARGB(255, 80, 80, 95);
+        Color prs  = danger ? ARGB(255, 200, 50, 70) : ARGB(255, 55, 55, 65);
 
-    // Закрываем лаунчер после запуска
-    PostMessage(g_hWnd, WM_CLOSE, 0, 0);
+        SolidBrush b(hover ? (pressed ? prs : hov) : ARGB(0,0,0,0));
+        if (hover) {
+            FillRoundRect(g, rr, 8, b);
+        }
+
+        DrawString(g, glyph, RectF((REAL)rr.X, (REAL)rr.Y, (REAL)rr.Width, (REAL)rr.Height),
+                   L"Segoe UI", 16, FontStyleBold, ARGB(230, 245, 245, 245),
+                   StringAlignmentCenter, StringAlignmentCenter);
+    };
+
+    drawSysBtn(gL.rcMin,   L"—", gHoverMin,  gPressedMin,  false);
+    drawSysBtn(gL.rcClose, L"×", gHoverClose,gPressedClose,true);
 }
 
-// Обработчик сообщений окна
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch (message)
-    {
+static void DrawNav(Graphics& g) {
+    Rect r = ToRect(gL.rcNav);
+
+    SolidBrush navBg(ARGB(255, 16, 16, 18));
+    g.FillRectangle(&navBg, r);
+
+    // Right border
+    Pen border(ARGB(255, 30, 30, 34), 1);
+    g.DrawLine(&border, r.GetRight() - 1, r.Y, r.GetRight() - 1, r.GetBottom());
+
+    // Profile-ish circle bottom
+    int circle = 34;
+    SolidBrush cbr(ARGB(40, 255, 255, 255));
+    g.FillEllipse(&cbr, 18, gL.rcClient.bottom - circle - 16, circle, circle);
+
+    // Items
+    for (int i = 0; i < (int)gNav.size(); ++i) {
+        RECT irc = NavItemRect(i);
+        Rect rr = ToRect(irc);
+
+        bool active = (gNav[i].id == gActiveNav);
+        bool hover  = (i == gHoverNavIndex);
+
+        if (active || hover) {
+            Color a = active ? ARGB(255, 255, 30, 90) : ARGB(255, 40, 40, 46);
+            SolidBrush b(active ? ARGB(255, 255, 30, 90) : ARGB(255, 30, 30, 36));
+            // active left accent
+            if (active) {
+                SolidBrush accent(ARGB(255, 255, 30, 90));
+                g.FillRectangle(&accent, rr.X - 6, rr.Y + 10, 4, rr.Height - 20);
+            }
+            FillRoundRect(g, rr, 10, b);
+        }
+
+        Color text = active ? ARGB(255, 255, 255, 255) : (hover ? ARGB(230, 240, 240, 240) : ARGB(170, 210, 210, 210));
+        DrawString(g, gNav[i].text, RectF((REAL)rr.X + 14, (REAL)rr.Y, (REAL)rr.Width - 20, (REAL)rr.Height),
+                   L"Segoe UI", 13, FontStyleBold, text, StringAlignmentNear, StringAlignmentCenter);
+    }
+}
+
+static void DrawDivider(Graphics& g) {
+    Rect r = ToRect(gL.rcDivider);
+    LinearGradientBrush div(
+        Point(r.X, r.Y),
+        Point(r.GetRight(), r.Y),
+        ARGB(0, 255, 255, 255),
+        ARGB(80, 255, 255, 255)
+    );
+    g.FillRectangle(&div, r);
+}
+
+static void DrawNowPlayingCard(Graphics& g) {
+    Rect card = ToRect(gL.rcNowPlayingCard);
+
+    DrawShadowCard(g, card, 16);
+
+    // Pink gradient like screenshot
+    LinearGradientBrush pink(
+        Point(card.X, card.Y),
+        Point(card.GetRight(), card.GetBottom()),
+        ARGB(255, 255, 20, 90),
+        ARGB(255, 180, 10, 60)
+    );
+    FillRoundRect(g, card, 16, pink);
+
+    // darker right wedge
+    GraphicsPath wedge;
+    wedge.AddPolygon((PointF*)std::vector<PointF>{
+        PointF((REAL)card.GetRight() - 140, (REAL)card.Y),
+        PointF((REAL)card.GetRight(),       (REAL)card.Y),
+        PointF((REAL)card.GetRight(),       (REAL)card.GetBottom()),
+        PointF((REAL)card.GetRight() - 90,  (REAL)card.GetBottom())
+    }.data(), 4);
+    SolidBrush wedgeBr(ARGB(50, 0, 0, 0));
+    g.FillPath(&wedgeBr, &wedge);
+
+    DrawString(g, L"Сейчас играют:", RectF((REAL)card.X + 18, (REAL)card.Y + 10, (REAL)card.Width - 36, 18),
+               L"Segoe UI", 12, FontStyleBold, ARGB(235, 255, 255, 255), StringAlignmentNear, StringAlignmentNear);
+
+    // big number
+    DrawString(g, std::to_wstring(gNowPlaying), RectF((REAL)card.X + 18, (REAL)card.Y + 26, (REAL)card.Width - 36, 40),
+               L"Segoe UI", 26, FontStyleBold, ARGB(255, 255, 255, 255), StringAlignmentNear, StringAlignmentNear);
+
+    // small icon circle
+    SolidBrush iconBr(ARGB(70, 255, 255, 255));
+    g.FillEllipse(&iconBr, card.X + 140, card.Y + 30, 30, 30);
+}
+
+static void DrawSectionTitle(Graphics& g, const RECT& rc, const std::wstring& title) {
+    Rect r = ToRect(rc);
+    DrawString(g, title, RectF((REAL)r.X, (REAL)r.Y, (REAL)r.Width, (REAL)r.Height),
+               L"Segoe UI", 12, FontStyleBold, ARGB(230, 255, 255, 255),
+               StringAlignmentNear, StringAlignmentCenter);
+}
+
+static void DrawServerRow(Graphics& g, const RECT& rcRow, const ServerRow& row, bool hover, bool hoverPlay) {
+    Rect r = ToRect(rcRow);
+
+    DrawShadowCard(g, r, 14);
+
+    SolidBrush bg(hover ? ARGB(255, 28, 28, 34) : ARGB(255, 22, 22, 26));
+    FillRoundRect(g, r, 14, bg);
+
+    // Online dot
+    Color dotC = row.online ? ARGB(255, 50, 220, 90) : ARGB(255, 160, 160, 160);
+    SolidBrush dot(dotC);
+    g.FillEllipse(&dot, r.X + 16, r.Y + r.Height / 2 - 4, 8, 8);
+
+    // City
+    DrawString(g, row.city, RectF((REAL)r.X + 34, (REAL)r.Y + 8, (REAL)r.Width - 160, 22),
+               L"Segoe UI", 12.5f, FontStyleBold, ARGB(240, 245, 245, 245),
+               StringAlignmentNear, StringAlignmentNear);
+
+    // rate badge
+    Rect badge(r.X + 34, r.Y + 30, 52, 20);
+    SolidBrush badgeBg(ARGB(255, 36, 36, 44));
+    FillRoundRect(g, badge, 10, badgeBg);
+    DrawString(g, row.rate, RectF((REAL)badge.X, (REAL)badge.Y, (REAL)badge.Width, (REAL)badge.Height),
+               L"Segoe UI", 10.5f, FontStyleBold, ARGB(220, 230, 230, 230),
+               StringAlignmentCenter, StringAlignmentCenter);
+
+    // small droplet icon badge (text)
+    Rect badge2(badge.GetRight() + 8, badge.Y, 26, 20);
+    SolidBrush badgeBg2(ARGB(255, 36, 36, 44));
+    FillRoundRect(g, badge2, 10, badgeBg2);
+    DrawString(g, row.badge, RectF((REAL)badge2.X, (REAL)badge2.Y, (REAL)badge2.Width, (REAL)badge2.Height),
+               L"Segoe UI Emoji", 10.0f, FontStyleRegular, ARGB(220, 230, 230, 230),
+               StringAlignmentCenter, StringAlignmentCenter);
+
+    // Play button
+    RECT rcBtn = ServerPlayButtonRect(rcRow);
+    Rect b = ToRect(rcBtn);
+
+    SolidBrush btnBg(hoverPlay ? ARGB(255, 40, 40, 48) : ARGB(255, 32, 32, 38));
+    FillRoundRect(g, b, 10, btnBg);
+
+    Pen btnBorder(ARGB(80, 255, 255, 255), 1);
+    DrawRoundRect(g, b, 10, btnBorder);
+
+    DrawString(g, L"ИГРАТЬ", RectF((REAL)b.X, (REAL)b.Y, (REAL)b.Width, (REAL)b.Height),
+               L"Segoe UI", 11.5f, FontStyleBold, ARGB(235, 255, 255, 255),
+               StringAlignmentCenter, StringAlignmentCenter);
+}
+
+static void DrawServerList(Graphics& g, const RECT& listRect, const std::vector<ServerRow>& list,
+                           int kindIndex /*0/1/2*/) {
+    // Clip to listRect
+    Region old;
+    g.GetClip(&old);
+    g.SetClip(ToRect(listRect));
+
+    int maxRows = (int)list.size();
+    for (int i = 0; i < maxRows; ++i) {
+        RECT rowRc = ServerRowRect(listRect, i);
+        if (rowRc.bottom > listRect.bottom) break;
+
+        bool hoverRow = (gHoverServerKind == kindIndex && gHoverServerIndex == i);
+        bool hoverPlay = hoverRow && gHoverPlayButton;
+
+        DrawServerRow(g, rowRc, list[i], hoverRow, hoverPlay);
+    }
+
+    g.SetClip(&old);
+}
+
+static void DrawRightArt(Graphics& g) {
+    Rect r = ToRect(gL.rcRightArt);
+
+    // Right panel background
+    SolidBrush bg(ARGB(255, 14, 14, 16));
+    g.FillRectangle(&bg, r);
+
+    // Big pink circle accent like screenshot
+    int circleD = (int)(min(r.Width, r.Height) * 0.92);
+    int cx = r.X + r.Width - circleD / 2;
+    int cy = r.Y + r.Height / 2 - circleD / 2 + 20;
+
+    SolidBrush pink(ARGB(255, 255, 20, 90));
+    g.FillEllipse(&pink, cx - circleD / 2, cy, circleD, circleD);
+
+    // Draw hero image if available
+    if (gHeroImg && gHeroImg->GetLastStatus() == Ok) {
+        // Fit image inside right panel with some margin, keep aspect
+        int margin = 10;
+        Rect target(r.X + margin, r.Y + margin, r.Width - margin * 2, r.Height - margin * 2);
+
+        REAL iw = (REAL)gHeroImg->GetWidth();
+        REAL ih = (REAL)gHeroImg->GetHeight();
+        REAL tw = (REAL)target.Width;
+        REAL th = (REAL)target.Height;
+
+        REAL scale = min(tw / iw, th / ih);
+        int dw = (int)(iw * scale);
+        int dh = (int)(ih * scale);
+
+        Rect dest(target.X + (target.Width - dw) / 2,
+                  target.Y + (target.Height - dh) / 2,
+                  dw, dh);
+
+        // Slight alpha overlay to blend
+        ImageAttributes ia;
+        ColorMatrix cm = {
+            1,0,0,0,0,
+            0,1,0,0,0,
+            0,0,1,0,0,
+            0,0,0,0.95f,0,
+            0,0,0,0,1
+        };
+        ia.SetColorMatrix(&cm, ColorMatrixFlagsDefault, ColorAdjustTypeBitmap);
+
+        g.DrawImage(gHeroImg.get(), dest, 0, 0, (INT)iw, (INT)ih, UnitPixel, &ia);
+
+        // dark fade on left to match center panel
+        LinearGradientBrush fade(
+            Point(r.X, r.Y),
+            Point(r.X + 120, r.Y),
+            ARGB(220, 14, 14, 16),
+            ARGB(0, 14, 14, 16)
+        );
+        g.FillRectangle(&fade, r.X, r.Y, 140, r.Height);
+    }
+
+    // subtle line art imitation (few curves)
+    Pen line(ARGB(120, 255, 255, 255), 1.2f);
+    g.DrawArc(&line, r.X + r.Width/2 - 40, r.Y + 130, 220, 220, 210, 120);
+    g.DrawArc(&line, r.X + r.Width/2 - 10, r.Y + 220, 180, 180, 250, 120);
+}
+
+static void DrawMain(Graphics& g) {
+    // Titles + lists
+    DrawNowPlayingCard(g);
+
+    DrawSectionTitle(g, gL.rcRecommendedTitle, L"СОВЕТУЕМ ДЛЯ НОВИЧКОВ");
+    DrawServerList(g, gL.rcRecommendedList, gServersRecommended, 0);
+
+    DrawSectionTitle(g, gL.rcLastPlayedTitle, L"ЗАХОДИЛИ В ПОСЛЕДНИЙ РАЗ");
+    DrawServerList(g, gL.rcLastPlayedList, gServersLastPlayed, 1);
+
+    DrawSectionTitle(g, gL.rcAllServersTitle, L"ВСЕ СЕРВЕРА");
+    DrawServerList(g, gL.rcAllServersList, gServersAll, 2);
+}
+
+// ============================================================
+//                     INPUT / HOVER UPDATE
+// ============================================================
+
+static void UpdateHover(HWND hWnd, POINT ptClient) {
+    gMouse = ptClient;
+
+    // System buttons
+    gHoverClose = PtInRectI(gL.rcClose, ptClient);
+    gHoverMin   = PtInRectI(gL.rcMin, ptClient);
+
+    // Nav hover
+    gHoverNavIndex = -1;
+    for (int i = 0; i < (int)gNav.size(); ++i) {
+        RECT r = NavItemRect(i);
+        if (PtInRectI(r, ptClient)) { gHoverNavIndex = i; break; }
+    }
+
+    // Server hover
+    gHoverServerKind = -1;
+    gHoverServerIndex = -1;
+    gHoverPlayButton = false;
+
+    auto testList = [&](const RECT& listRect, const std::vector<ServerRow>& list, int kind) {
+        int rowH = 56, gap = 10;
+        for (int i = 0; i < (int)list.size(); ++i) {
+            RECT rr = ServerRowRect(listRect, i);
+            if (rr.bottom > listRect.bottom) break;
+            if (PtInRectI(rr, ptClient)) {
+                gHoverServerKind = kind;
+                gHoverServerIndex = i;
+                RECT rb = ServerPlayButtonRect(rr);
+                gHoverPlayButton = PtInRectI(rb, ptClient);
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (!testList(gL.rcRecommendedList, gServersRecommended, 0)) {
+        if (!testList(gL.rcLastPlayedList, gServersLastPlayed, 1)) {
+            testList(gL.rcAllServersList, gServersAll, 2);
+        }
+    }
+
+    InvalidateRect(hWnd, nullptr, FALSE);
+}
+
+static void HandleClick(HWND hWnd, POINT ptClient) {
+    // sys buttons
+    if (PtInRectI(gL.rcClose, ptClient)) {
+        PostMessageW(hWnd, WM_CLOSE, 0, 0);
+        return;
+    }
+    if (PtInRectI(gL.rcMin, ptClient)) {
+        ShowWindow(hWnd, SW_MINIMIZE);
+        return;
+    }
+
+    // nav
+    for (int i = 0; i < (int)gNav.size(); ++i) {
+        if (PtInRectI(NavItemRect(i), ptClient)) {
+            OnNav(gNav[i].id);
+            return;
+        }
+    }
+
+    // server play
+    auto clickList = [&](const RECT& listRect, const std::vector<ServerRow>& list) -> bool {
+        for (int i = 0; i < (int)list.size(); ++i) {
+            RECT rr = ServerRowRect(listRect, i);
+            if (rr.bottom > listRect.bottom) break;
+            if (PtInRectI(rr, ptClient)) {
+                RECT rb = ServerPlayButtonRect(rr);
+                if (PtInRectI(rb, ptClient)) {
+                    OnPlayServer(list[i]);
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    if (clickList(gL.rcRecommendedList, gServersRecommended)) return;
+    if (clickList(gL.rcLastPlayedList, gServersLastPlayed)) return;
+    if (clickList(gL.rcAllServersList, gServersAll)) return;
+}
+
+// ============================================================
+//                     BORDERLESS WINDOW
+// ============================================================
+
+static LRESULT HitTestNCA(HWND hWnd, LPARAM lParam) {
+    // allow resize? in screenshot no resize; we keep fixed.
+    // But we need dragging by topbar.
+    POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+    ScreenToClient(hWnd, &pt);
+
+    // If over sys buttons - client
+    if (PtInRectI(gL.rcClose, pt) || PtInRectI(gL.rcMin, pt)) return HTCLIENT;
+
+    if (pt.y >= 0 && pt.y < kTopBarH) return HTCAPTION;
+    return HTCLIENT;
+}
+
+// ============================================================
+//                         PAINT (DOUBLE BUFFER)
+// ============================================================
+
+static void Paint(HWND hWnd) {
+    PAINTSTRUCT ps;
+    HDC hdc = BeginPaint(hWnd, &ps);
+
+    RECT rc;
+    GetClientRect(hWnd, &rc);
+
+    // Double buffer
+    HDC memDC = CreateCompatibleDC(hdc);
+    HBITMAP bmp = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
+    HGDIOBJ oldBmp = SelectObject(memDC, bmp);
+
+    Graphics g(memDC);
+    SetHighQuality(g);
+
+    DrawBackground(g, rc);
+    DrawTopBar(g);
+    DrawNav(g);
+    DrawDivider(g);
+    DrawMain(g);
+    DrawRightArt(g);
+
+    BitBlt(hdc, 0, 0, rc.right, rc.bottom, memDC, 0, 0, SRCCOPY);
+
+    SelectObject(memDC, oldBmp);
+    DeleteObject(bmp);
+    DeleteDC(memDC);
+
+    EndPaint(hWnd, &ps);
+}
+
+// ============================================================
+//                         WINDOW PROC
+// ============================================================
+
+static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
     case WM_CREATE:
-        GetWindowRect(hWnd, &g_windowRect);
-        break;
+        gWnd = hWnd;
+        ComputeLayout(hWnd);
+        return 0;
+
+    case WM_SIZE:
+        ComputeLayout(hWnd);
+        InvalidateAll(hWnd);
+        return 0;
+
+    case WM_NCHITTEST:
+        return HitTestNCA(hWnd, lParam);
+
+    case WM_MOUSEMOVE: {
+        POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        UpdateHover(hWnd, pt);
+
+        // track leave
+        TRACKMOUSEEVENT tme{};
+        tme.cbSize = sizeof(tme);
+        tme.dwFlags = TME_LEAVE;
+        tme.hwndTrack = hWnd;
+        TrackMouseEvent(&tme);
+        return 0;
+    }
+
+    case WM_MOUSELEAVE:
+        gHoverNavIndex = -1;
+        gHoverServerKind = -1;
+        gHoverServerIndex = -1;
+        gHoverPlayButton = false;
+        gHoverClose = gHoverMin = false;
+        InvalidateAll(hWnd);
+        return 0;
+
+    case WM_LBUTTONDOWN: {
+        gMouseDown = true;
+        SetCapture(hWnd);
+
+        POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        gPressedClose = PtInRectI(gL.rcClose, pt);
+        gPressedMin   = PtInRectI(gL.rcMin, pt);
+
+        // Dragging is handled by WM_NCHITTEST returning HTCAPTION,
+        // but we also support manual drag if needed.
+        return 0;
+    }
+
+    case WM_LBUTTONUP: {
+        gMouseDown = false;
+        ReleaseCapture();
+
+        POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+
+        bool wasClose = gPressedClose && PtInRectI(gL.rcClose, pt);
+        bool wasMin   = gPressedMin && PtInRectI(gL.rcMin, pt);
+        gPressedClose = gPressedMin = false;
+
+        if (wasClose) { PostMessageW(hWnd, WM_CLOSE, 0, 0); return 0; }
+        if (wasMin)   { ShowWindow(hWnd, SW_MINIMIZE); return 0; }
+
+        HandleClick(hWnd, pt);
+        return 0;
+    }
+
+    case WM_KEYDOWN:
+        if (wParam == VK_ESCAPE) PostMessageW(hWnd, WM_CLOSE, 0, 0);
+        return 0;
 
     case WM_PAINT:
-    {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hWnd, &ps);
+        Paint(hWnd);
+        return 0;
 
-        RECT clientRect;
-        GetClientRect(hWnd, &clientRect);
-
-        // Отрисовка фона
-        DrawBackground(hdc, clientRect);
-
-        EndPaint(hWnd, &ps);
-    }
-    break;
-
-    case WM_CTLCOLORBTN:
-        // Кастомная отрисовка кнопки запуска
-        if ((HWND)lParam == g_hLaunchButton)
-        {
-            HDC hdc = (HDC)wParam;
-            SetBkMode(hdc, TRANSPARENT);
-            return (LRESULT)GetStockObject(NULL_BRUSH);
-        }
-        break;
-
-    case WM_DRAWITEM:
-    {
-        LPDRAWITEMSTRUCT lpDrawItem = (LPDRAWITEMSTRUCT)lParam;
-
-        if (lpDrawItem->CtlID == 1003) // Кнопка запуска
-        {
-            HDC hdc = lpDrawItem->hDC;
-            RECT rc = lpDrawItem->rcItem;
-
-            // Градиентный фон кнопки
-            Graphics graphics(hdc);
-            LinearGradientBrush buttonBrush(
-                Point(rc.left, rc.top),
-                Point(rc.left, rc.bottom),
-                Color(255, 76, 175, 80),
-                Color(255, 56, 142, 60)
-            );
-
-            // Рисуем скругленные углы
-            GraphicsPath path;
-            path.AddRectangle(Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top));
-
-            // Заливаем фон
-            graphics.FillPath(&buttonBrush, &path);
-
-            // Рамка
-            Pen borderPen(Color(255, 255, 255), 2);
-            graphics.DrawPath(&borderPen, &path);
-
-            // Текст
-            FontFamily fontFamily(L"Arial");
-            Font font(&fontFamily, 18, FontStyleBold, UnitPixel);
-            SolidBrush textBrush(Color(255, 255, 255));
-
-            StringFormat stringFormat;
-            stringFormat.SetAlignment(StringAlignmentCenter);
-            stringFormat.SetLineAlignment(StringAlignmentCenter);
-
-            graphics.DrawString(
-                L"ЗАПУСТИТЬ ИГРУ",
-                -1,
-                &font,
-                RectF((REAL)rc.left, (REAL)rc.top, (REAL)(rc.right - rc.left), (REAL)(rc.bottom - rc.top)),
-                &stringFormat,
-                &textBrush
-            );
-
-            return TRUE;
-        }
-    }
-    break;
-
-    case WM_COMMAND:
-    {
-        int wmId = LOWORD(wParam);
-
-        switch (wmId)
-        {
-        case 1001: // Кнопка закрытия
-            PostMessage(hWnd, WM_CLOSE, 0, 0);
-            break;
-
-        case 1002: // Кнопка сворачивания
-            ShowWindow(hWnd, SW_MINIMIZE);
-            break;
-
-        case 1003: // Кнопка запуска игры
-            LaunchGame();
-            break;
-        }
-    }
-    break;
-
-    case WM_LBUTTONDOWN:
-    {
-        // Проверяем, кликнули ли в заголовок
-        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-        if (pt.y < TITLE_BAR_HEIGHT)
-        {
-            g_isDragging = true;
-            GetCursorPos(&g_dragStartPoint);
-            GetWindowRect(hWnd, &g_windowRect);
-            SetCapture(hWnd);
-        }
-    }
-    break;
-
-    case WM_MOUSEMOVE:
-        if (g_isDragging)
-        {
-            POINT pt;
-            GetCursorPos(&pt);
-
-            int dx = pt.x - g_dragStartPoint.x;
-            int dy = pt.y - g_dragStartPoint.y;
-
-            SetWindowPos(hWnd, NULL,
-                g_windowRect.left + dx,
-                g_windowRect.top + dy,
-                0, 0,
-                SWP_NOZORDER | SWP_NOSIZE);
-        }
-        break;
-
-    case WM_LBUTTONUP:
-        if (g_isDragging)
-        {
-            g_isDragging = false;
-            ReleaseCapture();
-        }
-        break;
+    case WM_ERASEBKGND:
+        return 1;
 
     case WM_DESTROY:
         PostQuitMessage(0);
-        break;
+        return 0;
+    }
+    return DefWindowProcW(hWnd, msg, wParam, lParam);
+}
 
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
+// ============================================================
+//                          ENTRY
+// ============================================================
+
+int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int nCmdShow) {
+    INITCOMMONCONTROLSEX icc{ sizeof(icc), ICC_STANDARD_CLASSES | ICC_WIN95_CLASSES };
+    InitCommonControlsEx(&icc);
+
+    GdiPlusRAII gdi;
+
+    // Load hero image: URL -> cache -> fallback local
+    std::wstring exeDir = GetExeDir();
+    std::wstring cachePath = JoinPath(exeDir, kCacheHeroPath);
+    std::wstring localFallback = JoinPath(exeDir, kHeroLocalFallback);
+
+    bool ok = false;
+    if (kHeroUrl && wcslen(kHeroUrl) > 0) {
+        ok = DownloadHero(kHeroUrl, cachePath);
+    }
+    if (!ok) {
+        LoadHeroFromFile(localFallback);
     }
 
-    return 0;
+    WNDCLASSEXW wc{};
+    wc.cbSize = sizeof(wc);
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInst;
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+    wc.lpszClassName = kClassName;
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+
+    if (!RegisterClassExW(&wc)) {
+        MessageBoxW(nullptr, L"RegisterClassEx failed", L"Error", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+
+    // borderless popup, fixed size
+    DWORD style = WS_POPUP | WS_VISIBLE;
+    DWORD ex = WS_EX_APPWINDOW; // keep on taskbar
+
+    int x = (GetSystemMetrics(SM_CXSCREEN) - kWinW) / 2;
+    int y = (GetSystemMetrics(SM_CYSCREEN) - kWinH) / 2;
+
+    HWND hWnd = CreateWindowExW(
+        ex, kClassName, kTitle, style,
+        x, y, kWinW, kWinH,
+        nullptr, nullptr, hInst, nullptr
+    );
+
+    if (!hWnd) {
+        MessageBoxW(nullptr, L"CreateWindowEx failed", L"Error", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+
+    ShowWindow(hWnd, nCmdShow);
+    UpdateWindow(hWnd);
+
+    MSG msg{};
+    while (GetMessageW(&msg, nullptr, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+    return (int)msg.wParam;
 }
+
+/*
+    NOTES / WHAT TO CHANGE NEXT:
+
+    1) Icons in nav:
+       - Сейчас текст. Можно добавить PNG-иконки и рисовать их слева.
+    2) Scroll in "All servers":
+       - Сейчас список режется по высоте. Можно добавить wheel + offset.
+    3) Real "Play" logic:
+       - OnPlayServer -> ShellExecute / CreateProcess + параметры сервера.
+    4) Fonts:
+       - Использую Segoe UI. Можно подключить кастомный шрифт (AddFontMemResourceEx).
+    5) DPI scaling:
+       - Сейчас фиксированные пиксели. Для DPI нужно умножать на scale.
+*/
