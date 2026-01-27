@@ -1,6 +1,299 @@
-/ Launcher.cpp - single file WinAPI + GDI+ custom launcher UI (1000+ lines)
-// Build: Visual Studio, /std:c++17
-// Libraries: gdiplus.lib urlmon.lib comctl32.lib shlwapi.lib
+Сборка начата в 12:05...
+1>------ Сборка начата: проект: WindowsProject6, Конфигурация: Debug x64 ------
+1>WindowsProject6.cpp
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(273,9): error C2248: Gdiplus::GraphicsPath::GraphicsPath: невозможно обратиться к protected член, объявленному в классе "Gdiplus::GraphicsPath"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(874,5):
+1>     см. объявление "Gdiplus::GraphicsPath::GraphicsPath"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(30,7):
+1>     см. объявление "Gdiplus::GraphicsPath"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(280,5): error C2248: Gdiplus::GraphicsPath::GraphicsPath: невозможно обратиться к protected член, объявленному в классе "Gdiplus::GraphicsPath"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(874,5):
+1>     см. объявление "Gdiplus::GraphicsPath::GraphicsPath"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(30,7):
+1>     см. объявление "Gdiplus::GraphicsPath"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(284,20): error C2248: Gdiplus::GraphicsPath::GraphicsPath: невозможно обратиться к protected член, объявленному в классе "Gdiplus::GraphicsPath"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(874,5):
+1>     см. объявление "Gdiplus::GraphicsPath::GraphicsPath"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(30,7):
+1>     см. объявление "Gdiplus::GraphicsPath"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(289,21): error C2248: Gdiplus::GraphicsPath::GraphicsPath: невозможно обратиться к protected член, объявленному в классе "Gdiplus::GraphicsPath"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(874,5):
+1>     см. объявление "Gdiplus::GraphicsPath::GraphicsPath"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPath.h(30,7):
+1>     см. объявление "Gdiplus::GraphicsPath"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(421,9): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(422,9): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(427,20): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(442,9): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(443,9): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(448,11): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(453,41): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(458,44): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(464,31): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(464,56): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(465,30): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(465,56): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(466,30): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(466,55): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(468,54): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(474,45): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(485,22): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(489,16): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(494,20): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(506,32): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(506,57): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(507,35): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(507,60): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(510,35): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(516,31): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(516,67): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(516,94): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(527,9): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(528,9): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(542,9): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(543,9): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(555,24): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(559,41): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(563,41): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(566,23): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(573,41): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(582,27): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(582,51): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(586,31): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(586,56): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(592,44): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(597,24): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(600,44): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(605,25): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(608,53): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(615,34): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(615,58): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(618,19): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(622,44): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(651,19): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(659,21): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(698,13): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(699,13): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(705,14): error C2872: ARGB: неоднозначный символ
+1>    C:\Users\User\source\repos\WindowsProject6\WindowsProject6\WindowsProject6.cpp(72,14):
+1>    может быть "Gdiplus::Color ARGB(BYTE,BYTE,BYTE,BYTE)"
+1>    C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\GdiplusPixelFormats.h(32,15):
+1>    или       "Gdiplus::ARGB"
+1>Сборка проекта "WindowsProject6.vcxproj" завершена с ошибкой.
+========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
+========== Сборка завершено в 12:05 и заняло 00,933 с ==========
 
 #include <windows.h>
 #include <windowsx.h>
