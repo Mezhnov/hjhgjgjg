@@ -1,8 +1,521 @@
-Владимир Межнов, [23.01.2026 18:48]
-Привет, если интересно, ориентировочно во вторник (27 января) состоится анонс и запуск от операционной системы и до программы САПР, всего планируется более 13 анонсов с запуском, вся информация будет здесь: https://vk.com/, если будет не сложно, как всё запустим, то можешь пожалуйста знакомым рассказать)
+#include <windows.h>
+#include <windowsx.h>
+#include <commctrl.h>
+#include <urlmon.h>
+#include <gdiplus.h>
+#include <string>
+#include <memory>
+#include <vector>
+#include <shlwapi.h>
 
-torkins, [23.01.2026 19:00]
-от меня что требуется 🫣
+#pragma comment(lib, "urlmon.lib")
+#pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "shlwapi.lib")
 
+using namespace Gdiplus;
 
-Если будет не сложно, можешь оценить видехостинг и знакомым из КГЭУ рассказать про проект для замены Moodle КАК БОЛЕЕ КРАСИВО НАПИСАТТ
+// Константы для размеров окна и элементов
+const int WINDOW_WIDTH = 800;
+const int WINDOW_HEIGHT = 600;
+const int BUTTON_SIZE = 40;
+const int BUTTON_MARGIN = 10;
+const int TITLE_BAR_HEIGHT = 40;
+const int LAUNCH_BUTTON_WIDTH = 200;
+const int LAUNCH_BUTTON_HEIGHT = 50;
+
+// Глобальные переменные
+HWND g_hWnd = nullptr;
+HWND g_hCloseButton = nullptr;
+HWND g_hMinimizeButton = nullptr;
+HWND g_hLaunchButton = nullptr;
+HWND g_hProgressBar = nullptr;
+HWND g_hStatusLabel = nullptr;
+std::wstring g_backgroundImagePath = L"background.jpg";
+std::unique_ptr<Gdiplus::Image> g_backgroundImage;
+bool g_isDragging = false;
+POINT g_dragStartPoint;
+RECT g_windowRect;
+
+// Прототипы функций
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+void InitializeGdiPlus();
+void ShutdownGdiPlus();
+bool DownloadBackgroundImage(const std::wstring& url);
+void CreateUIElements(HWND hWnd);
+void DrawBackground(HDC hdc, RECT& clientRect);
+void DrawTitleBar(HDC hdc, RECT& clientRect);
+void UpdateProgress(int progress, const std::wstring& status);
+void LaunchGame();
+
+// Точка входа
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
+    // Инициализация GDI+
+    InitializeGdiPlus();
+    
+    // Загрузка фона по ссылке (замените на свою ссылку)
+    std::wstring imageUrl = L"https://images.unsplash.com/photo-1519681393784-d120267933ba";
+    if (!DownloadBackgroundImage(imageUrl))
+    {
+        // Если не удалось загрузить, используем стандартный фон
+        MessageBox(NULL, L"Не удалось загрузить фон. Используется стандартный фон.", L"Внимание", MB_OK | MB_ICONINFORMATION);
+    }
+    
+    // Регистрация класса окна
+    WNDCLASSEX wc = {0};
+    wc.cbSize = sizeof(WNDCLASSEX);
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInstance;
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.lpszClassName = L"LauncherWindowClass";
+    
+    if (!RegisterClassEx(&wc))
+    {
+        MessageBox(NULL, L"Ошибка регистрации класса окна", L"Ошибка", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+    
+    // Создание окна
+    g_hWnd = CreateWindowEx(
+        WS_EX_LAYERED | WS_EX_TOPMOST,  // Стили расширенные
+        L"LauncherWindowClass",
+        L"Majestika RP Launcher",
+        WS_POPUP | WS_VISIBLE,          // Без рамки
+        (GetSystemMetrics(SM_CXSCREEN) - WINDOW_WIDTH) / 2,
+        (GetSystemMetrics(SM_CYSCREEN) - WINDOW_HEIGHT) / 2,
+        WINDOW_WIDTH,
+        WINDOW_HEIGHT,
+        NULL,
+        NULL,
+        hInstance,
+        NULL
+    );
+    
+    if (!g_hWnd)
+    {
+        MessageBox(NULL, L"Ошибка создания окна", L"Ошибка", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+    
+    // Установка прозрачности
+    SetLayeredWindowAttributes(g_hWnd, 0, 255, LWA_ALPHA);
+    
+    // Создание элементов UI
+    CreateUIElements(g_hWnd);
+    
+    // Показать окно
+    ShowWindow(g_hWnd, nCmdShow);
+    UpdateWindow(g_hWnd);
+    
+    // Цикл сообщений
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    
+    // Очистка
+    ShutdownGdiPlus();
+    
+    return (int)msg.wParam;
+}
+
+// Инициализация GDI+
+void InitializeGdiPlus()
+{
+    GdiplusStartupInput gdiplusStartupInput;
+    ULONG_PTR gdiplusToken;
+    GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+}
+
+// Завершение работы GDI+
+void ShutdownGdiPlus()
+{
+    // Освобождение ресурсов GDI+ происходит автоматически
+}
+
+// Загрузка фонового изображения по URL
+bool DownloadBackgroundImage(const std::wstring& url)
+{
+    // Удаляем старый файл если существует
+    DeleteFile(g_backgroundImagePath.c_str());
+    
+    // Загружаем изображение
+    HRESULT hr = URLDownloadToFile(NULL, url.c_str(), g_backgroundImagePath.c_str(), 0, NULL);
+    
+    if (SUCCEEDED(hr))
+    {
+        try
+        {
+            g_backgroundImage = std::make_unique<Gdiplus::Image>(g_backgroundImagePath.c_str());
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+    
+    return false;
+}
+
+// Создание элементов интерфейса
+void CreateUIElements(HWND hWnd)
+{
+    // Кнопка закрытия (крестик)
+    g_hCloseButton = CreateWindow(
+        L"BUTTON",
+        L"✕",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        WINDOW_WIDTH - BUTTON_SIZE - BUTTON_MARGIN,
+        BUTTON_MARGIN,
+        BUTTON_SIZE,
+        BUTTON_SIZE,
+        hWnd,
+        (HMENU)1001,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL
+    );
+    
+    // Кнопка сворачивания
+    g_hMinimizeButton = CreateWindow(
+        L"BUTTON",
+        L"─",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        WINDOW_WIDTH - (BUTTON_SIZE * 2) - (BUTTON_MARGIN * 2),
+        BUTTON_MARGIN,
+        BUTTON_SIZE,
+        BUTTON_SIZE,
+        hWnd,
+        (HMENU)1002,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL
+    );
+    
+    // Кнопка запуска игры
+    g_hLaunchButton = CreateWindow(
+        L"BUTTON",
+        L"ЗАПУСТИТЬ ИГРУ",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        (WINDOW_WIDTH - LAUNCH_BUTTON_WIDTH) / 2,
+        WINDOW_HEIGHT - 150,
+        LAUNCH_BUTTON_WIDTH,
+        LAUNCH_BUTTON_HEIGHT,
+        hWnd,
+        (HMENU)1003,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL
+    );
+    
+    // Прогресс бар
+    g_hProgressBar = CreateWindowEx(
+        0,
+        PROGRESS_CLASS,
+        NULL,
+        WS_CHILD | WS_VISIBLE | PBS_SMOOTH,
+        (WINDOW_WIDTH - 300) / 2,
+        WINDOW_HEIGHT - 80,
+        300,
+        20,
+        hWnd,
+        (HMENU)1004,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL
+    );
+    
+    // Установка диапазона прогресс бара
+    SendMessage(g_hProgressBar, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
+    SendMessage(g_hProgressBar, PBM_SETPOS, 0, 0);
+    
+    // Метка статуса
+    g_hStatusLabel = CreateWindow(
+        L"STATIC",
+        L"Готов к запуску",
+        WS_CHILD | WS_VISIBLE | SS_CENTER,
+        (WINDOW_WIDTH - 300) / 2,
+        WINDOW_HEIGHT - 50,
+        300,
+        20,
+        hWnd,
+        (HMENU)1005,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL
+    );
+    
+    // Установка шрифтов для кнопок
+    HFONT hFont = CreateFont(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Arial");
+    
+    HFONT hButtonFont = CreateFont(18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Arial");
+    
+    SendMessage(g_hCloseButton, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(g_hMinimizeButton, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(g_hLaunchButton, WM_SETFONT, (WPARAM)hButtonFont, TRUE);
+    SendMessage(g_hStatusLabel, WM_SETFONT, (WPARAM)hButtonFont, TRUE);
+    
+    // Установка цветов
+    SendMessage(g_hLaunchButton, BM_SETSTYLE, BS_OWNERDRAW, TRUE);
+}
+
+// Отрисовка фона
+void DrawBackground(HDC hdc, RECT& clientRect)
+{
+    Graphics graphics(hdc);
+    
+    // Очистка фона
+    SolidBrush backgroundBrush(Color(30, 30, 30, 230));
+    graphics.FillRectangle(&backgroundBrush, 0, 0, clientRect.right, clientRect.bottom);
+    
+    // Отрисовка фонового изображения если есть
+    if (g_backgroundImage && g_backgroundImage->GetLastStatus() == Ok)
+    {
+        // Масштабируем изображение под размер окна
+        Rect destRect(0, 0, clientRect.right, clientRect.bottom);
+        graphics.DrawImage(g_backgroundImage.get(), destRect);
+        
+        // Затемняем фон для лучшей читаемости текста
+        SolidBrush overlayBrush(Color(100, 0, 0, 0));
+        graphics.FillRectangle(&overlayBrush, 0, 0, clientRect.right, clientRect.bottom);
+    }
+    
+    // Отрисовка градиентного заголовка
+    LinearGradientBrush titleBarBrush(
+        Point(0, 0),
+        Point(0, TITLE_BAR_HEIGHT),
+        Color(180, 40, 40, 40),
+        Color(180, 20, 20, 20)
+    );
+    graphics.FillRectangle(&titleBarBrush, 0, 0, clientRect.right, TITLE_BAR_HEIGHT);
+    
+    // Отрисовка заголовка
+    FontFamily fontFamily(L"Arial");
+    Font titleFont(&fontFamily, 20, FontStyleBold, UnitPixel);
+    SolidBrush titleBrush(Color(255, 255, 255));
+    
+    StringFormat stringFormat;
+    stringFormat.SetAlignment(StringAlignmentCenter);
+    
+    graphics.DrawString(
+        L"MAJESTIKA RP LAUNCHER",
+        -1,
+        &titleFont,
+        RectF(0, 10, (REAL)clientRect.right, 30),
+        &stringFormat,
+        &titleBrush
+    );
+    
+    // Отрисовка версии
+    Font versionFont(&fontFamily, 12, FontStyleRegular, UnitPixel);
+    SolidBrush versionBrush(Color(180, 255, 255, 255));
+    
+    graphics.DrawString(
+        L"Версия 1.0.0 | Разработано для сообщества",
+        -1,
+        &versionFont,
+        RectF(10, (REAL)clientRect.bottom - 25, 300, 20),
+        NULL,
+        &versionBrush
+    );
+}
+
+// Обновление прогресса
+void UpdateProgress(int progress, const std::wstring& status)
+{
+    if (g_hProgressBar)
+    {
+        SendMessage(g_hProgressBar, PBM_SETPOS, progress, 0);
+    }
+    
+    if (g_hStatusLabel)
+    {
+        SetWindowText(g_hStatusLabel, status.c_str());
+    }
+}
+
+// Запуск игры (заглушка)
+void LaunchGame()
+{
+    UpdateProgress(10, L"Проверка обновлений...");
+    Sleep(500);
+    
+    UpdateProgress(30, L"Загрузка файлов...");
+    Sleep(1000);
+    
+    UpdateProgress(60, L"Подготовка к запуску...");
+    Sleep(500);
+    
+    UpdateProgress(90, L"Запуск игры...");
+    Sleep(300);
+    
+    UpdateProgress(100, L"Игра запущена!");
+    
+    // Здесь будет реальный запуск игры
+    // ShellExecute(NULL, L"open", L"game.exe", NULL, NULL, SW_SHOW);
+    
+    // Закрываем лаунчер после запуска
+    PostMessage(g_hWnd, WM_CLOSE, 0, 0);
+}
+
+// Обработчик сообщений окна
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_CREATE:
+        GetWindowRect(hWnd, &g_windowRect);
+        break;
+        
+    case WM_PAINT:
+        {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            
+            RECT clientRect;
+            GetClientRect(hWnd, &clientRect);
+            
+            // Отрисовка фона
+            DrawBackground(hdc, clientRect);
+            
+            EndPaint(hWnd, &ps);
+        }
+        break;
+        
+    case WM_CTLCOLORBTN:
+        // Кастомная отрисовка кнопки запуска
+        if ((HWND)lParam == g_hLaunchButton)
+        {
+            HDC hdc = (HDC)wParam;
+            SetBkMode(hdc, TRANSPARENT);
+            return (LRESULT)GetStockObject(NULL_BRUSH);
+        }
+        break;
+        
+    case WM_DRAWITEM:
+        {
+            LPDRAWITEMSTRUCT lpDrawItem = (LPDRAWITEMSTRUCT)lParam;
+            
+            if (lpDrawItem->CtlID == 1003) // Кнопка запуска
+            {
+                HDC hdc = lpDrawItem->hDC;
+                RECT rc = lpDrawItem->rcItem;
+                
+                // Градиентный фон кнопки
+                Graphics graphics(hdc);
+                LinearGradientBrush buttonBrush(
+                    Point(rc.left, rc.top),
+                    Point(rc.left, rc.bottom),
+                    Color(255, 76, 175, 80),
+                    Color(255, 56, 142, 60)
+                );
+                
+                // Рисуем скругленные углы
+                GraphicsPath path;
+                path.AddRectangle(Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top));
+                
+                // Заливаем фон
+                graphics.FillPath(&buttonBrush, &path);
+                
+                // Рамка
+                Pen borderPen(Color(255, 255, 255), 2);
+                graphics.DrawPath(&borderPen, &path);
+                
+                // Текст
+                FontFamily fontFamily(L"Arial");
+                Font font(&fontFamily, 18, FontStyleBold, UnitPixel);
+                SolidBrush textBrush(Color(255, 255, 255));
+                
+                StringFormat stringFormat;
+                stringFormat.SetAlignment(StringAlignmentCenter);
+                stringFormat.SetLineAlignment(StringAlignmentCenter);
+                
+                graphics.DrawString(
+                    L"ЗАПУСТИТЬ ИГРУ",
+                    -1,
+                    &font,
+                    RectF((REAL)rc.left, (REAL)rc.top, (REAL)(rc.right - rc.left), (REAL)(rc.bottom - rc.top)),
+                    &stringFormat,
+                    &textBrush
+                );
+                
+                return TRUE;
+            }
+        }
+        break;
+        
+    case WM_COMMAND:
+        {
+            int wmId = LOWORD(wParam);
+            
+            switch (wmId)
+            {
+            case 1001: // Кнопка закрытия
+                PostMessage(hWnd, WM_CLOSE, 0, 0);
+                break;
+                
+            case 1002: // Кнопка сворачивания
+                ShowWindow(hWnd, SW_MINIMIZE);
+                break;
+                
+            case 1003: // Кнопка запуска игры
+                LaunchGame();
+                break;
+            }
+        }
+        break;
+        
+    case WM_LBUTTONDOWN:
+        {
+            // Проверяем, кликнули ли в заголовок
+            POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+            if (pt.y < TITLE_BAR_HEIGHT)
+            {
+                g_isDragging = true;
+                GetCursorPos(&g_dragStartPoint);
+                GetWindowRect(hWnd, &g_windowRect);
+                SetCapture(hWnd);
+            }
+        }
+        break;
+        
+    case WM_MOUSEMOVE:
+        if (g_isDragging)
+        {
+            POINT pt;
+            GetCursorPos(&pt);
+            
+            int dx = pt.x - g_dragStartPoint.x;
+            int dy = pt.y - g_dragStartPoint.y;
+            
+            SetWindowPos(hWnd, NULL,
+                        g_windowRect.left + dx,
+                        g_windowRect.top + dy,
+                        0, 0,
+                        SWP_NOZORDER | SWP_NOSIZE);
+        }
+        break;
+        
+    case WM_LBUTTONUP:
+        if (g_isDragging)
+        {
+            g_isDragging = false;
+            ReleaseCapture();
+        }
+        break;
+        
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+        
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    
+    return 0;
+}
