@@ -1,635 +1,1157 @@
-// main.cpp - Telegram-like 2-screen mock (WinAPI + GDI), single file, no Qt.
-// Build (MSVC): cl /EHsc /DUNICODE /D_UNICODE main.cpp user32.lib gdi32.lib
-// Build (MinGW): g++ -municode -O2 main.cpp -lgdi32 -luser32 -o telegram_mock.exe
+// main.cpp - Enhanced Telegram-like UI with improved quality and features
+// Build (MSVC): cl /EHsc /DUNICODE /D_UNICODE main.cpp user32.lib gdi32.lib gdiplus.lib msimg32.lib
+// Build (MinGW): g++ -municode -O2 main.cpp -lgdi32 -luser32 -lgdiplus -lmsimg32 -o telegram_enhanced.exe
 
 #define UNICODE
 #define _UNICODE
 #include <windows.h>
 #include <windowsx.h>
+#include <gdiplus.h>
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 
-static const wchar_t* kClassName = L"TelegramMockWindowClass";
+#pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "msimg32.lib")
+
+using namespace Gdiplus;
+
+static const wchar_t* kClassName = L"TelegramEnhancedWindowClass";
 
 static HINSTANCE g_hInst = nullptr;
 static HWND g_hwnd = nullptr;
+static ULONG_PTR g_gdiplusToken = 0;
 
 enum class Screen {
     Welcome = 0,
-    Phone = 1
+    Phone = 1,
+    Code = 2
 };
 static Screen g_screen = Screen::Welcome;
 
+// Animation state
+struct AnimState {
+    float progress = 0.0f;
+    bool active = false;
+    DWORD startTime = 0;
+    int duration = 300;
+};
+
+static AnimState g_screenAnim;
+static AnimState g_buttonAnim;
+
+// ---------------- Color Palette ----------------
+namespace Colors {
+    const Color TelegramBlue(255, 64, 160, 220);
+    const Color TelegramBlueHover(255, 56, 167, 225);
+    const Color TelegramBluePressed(255, 48, 150, 210);
+    const Color White(255, 255, 255, 255);
+    const Color Background(255, 245, 245, 245);
+    const Color TextPrimary(255, 0, 0, 0);
+    const Color TextSecondary(255, 120, 120, 120);
+    const Color TextTertiary(255, 160, 160, 160);
+    const Color LinkBlue(255, 0, 140, 220);
+    const Color LinkBlueHover(255, 0, 120, 200);
+    const Color InputBorder(255, 210, 210, 210);
+    const Color InputBorderActive(255, 64, 160, 220);
+    const Color Shadow(60, 0, 0, 0);
+    const Color ShadowLight(30, 0, 0, 0);
+    const Color GreenOnline(255, 76, 217, 100);
+    const Color RedError(255, 237, 73, 86);
+}
+
 // ---------------- Utilities ----------------
 static int ClampI(int v, int lo, int hi) { return (v < lo) ? lo : (v > hi) ? hi : v; }
+static float ClampF(float v, float lo, float hi) { return (v < lo) ? lo : (v > hi) ? hi : v; }
+static float Lerp(float a, float b, float t) { return a + (b - a) * t; }
 
-static COLORREF RGBc(int r, int g, int b) { return RGB(ClampI(r,0,255), ClampI(g,0,255), ClampI(b,0,255)); }
-
-static void FillSolidRect(HDC hdc, const RECT& rc, COLORREF color) {
-    HBRUSH br = CreateSolidBrush(color);
-    FillRect(hdc, &rc, br);
-    DeleteObject(br);
+static float EaseOutCubic(float t) {
+    float f = t - 1.0f;
+    return f * f * f + 1.0f;
 }
 
-static void FrameRect1(HDC hdc, const RECT& rc, COLORREF color) {
-    HPEN pen = CreatePen(PS_SOLID, 1, color);
-    HGDIOBJ oldPen = SelectObject(hdc, pen);
-    HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
-    Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
-    SelectObject(hdc, oldBrush);
-    SelectObject(hdc, oldPen);
-    DeleteObject(pen);
+static float EaseInOutCubic(float t) {
+    if (t < 0.5f) return 4.0f * t * t * t;
+    float f = 2.0f * t - 2.0f;
+    return 0.5f * f * f * f + 1.0f;
 }
 
-static SIZE MeasureText(HDC hdc, HFONT font, const std::wstring& text) {
-    HGDIOBJ old = SelectObject(hdc, font);
-    SIZE sz{};
-    GetTextExtentPoint32W(hdc, text.c_str(), (int)text.size(), &sz);
-    SelectObject(hdc, old);
-    return sz;
+static Color BlendColor(const Color& a, const Color& b, float t) {
+    return Color(
+        (BYTE)Lerp(a.GetA(), b.GetA(), t),
+        (BYTE)Lerp(a.GetR(), b.GetR(), t),
+        (BYTE)Lerp(a.GetG(), b.GetG(), t),
+        (BYTE)Lerp(a.GetB(), b.GetB(), t)
+    );
 }
 
-static void DrawTextCentered(HDC hdc, HFONT font, const std::wstring& text, RECT rc, COLORREF color) {
-    SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, color);
-    HGDIOBJ oldF = SelectObject(hdc, font);
-    DrawTextW(hdc, text.c_str(), (int)text.size(), &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    SelectObject(hdc, oldF);
+static void StartAnimation(AnimState& anim, int duration = 300) {
+    anim.active = true;
+    anim.startTime = GetTickCount();
+    anim.duration = duration;
+    anim.progress = 0.0f;
 }
 
-static void DrawTextLeft(HDC hdc, HFONT font, const std::wstring& text, RECT rc, COLORREF color, UINT format = DT_LEFT | DT_TOP | DT_WORDBREAK) {
-    SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, color);
-    HGDIOBJ oldF = SelectObject(hdc, font);
-    DrawTextW(hdc, text.c_str(), (int)text.size(), &rc, format);
-    SelectObject(hdc, oldF);
+static bool UpdateAnimation(AnimState& anim) {
+    if (!anim.active) return false;
+    
+    DWORD now = GetTickCount();
+    DWORD elapsed = now - anim.startTime;
+    
+    if (elapsed >= (DWORD)anim.duration) {
+        anim.progress = 1.0f;
+        anim.active = false;
+        return false;
+    }
+    
+    anim.progress = (float)elapsed / (float)anim.duration;
+    return true;
 }
 
-static void DrawUnderlineText(HDC hdc, HFONT font, const std::wstring& text, int x, int y, COLORREF color) {
-    // Simple underline by drawing a line under measured text.
-    SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, color);
-    HGDIOBJ oldF = SelectObject(hdc, font);
-    TextOutW(hdc, x, y, text.c_str(), (int)text.size());
-    SIZE sz{};
-    GetTextExtentPoint32W(hdc, text.c_str(), (int)text.size(), &sz);
-    SelectObject(hdc, oldF);
-
-    HPEN pen = CreatePen(PS_SOLID, 1, color);
-    HGDIOBJ oldP = SelectObject(hdc, pen);
-    MoveToEx(hdc, x, y + sz.cy + 1, nullptr);
-    LineTo(hdc, x + sz.cx, y + sz.cy + 1);
-    SelectObject(hdc, oldP);
-    DeleteObject(pen);
+// ---------------- GDI+ Drawing Helpers ----------------
+static void DrawRoundRect(Graphics* g, const RectF& rect, float radius, const Color& color, float penWidth = 1.0f) {
+    GraphicsPath path;
+    path.AddArc(rect.X, rect.Y, radius * 2, radius * 2, 180, 90);
+    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y, radius * 2, radius * 2, 270, 90);
+    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 0, 90);
+    path.AddArc(rect.X, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 90, 90);
+    path.CloseFigure();
+    
+    Pen pen(color, penWidth);
+    g->DrawPath(&pen, &path);
 }
 
-static HRGN CreateRoundRectRgnEx(const RECT& rc, int radius) {
-    return CreateRoundRectRgn(rc.left, rc.top, rc.right, rc.bottom, radius, radius);
+static void FillRoundRect(Graphics* g, const RectF& rect, float radius, const Color& color) {
+    GraphicsPath path;
+    path.AddArc(rect.X, rect.Y, radius * 2, radius * 2, 180, 90);
+    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y, radius * 2, radius * 2, 270, 90);
+    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 0, 90);
+    path.AddArc(rect.X, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 90, 90);
+    path.CloseFigure();
+    
+    SolidBrush brush(color);
+    g->FillPath(&brush, &path);
 }
 
-static void FillRoundRect(HDC hdc, const RECT& rc, int radius, COLORREF color) {
-    HRGN rgn = CreateRoundRectRgnEx(rc, radius);
-    HBRUSH br = CreateSolidBrush(color);
-    FillRgn(hdc, rgn, br);
-    DeleteObject(br);
-    DeleteObject(rgn);
+static void DrawShadow(Graphics* g, const RectF& rect, float radius, float shadowSize = 4.0f) {
+    GraphicsPath path;
+    path.AddArc(rect.X, rect.Y, radius * 2, radius * 2, 180, 90);
+    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y, radius * 2, radius * 2, 270, 90);
+    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 0, 90);
+    path.AddArc(rect.X, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 90, 90);
+    path.CloseFigure();
+    
+    PathGradientBrush brush(&path);
+    Color colors[] = { Colors::Shadow, Color(0, 0, 0, 0) };
+    REAL positions[] = { 0.0f, 1.0f };
+    brush.SetInterpolationColors(colors, positions, 2);
+    
+    RectF shadowRect = rect;
+    shadowRect.Inflate(shadowSize, shadowSize);
+    g->FillRectangle(&brush, shadowRect);
 }
 
-static void DrawChevronDown(HDC hdc, int cx, int cy, int size, COLORREF color) {
-    // Draw a simple v-shaped chevron
-    HPEN pen = CreatePen(PS_SOLID, 2, color);
-    HGDIOBJ oldP = SelectObject(hdc, pen);
-    MoveToEx(hdc, cx - size, cy - size/2, nullptr);
-    LineTo(hdc, cx, cy + size/2);
-    LineTo(hdc, cx + size, cy - size/2);
-    SelectObject(hdc, oldP);
-    DeleteObject(pen);
+static void DrawTextCentered(Graphics* g, const std::wstring& text, const RectF& rect, 
+                             Font* font, const Color& color) {
+    StringFormat format;
+    format.SetAlignment(StringAlignmentCenter);
+    format.SetLineAlignment(StringAlignmentCenter);
+    
+    SolidBrush brush(color);
+    g->DrawString(text.c_str(), -1, font, rect, &format, &brush);
 }
 
-static void DrawBackArrow(HDC hdc, int x, int y, int size, COLORREF color) {
-    // Simple left arrow
-    HPEN pen = CreatePen(PS_SOLID, 2, color);
-    HGDIOBJ oldP = SelectObject(hdc, pen);
-    MoveToEx(hdc, x + size, y, nullptr);
-    LineTo(hdc, x, y + size);
-    LineTo(hdc, x + size, y + 2*size);
-    SelectObject(hdc, oldP);
-    DeleteObject(pen);
+static void DrawTextLeft(Graphics* g, const std::wstring& text, const RectF& rect, 
+                        Font* font, const Color& color) {
+    StringFormat format;
+    format.SetAlignment(StringAlignmentNear);
+    format.SetLineAlignment(StringAlignmentNear);
+    
+    SolidBrush brush(color);
+    g->DrawString(text.c_str(), -1, font, rect, &format, &brush);
 }
 
-// ---------------- UI State ----------------
+static void DrawPaperPlane(Graphics* g, float x, float y, float size, const Color& color) {
+    // Enhanced paper plane icon
+    GraphicsPath path;
+    
+    // Main triangle
+    PointF pts[] = {
+        PointF(x - size * 0.4f, y - size * 0.6f),
+        PointF(x + size * 0.8f, y),
+        PointF(x - size * 0.4f, y + size * 0.6f),
+        PointF(x - size * 0.1f, y)
+    };
+    
+    path.AddPolygon(pts, 4);
+    
+    // Add inner detail
+    path.StartFigure();
+    PointF innerPts[] = {
+        PointF(x - size * 0.1f, y),
+        PointF(x + size * 0.3f, y + size * 0.15f),
+        PointF(x + size * 0.3f, y - size * 0.15f)
+    };
+    path.AddPolygon(innerPts, 3);
+    
+    SolidBrush brush(color);
+    g->FillPath(&brush, &path);
+    
+    // Add highlight
+    Pen pen(Color(100, 255, 255, 255), 2.0f);
+    g->DrawLine(&pen, x - size * 0.3f, y - size * 0.4f, x + size * 0.5f, y - size * 0.1f);
+}
+
+static void DrawBackArrow(Graphics* g, float x, float y, float size, const Color& color) {
+    Pen pen(color, 2.5f);
+    pen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
+    
+    PointF pts[] = {
+        PointF(x + size, y),
+        PointF(x, y + size),
+        PointF(x + size, y + size * 2)
+    };
+    
+    g->DrawLines(&pen, pts, 3);
+}
+
+static void DrawChevronDown(Graphics* g, float x, float y, float size, const Color& color) {
+    Pen pen(color, 2.0f);
+    pen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
+    
+    PointF pts[] = {
+        PointF(x - size, y - size * 0.5f),
+        PointF(x, y + size * 0.5f),
+        PointF(x + size, y - size * 0.5f)
+    };
+    
+    g->DrawLines(&pen, pts, 3);
+}
+
+static void DrawRussianFlag(Graphics* g, float x, float y, float w, float h) {
+    // Russian flag: white, blue, red horizontal stripes
+    SolidBrush whiteBrush(Color(255, 255, 255, 255));
+    SolidBrush blueBrush(Color(255, 0, 57, 166));
+    SolidBrush redBrush(Color(255, 213, 43, 30));
+    
+    float stripe = h / 3.0f;
+    
+    g->FillRectangle(&whiteBrush, x, y, w, stripe);
+    g->FillRectangle(&blueBrush, x, y + stripe, w, stripe);
+    g->FillRectangle(&redBrush, x, y + stripe * 2, w, stripe);
+    
+    // Border
+    Pen borderPen(Color(100, 0, 0, 0), 1.0f);
+    g->DrawRectangle(&borderPen, x, y, w, h);
+}
+
+static void DrawQRIcon(Graphics* g, float x, float y, float size, const Color& color) {
+    // Simple QR code icon representation
+    SolidBrush brush(color);
+    float cellSize = size / 5.0f;
+    
+    // Draw some squares to represent QR pattern
+    int pattern[5][5] = {
+        {1, 1, 1, 0, 1},
+        {1, 0, 1, 0, 1},
+        {1, 1, 1, 1, 0},
+        {0, 0, 1, 1, 1},
+        {1, 0, 0, 1, 1}
+    };
+    
+    for (int i = 0; i < 5; i++) {
+        for (int j = 0; j < 5; j++) {
+            if (pattern[i][j]) {
+                g->FillRectangle(&brush, 
+                    x + j * cellSize, 
+                    y + i * cellSize, 
+                    cellSize * 0.9f, 
+                    cellSize * 0.9f);
+            }
+        }
+    }
+}
+
+// ---------------- UI Elements ----------------
 struct Button {
-    RECT rc{};
+    RectF rc;
     std::wstring text;
     bool hot = false;
     bool down = false;
     bool enabled = true;
+    AnimState hoverAnim;
+    
+    Color GetColor() const {
+        float t = EaseOutCubic(hoverAnim.progress);
+        if (down) return Colors::TelegramBluePressed;
+        if (hot) return BlendColor(Colors::TelegramBlue, Colors::TelegramBlueHover, t);
+        return Colors::TelegramBlue;
+    }
 };
 
 struct Link {
-    RECT rc{};
+    RectF rc;
     std::wstring text;
     bool hot = false;
+    AnimState hoverAnim;
+    
+    Color GetColor() const {
+        float t = EaseOutCubic(hoverAnim.progress);
+        if (hot) return BlendColor(Colors::LinkBlue, Colors::LinkBlueHover, t);
+        return Colors::LinkBlue;
+    }
 };
 
-static Button g_btnStart{};
-static Button g_btnContinue{};
-static Link g_linkRu{};
-static Link g_linkContinueEn{};
-static Link g_linkQr{};
-static Link g_linkSettings{};
-static RECT g_countryDrop{};
-static RECT g_phoneEdit{};
-static RECT g_codeBox{};
+struct InputField {
+    RectF rc;
+    std::wstring text;
+    std::wstring placeholder;
+    bool focused = false;
+    AnimState focusAnim;
+    int cursorPos = 0;
+    
+    Color GetBorderColor() const {
+        float t = EaseOutCubic(focusAnim.progress);
+        if (focused) return BlendColor(Colors::InputBorder, Colors::InputBorderActive, t);
+        return Colors::InputBorder;
+    }
+};
 
-static std::wstring g_phoneDigits; // only digits typed for phone field
-static bool g_phoneFocused = false;
+// UI State
+static Button g_btnStart;
+static Button g_btnContinue;
+static Button g_btnVerify;
+static Link g_linkRu;
+static Link g_linkContinueEn;
+static Link g_linkQr;
+static Link g_linkSettings;
+static Link g_linkResend;
+static InputField g_countryField;
+static InputField g_phoneField;
+static InputField g_codeField;
+
+static std::wstring g_phoneDigits;
+static std::wstring g_codeDigits;
 
 // Fonts
-static HFONT g_fontTitle = nullptr;
-static HFONT g_fontBody = nullptr;
-static HFONT g_fontSmall = nullptr;
-static HFONT g_fontButton = nullptr;
-static HFONT g_fontLink = nullptr;
-static HFONT g_fontHeader = nullptr;
+static Font* g_fontTitle = nullptr;
+static Font* g_fontHeader = nullptr;
+static Font* g_fontBody = nullptr;
+static Font* g_fontSmall = nullptr;
+static Font* g_fontButton = nullptr;
+static Font* g_fontLink = nullptr;
+static Font* g_fontCode = nullptr;
 
 static void CreateFonts() {
-    // Use Segoe UI if available (default on Windows 10/11).
-    // Sizes tuned to look similar.
-    auto makeFont = [](int height, int weight) -> HFONT {
-        return CreateFontW(
-            -height, 0, 0, 0, weight, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI"
-        );
-    };
-
-    g_fontTitle  = makeFont(26, FW_SEMIBOLD);
-    g_fontHeader = makeFont(18, FW_SEMIBOLD);
-    g_fontBody   = makeFont(14, FW_NORMAL);
-    g_fontSmall  = makeFont(12, FW_NORMAL);
-    g_fontButton = makeFont(14, FW_SEMIBOLD);
-    g_fontLink   = makeFont(12, FW_NORMAL);
+    FontFamily fontFamily(L"Segoe UI");
+    
+    g_fontTitle = new Font(&fontFamily, 28, FontStyleBold, UnitPixel);
+    g_fontHeader = new Font(&fontFamily, 20, FontStyleBold, UnitPixel);
+    g_fontBody = new Font(&fontFamily, 15, FontStyleRegular, UnitPixel);
+    g_fontSmall = new Font(&fontFamily, 13, FontStyleRegular, UnitPixel);
+    g_fontButton = new Font(&fontFamily, 15, FontStyleBold, UnitPixel);
+    g_fontLink = new Font(&fontFamily, 13, FontStyleRegular, UnitPixel);
+    g_fontCode = new Font(&fontFamily, 24, FontStyleBold, UnitPixel);
 }
 
 static void DestroyFonts() {
-    auto del = [](HFONT& f) { if (f) { DeleteObject(f); f = nullptr; } };
-    del(g_fontTitle);
-    del(g_fontHeader);
-    del(g_fontBody);
-    del(g_fontSmall);
-    del(g_fontButton);
-    del(g_fontLink);
+    delete g_fontTitle;
+    delete g_fontHeader;
+    delete g_fontBody;
+    delete g_fontSmall;
+    delete g_fontButton;
+    delete g_fontLink;
+    delete g_fontCode;
 }
 
-static bool PtInRectEx(const RECT& rc, POINT pt) {
-    return pt.x >= rc.left && pt.x < rc.right && pt.y >= rc.top && pt.y < rc.bottom;
+static bool PtInRectF(const RectF& rc, POINT pt) {
+    return pt.x >= rc.X && pt.x < rc.X + rc.Width && 
+           pt.y >= rc.Y && pt.y < rc.Y + rc.Height;
 }
 
 static void LayoutUI(int w, int h) {
-    // Common layout constants
-    int contentW = min(640, w - 80);
-    int cx = w / 2;
-    int left = cx - contentW / 2;
-    int right = cx + contentW / 2;
-
+    float contentW = min(680.0f, (float)(w - 80));
+    float cx = w / 2.0f;
+    float left = cx - contentW / 2.0f;
+    
     if (g_screen == Screen::Welcome) {
-        int topBlueH = (int)(h * 0.42);
-        int btnW = 300;
-        int btnH = 44;
-
-        int btnX = cx - btnW/2;
-        int btnY = topBlueH + 120;
-
-        g_btnStart.rc = { btnX, btnY, btnX + btnW, btnY + btnH };
+        float topBlueH = h * 0.45f;
+        float btnW = 340.0f;
+        float btnH = 48.0f;
+        float btnX = cx - btnW / 2.0f;
+        float btnY = topBlueH + 140.0f;
+        
+        g_btnStart.rc = RectF(btnX, btnY, btnW, btnH);
         g_btnStart.text = L"Start Messaging";
-
-        // Link under button
-        int linkY = btnY + btnH + 18;
+        
+        float linkY = btnY + btnH + 24.0f;
         g_linkRu.text = L"Продолжить на русском";
-        g_linkRu.rc = { cx - 140, linkY, cx + 140, linkY + 20 };
-    } else {
-        // Phone screen
-        int topMargin = 26;
-        // Back arrow area
-        // Settings link at top-right
+        g_linkRu.rc = RectF(cx - 150, linkY, 300, 24);
+        
+    } else if (g_screen == Screen::Phone) {
+        float topMargin = 30.0f;
         g_linkSettings.text = L"НАСТРОЙКИ";
-        g_linkSettings.rc = { w - 140, topMargin, w - 20, topMargin + 22 };
-
-        // Center block
-        int blockTop = 120;
-        int fieldW = 360;
-        int fieldX = cx - fieldW/2;
-
-        // Country dropdown
-        g_countryDrop = { fieldX, blockTop + 70, fieldX + fieldW, blockTop + 110 };
-
-        // Phone input row
-        // Code box + phone edit
-        int rowY = blockTop + 140;
-        g_codeBox = { fieldX, rowY, fieldX + 60, rowY + 44 };
-        g_phoneEdit = { fieldX + 70, rowY, fieldX + fieldW, rowY + 44 };
-
-        // Continue button
-        int btnW = 360;
-        int btnH = 44;
-        int btnX = cx - btnW/2;
-        int btnY = rowY + 70;
-        g_btnContinue.rc = { btnX, btnY, btnX + btnW, btnY + btnH };
+        g_linkSettings.rc = RectF(w - 150.0f, topMargin, 130, 24);
+        
+        float blockTop = 140.0f;
+        float fieldW = 400.0f;
+        float fieldX = cx - fieldW / 2.0f;
+        
+        g_countryField.rc = RectF(fieldX, blockTop + 80, fieldW, 52);
+        g_countryField.placeholder = L"Country";
+        
+        float rowY = blockTop + 160;
+        g_phoneField.rc = RectF(fieldX, rowY, fieldW, 52);
+        g_phoneField.placeholder = L"Phone number";
+        
+        float btnW = 400.0f;
+        float btnH = 48.0f;
+        float btnX = cx - btnW / 2.0f;
+        float btnY = rowY + 80;
+        g_btnContinue.rc = RectF(btnX, btnY, btnW, btnH);
         g_btnContinue.text = L"Продолжить";
-
-        // Links
+        
         g_linkContinueEn.text = L"Continue in English";
-        g_linkContinueEn.rc = { cx - 120, btnY + btnH + 18, cx + 120, btnY + btnH + 40 };
-
+        g_linkContinueEn.rc = RectF(cx - 130, btnY + btnH + 24, 260, 24);
+        
         g_linkQr.text = L"Быстрый вход по QR-коду";
-        g_linkQr.rc = { cx - 150, btnY + btnH + 50, cx + 150, btnY + btnH + 72 };
+        g_linkQr.rc = RectF(cx - 160, btnY + btnH + 56, 320, 24);
+        
+    } else if (g_screen == Screen::Code) {
+        float topMargin = 30.0f;
+        
+        float blockTop = 140.0f;
+        float fieldW = 280.0f;
+        float fieldX = cx - fieldW / 2.0f;
+        
+        g_codeField.rc = RectF(fieldX, blockTop + 100, fieldW, 60);
+        g_codeField.placeholder = L"Code";
+        
+        float btnW = 280.0f;
+        float btnH = 48.0f;
+        float btnX = cx - btnW / 2.0f;
+        float btnY = blockTop + 190;
+        g_btnVerify.rc = RectF(btnX, btnY, btnW, btnH);
+        g_btnVerify.text = L"Подтвердить";
+        
+        g_linkResend.text = L"Отправить код повторно";
+        g_linkResend.rc = RectF(cx - 150, btnY + btnH + 24, 300, 24);
     }
 }
 
 static void UpdateHotStates(POINT pt) {
-    auto setBtnHot = [&](Button& b) { b.hot = PtInRectEx(b.rc, pt); };
-    auto setLinkHot = [&](Link& l) { l.hot = PtInRectEx(l.rc, pt); };
-
+    auto updateBtn = [&](Button& b) {
+        bool wasHot = b.hot;
+        b.hot = PtInRectF(b.rc, pt);
+        if (b.hot != wasHot) {
+            StartAnimation(b.hoverAnim, 200);
+        }
+    };
+    
+    auto updateLink = [&](Link& l) {
+        bool wasHot = l.hot;
+        l.hot = PtInRectF(l.rc, pt);
+        if (l.hot != wasHot) {
+            StartAnimation(l.hoverAnim, 150);
+        }
+    };
+    
     if (g_screen == Screen::Welcome) {
-        setBtnHot(g_btnStart);
-        setLinkHot(g_linkRu);
-    } else {
-        setBtnHot(g_btnContinue);
-        setLinkHot(g_linkContinueEn);
-        setLinkHot(g_linkQr);
-        setLinkHot(g_linkSettings);
+        updateBtn(g_btnStart);
+        updateLink(g_linkRu);
+    } else if (g_screen == Screen::Phone) {
+        updateBtn(g_btnContinue);
+        updateLink(g_linkContinueEn);
+        updateLink(g_linkQr);
+        updateLink(g_linkSettings);
+    } else if (g_screen == Screen::Code) {
+        updateBtn(g_btnVerify);
+        updateLink(g_linkResend);
     }
 }
 
 static void SetScreen(Screen s) {
     g_screen = s;
-    g_phoneFocused = false;
+    StartAnimation(g_screenAnim, 400);
+    g_phoneField.focused = false;
+    g_codeField.focused = false;
     InvalidateRect(g_hwnd, nullptr, TRUE);
 }
 
-// ---------------- Drawing ----------------
-static void DrawWelcome(HDC hdc, int w, int h) {
+// ---------------- Drawing Functions ----------------
+static void DrawWelcome(Graphics* g, int w, int h) {
     // Background
-    RECT rcAll{0,0,w,h};
-    FillSolidRect(hdc, rcAll, RGBc(245,245,245));
-
-    int topBlueH = (int)(h * 0.42);
-    RECT rcBlue{0,0,w,topBlueH};
-    FillSolidRect(hdc, rcBlue, RGBc(26, 150, 214)); // Telegram-ish blue
-
-    RECT rcWhite{0,topBlueH,w,h};
-    FillSolidRect(hdc, rcWhite, RGBc(255,255,255));
-
-    // Paper plane placeholder (simple triangle)
-    // In real Telegram this is a vector plane; here we draw a simple white polygon.
-    POINT plane[3] = {
-        { w/2 - 20, topBlueH/2 - 40 },
-        { w/2 + 60, topBlueH/2 - 10 },
-        { w/2 - 10, topBlueH/2 + 30 }
-    };
-    HBRUSH brPlane = CreateSolidBrush(RGBc(255,255,255));
-    HPEN penPlane = CreatePen(PS_SOLID, 1, RGBc(255,255,255));
-    HGDIOBJ oldB = SelectObject(hdc, brPlane);
-    HGDIOBJ oldP = SelectObject(hdc, penPlane);
-    Polygon(hdc, plane, 3);
-    SelectObject(hdc, oldB);
-    SelectObject(hdc, oldP);
-    DeleteObject(brPlane);
-    DeleteObject(penPlane);
-
-    // Title and body
-    RECT rcTitle{0, topBlueH + 40, w, topBlueH + 80};
-    DrawTextCentered(hdc, g_fontTitle, L"Telegram Desktop", rcTitle, RGBc(0,0,0));
-
-    RECT rcBody{0, topBlueH + 85, w, topBlueH + 130};
-    DrawTextCentered(hdc, g_fontBody, L"Welcome to the official Telegram Desktop app.\nIt's fast and secure.",
-                     rcBody, RGBc(120,120,120));
-
-    // Button
-    COLORREF btnColor = g_btnStart.hot ? RGBc(56, 167, 225) : RGBc(64, 160, 220);
-    FillRoundRect(hdc, g_btnStart.rc, 10, btnColor);
-    DrawTextCentered(hdc, g_fontButton, g_btnStart.text, g_btnStart.rc, RGBc(255,255,255));
-
+    SolidBrush bgBrush(Colors::Background);
+    g->FillRectangle(&bgBrush, 0, 0, w, h);
+    
+    float topBlueH = h * 0.45f;
+    
+    // Blue gradient background
+    LinearGradientBrush blueBrush(
+        PointF(0, 0), 
+        PointF(0, topBlueH),
+        Color(255, 74, 170, 230),
+        Color(255, 54, 150, 210)
+    );
+    g->FillRectangle(&blueBrush, 0, 0, (float)w, topBlueH);
+    
+    // White section
+    SolidBrush whiteBrush(Colors::White);
+    g->FillRectangle(&whiteBrush, 0, topBlueH, (float)w, (float)h - topBlueH);
+    
+    // Shadow between sections
+    RectF shadowRect(0, topBlueH - 10, (float)w, 20);
+    LinearGradientBrush shadowBrush(
+        PointF(0, topBlueH - 10),
+        PointF(0, topBlueH + 10),
+        Color(0, 0, 0, 0),
+        Colors::ShadowLight
+    );
+    g->FillRectangle(&shadowBrush, shadowRect);
+    
+    // Paper plane
+    DrawPaperPlane(g, w / 2.0f, topBlueH / 2.0f, 60.0f, Colors::White);
+    
+    // Title
+    RectF titleRect(0, topBlueH + 50, (float)w, 40);
+    DrawTextCentered(g, L"Telegram Desktop", titleRect, g_fontTitle, Colors::TextPrimary);
+    
+    // Subtitle
+    RectF subtitleRect(0, topBlueH + 100, (float)w, 60);
+    std::wstring subtitle = L"Welcome to the official Telegram Desktop app.\nIt's fast and secure.";
+    DrawTextCentered(g, subtitle, subtitleRect, g_fontBody, Colors::TextSecondary);
+    
+    // Button with shadow
+    RectF shadowBtnRect = g_btnStart.rc;
+    shadowBtnRect.Inflate(2, 2);
+    shadowBtnRect.Offset(0, 2);
+    FillRoundRect(g, shadowBtnRect, 12, Colors::ShadowLight);
+    
+    Color btnColor = g_btnStart.GetColor();
+    FillRoundRect(g, g_btnStart.rc, 12, btnColor);
+    DrawTextCentered(g, g_btnStart.text, g_btnStart.rc, g_fontButton, Colors::White);
+    
     // Link
-    int linkX = (g_linkRu.rc.left + g_linkRu.rc.right)/2;
-    // We'll draw centered by measuring
-    SIZE lsz = MeasureText(hdc, g_fontLink, g_linkRu.text);
-    int lx = linkX - lsz.cx/2;
-    int ly = g_linkRu.rc.top;
-    COLORREF linkColor = g_linkRu.hot ? RGBc(0,120,200) : RGBc(0,140,220);
-    DrawUnderlineText(hdc, g_fontLink, g_linkRu.text, lx, ly, linkColor);
+    StringFormat format;
+    format.SetAlignment(StringAlignmentCenter);
+    format.SetLineAlignment(StringAlignmentCenter);
+    
+    SolidBrush linkBrush(g_linkRu.GetColor());
+    g->DrawString(g_linkRu.text.c_str(), -1, g_fontLink, g_linkRu.rc, &format, &linkBrush);
+    
+    if (g_linkRu.hot) {
+        Pen underline(g_linkRu.GetColor(), 1.0f);
+        float y = g_linkRu.rc.Y + g_linkRu.rc.Height - 4;
+        g->DrawLine(&underline, 
+            g_linkRu.rc.X + 50, y,
+            g_linkRu.rc.X + g_linkRu.rc.Width - 50, y);
+    }
 }
 
 static std::wstring FormatPhoneMasked(const std::wstring& digits) {
-    // Simple mask: ___ ___ ____ (up to 10 digits)
-    // Display typed digits in positions.
-    std::wstring mask = L"___ ___ ____";
-    int di = 0;
-    for (int i = 0; i < (int)mask.size() && di < (int)digits.size(); ++i) {
-        if (mask[i] == L'_') {
-            mask[i] = digits[di++];
+    std::wstring result;
+    int len = (int)digits.length();
+    
+    for (int i = 0; i < 10; i++) {
+        if (i > 0 && (i == 3 || i == 6)) {
+            result += L" ";
+        }
+        if (i < len) {
+            result += digits[i];
+        } else {
+            result += L"_";
         }
     }
-    return mask;
+    
+    return result;
 }
 
-static void DrawInputBox(HDC hdc, const RECT& rc, bool focused) {
-    // Bottom underline style like Telegram
-    // Fill background white, draw underline gray/blue
-    FillSolidRect(hdc, rc, RGBc(255,255,255));
-    COLORREF line = focused ? RGBc(64,160,220) : RGBc(210,210,210);
-    HPEN pen = CreatePen(PS_SOLID, 2, line);
-    HGDIOBJ oldP = SelectObject(hdc, pen);
-    MoveToEx(hdc, rc.left, rc.bottom - 1, nullptr);
-    LineTo(hdc, rc.right, rc.bottom - 1);
-    SelectObject(hdc, oldP);
-    DeleteObject(pen);
-}
-
-static void DrawPhone(HDC hdc, int w, int h) {
-    RECT rcAll{0,0,w,h};
-    FillSolidRect(hdc, rcAll, RGBc(255,255,255));
-
-    // Top bar elements
-    // Back arrow (top-left)
-    DrawBackArrow(hdc, 22, 22, 8, RGBc(120,120,120));
-
-    // Settings link (top-right)
-    {
-        SIZE sz = MeasureText(hdc, g_fontLink, g_linkSettings.text);
-        int x = g_linkSettings.rc.right - sz.cx;
-        int y = g_linkSettings.rc.top;
-        COLORREF c = g_linkSettings.hot ? RGBc(0,120,200) : RGBc(0,140,220);
-        DrawUnderlineText(hdc, g_fontLink, g_linkSettings.text, x, y, c);
+static void DrawInputField(Graphics* g, InputField& field, const std::wstring& displayText) {
+    // Background
+    SolidBrush bgBrush(Colors::White);
+    g->FillRectangle(&bgBrush, field.rc);
+    
+    // Border
+    Color borderColor = field.GetBorderColor();
+    Pen borderPen(borderColor, 2.0f);
+    RectF borderRect = field.rc;
+    borderRect.Inflate(-1, -1);
+    g->DrawRectangle(&borderPen, borderRect);
+    
+    // Text or placeholder
+    RectF textRect = field.rc;
+    textRect.X += 16;
+    textRect.Width -= 32;
+    
+    if (displayText.empty() && !field.focused) {
+        SolidBrush phBrush(Colors::TextTertiary);
+        StringFormat format;
+        format.SetAlignment(StringAlignmentNear);
+        format.SetLineAlignment(StringAlignmentCenter);
+        g->DrawString(field.placeholder.c_str(), -1, g_fontBody, textRect, &format, &phBrush);
+    } else {
+        SolidBrush textBrush(Colors::TextPrimary);
+        StringFormat format;
+        format.SetAlignment(StringAlignmentNear);
+        format.SetLineAlignment(StringAlignmentCenter);
+        g->DrawString(displayText.c_str(), -1, g_fontBody, textRect, &format, &textBrush);
+        
+        // Cursor
+        if (field.focused && ((GetTickCount() / 500) % 2 == 0)) {
+            RectF cursorRect;
+            g->MeasureString(displayText.c_str(), (int)displayText.length(), 
+                           g_fontBody, textRect, &format, &cursorRect);
+            
+            Pen cursorPen(Colors::TelegramBlue, 2.0f);
+            float cursorX = textRect.X + cursorRect.Width + 2;
+            g->DrawLine(&cursorPen, 
+                cursorX, field.rc.Y + 14,
+                cursorX, field.rc.Y + field.rc.Height - 14);
+        }
     }
+}
 
-    // Header text
-    RECT rcH1{0, 110, w, 140};
-    DrawTextCentered(hdc, g_fontHeader, L"Ваш номер телефона", rcH1, RGBc(0,0,0));
-
-    RECT rcH2{0, 145, w, 185};
-    DrawTextCentered(hdc, g_fontSmall, L"Проверьте код страны и введите\nсвой номер телефона.",
-                     rcH2, RGBc(140,140,140));
-
-    // Country dropdown
-    // Draw underline and text
-    DrawInputBox(hdc, g_countryDrop, false);
-    RECT rcCountryText = g_countryDrop;
-    rcCountryText.left += 4;
-    rcCountryText.top += 10;
-    DrawTextLeft(hdc, g_fontBody, L"Russian Federation", rcCountryText, RGBc(0,0,0), DT_LEFT|DT_TOP|DT_SINGLELINE);
-    DrawChevronDown(hdc, g_countryDrop.right - 14, (g_countryDrop.top + g_countryDrop.bottom)/2, 6, RGBc(160,160,160));
-
-    // Code box + phone edit
-    DrawInputBox(hdc, g_codeBox, false);
-    RECT rcCodeText = g_codeBox;
-    rcCodeText.left += 6;
-    rcCodeText.top += 10;
-    DrawTextLeft(hdc, g_fontBody, L"+7", rcCodeText, RGBc(0,0,0), DT_LEFT|DT_TOP|DT_SINGLELINE);
-
-    DrawInputBox(hdc, g_phoneEdit, g_phoneFocused);
-    RECT rcPhoneText = g_phoneEdit;
-    rcPhoneText.left += 6;
-    rcPhoneText.top += 10;
-
-    std::wstring shown = g_phoneDigits.empty() ? L"___ ___ ____" : FormatPhoneMasked(g_phoneDigits);
-    COLORREF phoneColor = g_phoneDigits.empty() ? RGBc(180,180,180) : RGBc(0,0,0);
-    DrawTextLeft(hdc, g_fontBody, shown, rcPhoneText, phoneColor, DT_LEFT|DT_TOP|DT_SINGLELINE);
-
+static void DrawPhone(Graphics* g, int w, int h) {
+    // Background
+    SolidBrush bgBrush(Colors::White);
+    g->FillRectangle(&bgBrush, 0, 0, w, h);
+    
+    // Back arrow
+    DrawBackArrow(g, 26, 26, 10, Colors::TextSecondary);
+    
+    // Settings link
+    StringFormat rightFormat;
+    rightFormat.SetAlignment(StringAlignmentFar);
+    rightFormat.SetLineAlignment(StringAlignmentCenter);
+    
+    SolidBrush linkBrush(g_linkSettings.GetColor());
+    g->DrawString(g_linkSettings.text.c_str(), -1, g_fontLink, 
+                 g_linkSettings.rc, &rightFormat, &linkBrush);
+    
+    if (g_linkSettings.hot) {
+        Pen underline(g_linkSettings.GetColor(), 1.0f);
+        RectF measureRect;
+        g->MeasureString(g_linkSettings.text.c_str(), -1, g_fontLink, 
+                        PointF(0, 0), &measureRect);
+        float y = g_linkSettings.rc.Y + g_linkSettings.rc.Height - 4;
+        float x2 = g_linkSettings.rc.X + g_linkSettings.rc.Width;
+        g->DrawLine(&underline, x2 - measureRect.Width, y, x2, y);
+    }
+    
+    // Header
+    RectF headerRect(0, 120, (float)w, 32);
+    DrawTextCentered(g, L"Ваш номер телефона", headerRect, g_fontHeader, Colors::TextPrimary);
+    
+    RectF subheaderRect(0, 158, (float)w, 50);
+    std::wstring subtext = L"Проверьте код страны и введите\nсвой номер телефона.";
+    DrawTextCentered(g, subtext, subheaderRect, g_fontSmall, Colors::TextSecondary);
+    
+    // Country field with flag
+    DrawInputField(g, g_countryField, L"");
+    
+    // Draw flag and country name
+    RectF countryContent = g_countryField.rc;
+    countryContent.X += 16;
+    countryContent.Y += 14;
+    
+    DrawRussianFlag(g, countryContent.X, countryContent.Y, 32, 24);
+    
+    RectF countryTextRect = countryContent;
+    countryTextRect.X += 44;
+    countryTextRect.Width -= 44;
+    
+    StringFormat leftFormat;
+    leftFormat.SetAlignment(StringAlignmentNear);
+    leftFormat.SetLineAlignment(StringAlignmentCenter);
+    
+    SolidBrush textBrush(Colors::TextPrimary);
+    g->DrawString(L"Russian Federation", -1, g_fontBody, countryTextRect, &leftFormat, &textBrush);
+    
+    // Chevron
+    DrawChevronDown(g, 
+        g_countryField.rc.X + g_countryField.rc.Width - 24,
+        g_countryField.rc.Y + g_countryField.rc.Height / 2,
+        6, Colors::TextTertiary);
+    
+    // Phone field
+    std::wstring phoneDisplay = L"+7 ";
+    if (!g_phoneDigits.empty()) {
+        phoneDisplay += FormatPhoneMasked(g_phoneDigits);
+    } else if (!g_phoneField.focused) {
+        phoneDisplay += L"___ ___ ____";
+    }
+    
+    DrawInputField(g, g_phoneField, phoneDisplay);
+    
     // Continue button
-    COLORREF btnColor = g_btnContinue.hot ? RGBc(56, 167, 225) : RGBc(64, 160, 220);
-    FillRoundRect(hdc, g_btnContinue.rc, 10, btnColor);
-    DrawTextCentered(hdc, g_fontButton, g_btnContinue.text, g_btnContinue.rc, RGBc(255,255,255));
-
-    // Links under button
-    auto drawCenteredLink = [&](const Link& l) {
-        SIZE sz = MeasureText(hdc, g_fontLink, l.text);
-        int cx = (l.rc.left + l.rc.right)/2;
-        int x = cx - sz.cx/2;
-        int y = l.rc.top;
-        COLORREF c = l.hot ? RGBc(0,120,200) : RGBc(0,140,220);
-        DrawUnderlineText(hdc, g_fontLink, l.text, x, y, c);
+    RectF shadowBtnRect = g_btnContinue.rc;
+    shadowBtnRect.Inflate(2, 2);
+    shadowBtnRect.Offset(0, 2);
+    FillRoundRect(g, shadowBtnRect, 12, Colors::ShadowLight);
+    
+    Color btnColor = g_btnContinue.GetColor();
+    FillRoundRect(g, g_btnContinue.rc, 12, btnColor);
+    DrawTextCentered(g, g_btnContinue.text, g_btnContinue.rc, g_fontButton, Colors::White);
+    
+    // Links
+    auto drawCenteredLink = [&](Link& link) {
+        StringFormat format;
+        format.SetAlignment(StringAlignmentCenter);
+        format.SetLineAlignment(StringAlignmentCenter);
+        
+        SolidBrush brush(link.GetColor());
+        g->DrawString(link.text.c_str(), -1, g_fontLink, link.rc, &format, &brush);
+        
+        if (link.hot) {
+            RectF measureRect;
+            g->MeasureString(link.text.c_str(), -1, g_fontLink, PointF(0, 0), &measureRect);
+            
+            Pen underline(link.GetColor(), 1.0f);
+            float cx = link.rc.X + link.rc.Width / 2;
+            float y = link.rc.Y + link.rc.Height - 4;
+            g->DrawLine(&underline, 
+                cx - measureRect.Width / 2, y,
+                cx + measureRect.Width / 2, y);
+        }
     };
-
+    
     drawCenteredLink(g_linkContinueEn);
+    
+    // QR link with icon
+    float qrIconX = g_linkQr.rc.X + g_linkQr.rc.Width / 2 - 100;
+    DrawQRIcon(g, qrIconX, g_linkQr.rc.Y + 2, 20, g_linkQr.GetColor());
+    
+    RectF qrTextRect = g_linkQr.rc;
+    qrTextRect.X += 30;
     drawCenteredLink(g_linkQr);
 }
 
+static void DrawCode(Graphics* g, int w, int h) {
+    // Background
+    SolidBrush bgBrush(Colors::White);
+    g->FillRectangle(&bgBrush, 0, 0, w, h);
+    
+    // Back arrow
+    DrawBackArrow(g, 26, 26, 10, Colors::TextSecondary);
+    
+    // Header
+    RectF headerRect(0, 120, (float)w, 32);
+    DrawTextCentered(g, L"Введите код", headerRect, g_fontHeader, Colors::TextPrimary);
+    
+    RectF subheaderRect(0, 158, (float)w, 50);
+    std::wstring phoneFormatted = L"+7 " + FormatPhoneMasked(g_phoneDigits);
+    std::wstring subtext = L"Мы отправили код на номер\n" + phoneFormatted;
+    DrawTextCentered(g, subtext, subheaderRect, g_fontSmall, Colors::TextSecondary);
+    
+    // Code input
+    RectF codeRect = g_codeField.rc;
+    
+    // Background
+    SolidBrush codeBgBrush(Colors::White);
+    g->FillRectangle(&codeBgBrush, codeRect);
+    
+    // Border
+    Color borderColor = g_codeField.GetBorderColor();
+    Pen borderPen(borderColor, 2.0f);
+    RectF borderRect = codeRect;
+    borderRect.Inflate(-1, -1);
+    g->DrawRectangle(&borderPen, borderRect);
+    
+    // Code digits
+    if (g_codeDigits.empty() && !g_codeField.focused) {
+        SolidBrush phBrush(Colors::TextTertiary);
+        DrawTextCentered(g, L"— — — — —", codeRect, g_fontCode, Colors::TextTertiary);
+    } else {
+        std::wstring codeDisplay;
+        for (size_t i = 0; i < 5; i++) {
+            if (i < g_codeDigits.length()) {
+                codeDisplay += g_codeDigits[i];
+            } else {
+                codeDisplay += L"—";
+            }
+            if (i < 4) codeDisplay += L" ";
+        }
+        
+        DrawTextCentered(g, codeDisplay, codeRect, g_fontCode, Colors::TextPrimary);
+    }
+    
+    // Verify button
+    RectF shadowBtnRect = g_btnVerify.rc;
+    shadowBtnRect.Inflate(2, 2);
+    shadowBtnRect.Offset(0, 2);
+    FillRoundRect(g, shadowBtnRect, 12, Colors::ShadowLight);
+    
+    Color btnColor = g_btnVerify.GetColor();
+    FillRoundRect(g, g_btnVerify.rc, 12, btnColor);
+    DrawTextCentered(g, g_btnVerify.text, g_btnVerify.rc, g_fontButton, Colors::White);
+    
+    // Resend link
+    StringFormat format;
+    format.SetAlignment(StringAlignmentCenter);
+    format.SetLineAlignment(StringAlignmentCenter);
+    
+    SolidBrush linkBrush(g_linkResend.GetColor());
+    g->DrawString(g_linkResend.text.c_str(), -1, g_fontLink, g_linkResend.rc, &format, &linkBrush);
+    
+    if (g_linkResend.hot) {
+        RectF measureRect;
+        g->MeasureString(g_linkResend.text.c_str(), -1, g_fontLink, PointF(0, 0), &measureRect);
+        
+        Pen underline(g_linkResend.GetColor(), 1.0f);
+        float cx = g_linkResend.rc.X + g_linkResend.rc.Width / 2;
+        float y = g_linkResend.rc.Y + g_linkResend.rc.Height - 4;
+        g->DrawLine(&underline, 
+            cx - measureRect.Width / 2, y,
+            cx + measureRect.Width / 2, y);
+    }
+}
+
 static void Paint(HWND hwnd) {
-    RECT rc{};
+    RECT rc;
     GetClientRect(hwnd, &rc);
     int w = rc.right - rc.left;
     int h = rc.bottom - rc.top;
-
-    PAINTSTRUCT ps{};
+    
+    PAINTSTRUCT ps;
     HDC hdc = BeginPaint(hwnd, &ps);
-
+    
     // Double buffering
-    HDC mem = CreateCompatibleDC(hdc);
-    HBITMAP bmp = CreateCompatibleBitmap(hdc, w, h);
-    HGDIOBJ oldBmp = SelectObject(mem, bmp);
-
-    if (g_screen == Screen::Welcome) DrawWelcome(mem, w, h);
-    else DrawPhone(mem, w, h);
-
-    BitBlt(hdc, 0, 0, w, h, mem, 0, 0, SRCCOPY);
-
-    SelectObject(mem, oldBmp);
-    DeleteObject(bmp);
-    DeleteDC(mem);
-
+    HDC memDC = CreateCompatibleDC(hdc);
+    HBITMAP memBitmap = CreateCompatibleBitmap(hdc, w, h);
+    HGDIOBJ oldBitmap = SelectObject(memDC, memBitmap);
+    
+    Graphics graphics(memDC);
+    graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    graphics.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
+    
+    if (g_screen == Screen::Welcome) {
+        DrawWelcome(&graphics, w, h);
+    } else if (g_screen == Screen::Phone) {
+        DrawPhone(&graphics, w, h);
+    } else if (g_screen == Screen::Code) {
+        DrawCode(&graphics, w, h);
+    }
+    
+    BitBlt(hdc, 0, 0, w, h, memDC, 0, 0, SRCCOPY);
+    
+    SelectObject(memDC, oldBitmap);
+    DeleteObject(memBitmap);
+    DeleteDC(memDC);
+    
     EndPaint(hwnd, &ps);
 }
 
-// ---------------- Input handling ----------------
+// ---------------- Input Handling ----------------
 static void ClickWelcome(POINT pt) {
-    if (PtInRectEx(g_btnStart.rc, pt)) {
+    if (PtInRectF(g_btnStart.rc, pt)) {
         SetScreen(Screen::Phone);
-        return;
-    }
-    if (PtInRectEx(g_linkRu.rc, pt)) {
-        // Just go next for demo as well
+    } else if (PtInRectF(g_linkRu.rc, pt)) {
         SetScreen(Screen::Phone);
-        return;
     }
 }
 
 static void ClickPhone(POINT pt) {
-    // Back arrow area
-    RECT backArea{ 10, 10, 60, 60 };
-    if (PtInRectEx(backArea, pt)) {
+    RECT backArea = { 10, 10, 60, 60 };
+    if (PtInRect(&backArea, pt)) {
         SetScreen(Screen::Welcome);
         return;
     }
-
-    if (PtInRectEx(g_phoneEdit, pt)) {
-        g_phoneFocused = true;
+    
+    if (PtInRectF(g_phoneField.rc, pt)) {
+        g_phoneField.focused = true;
+        StartAnimation(g_phoneField.focusAnim);
         InvalidateRect(g_hwnd, nullptr, FALSE);
         return;
     } else {
-        g_phoneFocused = false;
+        if (g_phoneField.focused) {
+            g_phoneField.focused = false;
+            StartAnimation(g_phoneField.focusAnim);
+        }
+    }
+    
+    if (PtInRectF(g_btnContinue.rc, pt)) {
+        if (g_phoneDigits.length() >= 10) {
+            SetScreen(Screen::Code);
+        } else {
+            MessageBoxW(g_hwnd, L"Пожалуйста, введите полный номер телефона.", L"Ошибка", MB_OK | MB_ICONWARNING);
+        }
+        return;
+    }
+    
+    if (PtInRectF(g_linkSettings.rc, pt)) {
+        MessageBoxW(g_hwnd, L"Настройки (демо)", L"Settings", MB_OK | MB_ICONINFORMATION);
+    } else if (PtInRectF(g_linkContinueEn.rc, pt)) {
+        MessageBoxW(g_hwnd, L"Смена языка (демо)", L"Language", MB_OK | MB_ICONINFORMATION);
+    } else if (PtInRectF(g_linkQr.rc, pt)) {
+        MessageBoxW(g_hwnd, L"QR-вход (демо)", L"QR Login", MB_OK | MB_ICONINFORMATION);
+    }
+}
+
+static void ClickCode(POINT pt) {
+    RECT backArea = { 10, 10, 60, 60 };
+    if (PtInRect(&backArea, pt)) {
+        SetScreen(Screen::Phone);
+        return;
+    }
+    
+    if (PtInRectF(g_codeField.rc, pt)) {
+        g_codeField.focused = true;
+        StartAnimation(g_codeField.focusAnim);
         InvalidateRect(g_hwnd, nullptr, FALSE);
+        return;
+    } else {
+        if (g_codeField.focused) {
+            g_codeField.focused = false;
+            StartAnimation(g_codeField.focusAnim);
+        }
     }
-
-    if (PtInRectEx(g_btnContinue.rc, pt)) {
-        MessageBoxW(g_hwnd, L"Демо макет: здесь обычно отправляется код подтверждения.", L"Continue", MB_OK | MB_ICONINFORMATION);
+    
+    if (PtInRectF(g_btnVerify.rc, pt)) {
+        if (g_codeDigits.length() == 5) {
+            MessageBoxW(g_hwnd, L"Код подтвержден! (демо)", L"Success", MB_OK | MB_ICONINFORMATION);
+        } else {
+            MessageBoxW(g_hwnd, L"Пожалуйста, введите 5-значный код.", L"Ошибка", MB_OK | MB_ICONWARNING);
+        }
         return;
     }
-
-    if (PtInRectEx(g_linkSettings.rc, pt)) {
-        MessageBoxW(g_hwnd, L"Настройки (демо).", L"Settings", MB_OK);
-        return;
-    }
-    if (PtInRectEx(g_linkContinueEn.rc, pt)) {
-        MessageBoxW(g_hwnd, L"Switch language (демо).", L"Language", MB_OK);
-        return;
-    }
-    if (PtInRectEx(g_linkQr.rc, pt)) {
-        MessageBoxW(g_hwnd, L"QR login (демо).", L"QR", MB_OK);
-        return;
+    
+    if (PtInRectF(g_linkResend.rc, pt)) {
+        MessageBoxW(g_hwnd, L"Код отправлен повторно (демо)", L"Resend", MB_OK | MB_ICONINFORMATION);
     }
 }
 
 static void OnChar(wchar_t ch) {
-    if (g_screen != Screen::Phone) return;
-    if (!g_phoneFocused) return;
-
-    if (ch >= L'0' && ch <= L'9') {
-        if ((int)g_phoneDigits.size() < 10) {
-            g_phoneDigits.push_back(ch);
-            InvalidateRect(g_hwnd, nullptr, FALSE);
+    if (g_screen == Screen::Phone && g_phoneField.focused) {
+        if (ch >= L'0' && ch <= L'9') {
+            if (g_phoneDigits.length() < 10) {
+                g_phoneDigits.push_back(ch);
+                InvalidateRect(g_hwnd, nullptr, FALSE);
+            }
+        } else if (ch == 8) { // Backspace
+            if (!g_phoneDigits.empty()) {
+                g_phoneDigits.pop_back();
+                InvalidateRect(g_hwnd, nullptr, FALSE);
+            }
         }
-    } else if (ch == 8) { // backspace
-        if (!g_phoneDigits.empty()) {
-            g_phoneDigits.pop_back();
-            InvalidateRect(g_hwnd, nullptr, FALSE);
+    } else if (g_screen == Screen::Code && g_codeField.focused) {
+        if (ch >= L'0' && ch <= L'9') {
+            if (g_codeDigits.length() < 5) {
+                g_codeDigits.push_back(ch);
+                InvalidateRect(g_hwnd, nullptr, FALSE);
+                
+                if (g_codeDigits.length() == 5) {
+                    // Auto-verify when 5 digits entered
+                    PostMessage(g_hwnd, WM_COMMAND, 1001, 0);
+                }
+            }
+        } else if (ch == 8) { // Backspace
+            if (!g_codeDigits.empty()) {
+                g_codeDigits.pop_back();
+                InvalidateRect(g_hwnd, nullptr, FALSE);
+            }
         }
     }
 }
 
-static void OnMouseMove(HWND hwnd, int x, int y) {
-    POINT pt{ x, y };
-    UpdateHotStates(pt);
-    InvalidateRect(hwnd, nullptr, FALSE);
-}
-
-// ---------------- WndProc ----------------
+// ---------------- Window Procedure ----------------
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_CREATE:
         g_hwnd = hwnd;
         CreateFonts();
+        SetTimer(hwnd, 1, 16, nullptr); // ~60 FPS for animations
         return 0;
-
+        
+    case WM_TIMER:
+        if (wParam == 1) {
+            bool needRedraw = false;
+            
+            needRedraw |= UpdateAnimation(g_screenAnim);
+            needRedraw |= UpdateAnimation(g_btnStart.hoverAnim);
+            needRedraw |= UpdateAnimation(g_btnContinue.hoverAnim);
+            needRedraw |= UpdateAnimation(g_btnVerify.hoverAnim);
+            needRedraw |= UpdateAnimation(g_linkRu.hoverAnim);
+            needRedraw |= UpdateAnimation(g_linkContinueEn.hoverAnim);
+            needRedraw |= UpdateAnimation(g_linkQr.hoverAnim);
+            needRedraw |= UpdateAnimation(g_linkSettings.hoverAnim);
+            needRedraw |= UpdateAnimation(g_linkResend.hoverAnim);
+            needRedraw |= UpdateAnimation(g_phoneField.focusAnim);
+            needRedraw |= UpdateAnimation(g_codeField.focusAnim);
+            
+            if (needRedraw) {
+                InvalidateRect(hwnd, nullptr, FALSE);
+            }
+        }
+        return 0;
+        
     case WM_SIZE: {
-        RECT rc{};
+        RECT rc;
         GetClientRect(hwnd, &rc);
         LayoutUI(rc.right - rc.left, rc.bottom - rc.top);
         InvalidateRect(hwnd, nullptr, TRUE);
         return 0;
     }
-
-    case WM_MOUSEMOVE:
-        OnMouseMove(hwnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+    
+    case WM_MOUSEMOVE: {
+        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        UpdateHotStates(pt);
+        
+        static TRACKMOUSEEVENT tme = { sizeof(tme), TME_LEAVE, hwnd, 0 };
+        TrackMouseEvent(&tme);
+        
         return 0;
-
+    }
+    
+    case WM_MOUSELEAVE:
+        // Reset all hot states
+        g_btnStart.hot = false;
+        g_btnContinue.hot = false;
+        g_btnVerify.hot = false;
+        g_linkRu.hot = false;
+        g_linkContinueEn.hot = false;
+        g_linkQr.hot = false;
+        g_linkSettings.hot = false;
+        g_linkResend.hot = false;
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return 0;
+    
     case WM_LBUTTONDOWN: {
         SetCapture(hwnd);
-        POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        
         if (g_screen == Screen::Welcome) {
-            g_btnStart.down = PtInRectEx(g_btnStart.rc, pt);
-        } else {
-            g_btnContinue.down = PtInRectEx(g_btnContinue.rc, pt);
+            g_btnStart.down = PtInRectF(g_btnStart.rc, pt);
+        } else if (g_screen == Screen::Phone) {
+            g_btnContinue.down = PtInRectF(g_btnContinue.rc, pt);
+        } else if (g_screen == Screen::Code) {
+            g_btnVerify.down = PtInRectF(g_btnVerify.rc, pt);
         }
+        
         InvalidateRect(hwnd, nullptr, FALSE);
         return 0;
     }
-
+    
     case WM_LBUTTONUP: {
         ReleaseCapture();
-        POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-
+        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        
+        bool wasDown = false;
         if (g_screen == Screen::Welcome) {
-            bool wasDown = g_btnStart.down;
+            wasDown = g_btnStart.down;
             g_btnStart.down = false;
             if (wasDown) ClickWelcome(pt);
-        } else {
-            bool wasDown = g_btnContinue.down;
+        } else if (g_screen == Screen::Phone) {
+            wasDown = g_btnContinue.down;
             g_btnContinue.down = false;
-            if (wasDown) ClickPhone(pt);
-            else ClickPhone(pt); // allow clicking links/fields
+            ClickPhone(pt);
+        } else if (g_screen == Screen::Code) {
+            wasDown = g_btnVerify.down;
+            g_btnVerify.down = false;
+            ClickCode(pt);
         }
-
+        
         InvalidateRect(hwnd, nullptr, FALSE);
         return 0;
     }
-
+    
     case WM_CHAR:
         OnChar((wchar_t)wParam);
         return 0;
-
+    
+    case WM_COMMAND:
+        if (wParam == 1001) { // Auto-verify code
+            Sleep(100);
+            MessageBoxW(hwnd, L"Код подтвержден! Добро пожаловать в Telegram!", L"Success", MB_OK | MB_ICONINFORMATION);
+        }
+        return 0;
+    
     case WM_SETFOCUS:
         InvalidateRect(hwnd, nullptr, FALSE);
         return 0;
-
+    
     case WM_KILLFOCUS:
-        g_phoneFocused = false;
+        g_phoneField.focused = false;
+        g_codeField.focused = false;
         InvalidateRect(hwnd, nullptr, FALSE);
         return 0;
-
+    
     case WM_PAINT:
         Paint(hwnd);
         return 0;
-
+    
+    case WM_ERASEBKGND:
+        return 1; // Prevent flickering
+    
     case WM_DESTROY:
+        KillTimer(hwnd, 1);
         DestroyFonts();
         PostQuitMessage(0);
         return 0;
     }
+    
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
-// ---------------- WinMain ----------------
+// ---------------- Entry Point ----------------
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     g_hInst = hInstance;
-
-    WNDCLASSEXW wc{};
+    
+    // Initialize GDI+
+    GdiplusStartupInput gdiplusStartupInput;
+    GdiplusStartup(&g_gdiplusToken, &gdiplusStartupInput, nullptr);
+    
+    // Register window class
+    WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(wc);
     wc.style = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
     wc.lpszClassName = kClassName;
-
-    if (!RegisterClassExW(&wc)) return 0;
-
-    // Window size similar to screenshot
-    int winW = 820;
-    int winH = 560;
-
+    
+    if (!RegisterClassExW(&wc)) {
+        MessageBoxW(nullptr, L"Failed to register window class", L"Error", MB_OK | MB_ICONERROR);
+        return 0;
+    }
+    
+    // Create window
+    int winW = 900;
+    int winH = 640;
+    
     HWND hwnd = CreateWindowExW(
-        0, kClassName, L"Telegram Desktop",
+        0,
+        kClassName,
+        L"Telegram Desktop Enhanced",
         WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, winW, winH,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        winW, winH,
         nullptr, nullptr, hInstance, nullptr
     );
-    if (!hwnd) return 0;
-
+    
+    if (!hwnd) {
+        MessageBoxW(nullptr, L"Failed to create window", L"Error", MB_OK | MB_ICONERROR);
+        return 0;
+    }
+    
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
-
-    // Force initial layout
-    RECT rc{};
+    
+    // Initial layout
+    RECT rc;
     GetClientRect(hwnd, &rc);
     LayoutUI(rc.right - rc.left, rc.bottom - rc.top);
-
-    MSG msg{};
+    
+    // Message loop
+    MSG msg = {};
     while (GetMessageW(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
+    
+    // Cleanup GDI+
+    GdiplusShutdown(g_gdiplusToken);
+    
     return (int)msg.wParam;
 }
