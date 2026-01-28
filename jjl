@@ -1,2118 +1,635 @@
-// ============================================================================
-// GTA5 RP LAUNCHER - FULL IMPLEMENTATION
-// Полная копия интерфейса лаунчера GTA5 RP
-// Все в одном файле, без внешних библиотек (кроме стандартных Windows API)
-// ============================================================================
+// main.cpp - Telegram-like 2-screen mock (WinAPI + GDI), single file, no Qt.
+// Build (MSVC): cl /EHsc /DUNICODE /D_UNICODE main.cpp user32.lib gdi32.lib
+// Build (MinGW): g++ -municode -O2 main.cpp -lgdi32 -luser32 -o telegram_mock.exe
 
 #define UNICODE
 #define _UNICODE
 #include <windows.h>
 #include <windowsx.h>
-#include <commctrl.h>
 #include <string>
 #include <vector>
-#include <map>
 #include <algorithm>
-#include <sstream>
-#include <ctime>
-#include <cmath>
 
-#pragma comment(lib, "comctl32.lib")
-#pragma comment(lib, "msimg32.lib")
-#pragma comment(lib, "gdi32.lib")
-#pragma comment(lib, "user32.lib")
+static const wchar_t* kClassName = L"TelegramMockWindowClass";
 
-// ============================================================================
-// КОНСТАНТЫ И ОПРЕДЕЛЕНИЯ
-// ============================================================================
+static HINSTANCE g_hInst = nullptr;
+static HWND g_hwnd = nullptr;
 
-#define WM_UPDATE_UI (WM_USER + 1)
-#define WM_ANIMATE (WM_USER + 2)
-#define WM_SCROLL_CONTENT (WM_USER + 3)
-
-#define WINDOW_WIDTH 1200
-#define WINDOW_HEIGHT 700
-#define SIDEBAR_WIDTH 238
-#define HEADER_HEIGHT 56
-
-#define COLOR_DARK_BG RGB(26, 26, 26)
-#define COLOR_SIDEBAR_BG RGB(32, 32, 32)
-#define COLOR_ORANGE RGB(255, 120, 0)
-#define COLOR_ORANGE_HOVER RGB(255, 140, 30)
-#define COLOR_DARK_PANEL RGB(18, 18, 18)
-#define COLOR_TEXT_WHITE RGB(255, 255, 255)
-#define COLOR_TEXT_GRAY RGB(160, 160, 160)
-#define COLOR_BORDER RGB(60, 60, 60)
-
-#define TIMER_ANIMATION 1
-#define TIMER_PLAYER_COUNT 2
-#define TIMER_CAROUSEL 3
-
-// ============================================================================
-// СТРУКТУРЫ ДАННЫХ
-// ============================================================================
-
-struct Point {
-    int x, y;
-    Point() : x(0), y(0) {}
-    Point(int _x, int _y) : x(_x), y(_y) {}
+enum class Screen {
+    Welcome = 0,
+    Phone = 1
 };
+static Screen g_screen = Screen::Welcome;
 
-struct Rect {
-    int x, y, width, height;
-    Rect() : x(0), y(0), width(0), height(0) {}
-    Rect(int _x, int _y, int _w, int _h) : x(_x), y(_y), width(_w), height(_h) {}
-    
-    bool Contains(int px, int py) const {
-        return px >= x && px < x + width && py >= y && py < y + height;
-    }
-};
+// ---------------- Utilities ----------------
+static int ClampI(int v, int lo, int hi) { return (v < lo) ? lo : (v > hi) ? hi : v; }
 
-struct Color {
-    BYTE r, g, b, a;
-    Color() : r(0), g(0), b(0), a(255) {}
-    Color(BYTE _r, BYTE _g, BYTE _b, BYTE _a = 255) : r(_r), g(_g), b(_b), a(_a) {}
-    
-    COLORREF ToCOLORREF() const {
-        return RGB(r, g, b);
-    }
-    
-    static Color FromRGB(COLORREF color) {
-        return Color(GetRValue(color), GetGValue(color), GetBValue(color));
-    }
-};
+static COLORREF RGBc(int r, int g, int b) { return RGB(ClampI(r,0,255), ClampI(g,0,255), ClampI(b,0,255)); }
 
-struct MenuItem {
-    std::wstring text;
-    std::wstring icon;
-    int id;
-    bool selected;
-    bool enabled;
-    Rect bounds;
-    
-    MenuItem() : id(0), selected(false), enabled(true) {}
-    MenuItem(const std::wstring& t, const std::wstring& i, int _id) 
-        : text(t), icon(i), id(_id), selected(false), enabled(true) {}
-};
-
-struct ServerCard {
-    std::wstring name;
-    std::wstring number;
-    std::wstring icon;
-    int players;
-    Rect bounds;
-    bool hovered;
-    
-    ServerCard() : players(0), hovered(false) {}
-    ServerCard(const std::wstring& n, const std::wstring& num, const std::wstring& i, int p)
-        : name(n), number(num), icon(i), players(p), hovered(false) {}
-};
-
-struct MediaItem {
-    std::wstring imagePath;
-    std::wstring title;
-    int type; // 0 - все, 1 - стримы, 2 - видео
-    HBITMAP bitmap;
-    
-    MediaItem() : type(0), bitmap(NULL) {}
-    MediaItem(const std::wstring& img, const std::wstring& t, int tp)
-        : imagePath(img), title(t), type(tp), bitmap(NULL) {}
-};
-
-struct Button {
-    std::wstring text;
-    Rect bounds;
-    Color bgColor;
-    Color hoverColor;
-    Color textColor;
-    bool hovered;
-    bool enabled;
-    int id;
-    
-    Button() : hovered(false), enabled(true), id(0) {}
-    Button(const std::wstring& t, const Rect& r, const Color& bg, int _id)
-        : text(t), bounds(r), bgColor(bg), hoverColor(bg), textColor(255, 255, 255), 
-          hovered(false), enabled(true), id(_id) {}
-};
-
-// ============================================================================
-// КЛАСС ДЛЯ РАБОТЫ С ГРАФИКОЙ
-// ============================================================================
-
-class Graphics {
-private:
-    HDC hdc;
-    HBITMAP hBitmap;
-    HDC memDC;
-    int width, height;
-    
-public:
-    Graphics(HDC _hdc, int w, int h) : hdc(_hdc), width(w), height(h) {
-        memDC = CreateCompatibleDC(hdc);
-        hBitmap = CreateCompatibleBitmap(hdc, width, height);
-        SelectObject(memDC, hBitmap);
-    }
-    
-    ~Graphics() {
-        DeleteObject(hBitmap);
-        DeleteDC(memDC);
-    }
-    
-    void Clear(COLORREF color) {
-        HBRUSH brush = CreateSolidBrush(color);
-        RECT rect = {0, 0, width, height};
-        FillRect(memDC, &rect, brush);
-        DeleteObject(brush);
-    }
-    
-    void FillRectangle(const Rect& rect, COLORREF color) {
-        HBRUSH brush = CreateSolidBrush(color);
-        RECT r = {rect.x, rect.y, rect.x + rect.width, rect.y + rect.height};
-        FillRect(memDC, &r, brush);
-        DeleteObject(brush);
-    }
-    
-    void FillRoundRectangle(const Rect& rect, int radius, COLORREF color) {
-        HBRUSH brush = CreateSolidBrush(color);
-        HPEN pen = CreatePen(PS_SOLID, 1, color);
-        HBRUSH oldBrush = (HBRUSH)SelectObject(memDC, brush);
-        HPEN oldPen = (HPEN)SelectObject(memDC, pen);
-        
-        RoundRect(memDC, rect.x, rect.y, rect.x + rect.width, rect.y + rect.height, radius, radius);
-        
-        SelectObject(memDC, oldBrush);
-        SelectObject(memDC, oldPen);
-        DeleteObject(brush);
-        DeleteObject(pen);
-    }
-    
-    void DrawRectangle(const Rect& rect, COLORREF color, int thickness = 1) {
-        HPEN pen = CreatePen(PS_SOLID, thickness, color);
-        HPEN oldPen = (HPEN)SelectObject(memDC, pen);
-        HBRUSH oldBrush = (HBRUSH)SelectObject(memDC, GetStockObject(NULL_BRUSH));
-        
-        Rectangle(memDC, rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
-        
-        SelectObject(memDC, oldPen);
-        SelectObject(memDC, oldBrush);
-        DeleteObject(pen);
-    }
-    
-    void DrawLine(int x1, int y1, int x2, int y2, COLORREF color, int thickness = 1) {
-        HPEN pen = CreatePen(PS_SOLID, thickness, color);
-        HPEN oldPen = (HPEN)SelectObject(memDC, pen);
-        
-        MoveToEx(memDC, x1, y1, NULL);
-        LineTo(memDC, x2, y2);
-        
-        SelectObject(memDC, oldPen);
-        DeleteObject(pen);
-    }
-    
-    void DrawText(const std::wstring& text, const Rect& rect, COLORREF color, 
-                  int fontSize, bool bold = false, UINT format = DT_LEFT | DT_VCENTER | DT_SINGLELINE) {
-        HFONT font = CreateFont(fontSize, 0, 0, 0, bold ? FW_BOLD : FW_NORMAL,
-                                FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-                                OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                                L"Segoe UI");
-        
-        HFONT oldFont = (HFONT)SelectObject(memDC, font);
-        SetTextColor(memDC, color);
-        SetBkMode(memDC, TRANSPARENT);
-        
-        RECT r = {rect.x, rect.y, rect.x + rect.width, rect.y + rect.height};
-        DrawTextW(memDC, text.c_str(), -1, &r, format);
-        
-        SelectObject(memDC, oldFont);
-        DeleteObject(font);
-    }
-    
-    void DrawImage(HBITMAP bitmap, const Rect& rect) {
-        if (!bitmap) return;
-        
-        HDC hdcMem = CreateCompatibleDC(memDC);
-        HBITMAP oldBitmap = (HBITMAP)SelectObject(hdcMem, bitmap);
-        
-        BITMAP bm;
-        GetObject(bitmap, sizeof(bm), &bm);
-        
-        SetStretchBltMode(memDC, HALFTONE);
-        StretchBlt(memDC, rect.x, rect.y, rect.width, rect.height,
-                   hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
-        
-        SelectObject(hdcMem, oldBitmap);
-        DeleteDC(hdcMem);
-    }
-    
-    void DrawImageWithAlpha(HBITMAP bitmap, const Rect& rect, int alpha = 255) {
-        if (!bitmap) return;
-        
-        HDC hdcMem = CreateCompatibleDC(memDC);
-        HBITMAP oldBitmap = (HBITMAP)SelectObject(hdcMem, bitmap);
-        
-        BITMAP bm;
-        GetObject(bitmap, sizeof(bm), &bm);
-        
-        BLENDFUNCTION blend = {AC_SRC_OVER, 0, (BYTE)alpha, AC_SRC_ALPHA};
-        AlphaBlend(memDC, rect.x, rect.y, rect.width, rect.height,
-                   hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, blend);
-        
-        SelectObject(hdcMem, oldBitmap);
-        DeleteDC(hdcMem);
-    }
-    
-    void DrawGradient(const Rect& rect, COLORREF color1, COLORREF color2, bool vertical = true) {
-        TRIVERTEX vertex[2];
-        vertex[0].x = rect.x;
-        vertex[0].y = rect.y;
-        vertex[0].Red = GetRValue(color1) << 8;
-        vertex[0].Green = GetGValue(color1) << 8;
-        vertex[0].Blue = GetBValue(color1) << 8;
-        vertex[0].Alpha = 0x0000;
-        
-        vertex[1].x = rect.x + rect.width;
-        vertex[1].y = rect.y + rect.height;
-        vertex[1].Red = GetRValue(color2) << 8;
-        vertex[1].Green = GetGValue(color2) << 8;
-        vertex[1].Blue = GetBValue(color2) << 8;
-        vertex[1].Alpha = 0x0000;
-        
-        GRADIENT_RECT gRect = {0, 1};
-        GradientFill(memDC, vertex, 2, &gRect, 1, vertical ? GRADIENT_FILL_RECT_V : GRADIENT_FILL_RECT_H);
-    }
-    
-    void DrawIcon(const std::wstring& iconText, const Rect& rect, COLORREF color, int fontSize) {
-        DrawText(iconText, rect, color, fontSize, false, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    }
-    
-    void Present() {
-        BitBlt(hdc, 0, 0, width, height, memDC, 0, 0, SRCCOPY);
-    }
-    
-    HDC GetHDC() { return memDC; }
-};
-
-// ============================================================================
-// КЛАСС МЕНЕДЖЕРА РЕСУРСОВ
-// ============================================================================
-
-class ResourceManager {
-private:
-    std::map<std::wstring, HBITMAP> bitmaps;
-    std::map<std::wstring, HFONT> fonts;
-    
-public:
-    ResourceManager() {}
-    
-    ~ResourceManager() {
-        for (auto& pair : bitmaps) {
-            if (pair.second) DeleteObject(pair.second);
-        }
-        for (auto& pair : fonts) {
-            if (pair.second) DeleteObject(pair.second);
-        }
-    }
-    
-    HBITMAP LoadBitmapFromResource(const std::wstring& name) {
-        auto it = bitmaps.find(name);
-        if (it != bitmaps.end()) {
-            return it->second;
-        }
-        return NULL;
-    }
-    
-    HBITMAP CreatePlaceholderBitmap(int width, int height, COLORREF color) {
-        HDC hdc = GetDC(NULL);
-        HDC memDC = CreateCompatibleDC(hdc);
-        HBITMAP bitmap = CreateCompatibleBitmap(hdc, width, height);
-        HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, bitmap);
-        
-        HBRUSH brush = CreateSolidBrush(color);
-        RECT rect = {0, 0, width, height};
-        FillRect(memDC, &rect, brush);
-        DeleteObject(brush);
-        
-        SelectObject(memDC, oldBitmap);
-        DeleteDC(memDC);
-        ReleaseDC(NULL, hdc);
-        
-        return bitmap;
-    }
-    
-    HFONT CreateCustomFont(const std::wstring& name, int size, bool bold = false) {
-        std::wstring key = name + L"_" + std::to_wstring(size) + (bold ? L"_bold" : L"");
-        auto it = fonts.find(key);
-        if (it != fonts.end()) {
-            return it->second;
-        }
-        
-        HFONT font = CreateFont(size, 0, 0, 0, bold ? FW_BOLD : FW_NORMAL,
-                               FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-                               OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                               CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                               name.c_str());
-        fonts[key] = font;
-        return font;
-    }
-};
-
-// ============================================================================
-// КЛАСС АНИМАЦИИ
-// ============================================================================
-
-class Animation {
-private:
-    double startValue;
-    double endValue;
-    double currentValue;
-    double duration;
-    double elapsed;
-    bool running;
-    bool completed;
-    
-public:
-    Animation() : startValue(0), endValue(0), currentValue(0), 
-                  duration(0), elapsed(0), running(false), completed(false) {}
-    
-    void Start(double start, double end, double durationMs) {
-        startValue = start;
-        endValue = end;
-        currentValue = start;
-        duration = durationMs;
-        elapsed = 0;
-        running = true;
-        completed = false;
-    }
-    
-    void Update(double deltaTime) {
-        if (!running) return;
-        
-        elapsed += deltaTime;
-        if (elapsed >= duration) {
-            currentValue = endValue;
-            running = false;
-            completed = true;
-        } else {
-            double t = elapsed / duration;
-            // Ease in-out cubic
-            t = t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2;
-            currentValue = startValue + (endValue - startValue) * t;
-        }
-    }
-    
-    double GetValue() const { return currentValue; }
-    bool IsRunning() const { return running; }
-    bool IsCompleted() const { return completed; }
-    void Stop() { running = false; }
-};
-
-// ============================================================================
-// ГЛАВНЫЙ КЛАСС ПРИЛОЖЕНИЯ
-// ============================================================================
-
-class GTA5RPLauncher {
-private:
-    HWND hwnd;
-    HINSTANCE hInstance;
-    ResourceManager resourceManager;
-    
-    // UI элементы
-    std::vector<MenuItem> menuItems;
-    std::vector<ServerCard> serverCards;
-    std::vector<MediaItem> mediaItems;
-    std::vector<Button> buttons;
-    
-    // Состояние
-    int selectedMenuItem;
-    int hoveredMenuItem;
-    int hoveredServerCard;
-    int hoveredButton;
-    int currentPlayerCount;
-    int mediaFilter; // 0 - все, 1 - стримы, 2 - видео
-    int carouselIndex;
-    double scrollOffset;
-    double targetScrollOffset;
-    
-    // Анимации
-    Animation scrollAnimation;
-    Animation fadeAnimation;
-    std::map<int, Animation> buttonAnimations;
-    
-    // Таймеры
-    DWORD lastUpdateTime;
-    
-    // Размеры и позиции
-    Rect sidebarRect;
-    Rect contentRect;
-    Rect headerRect;
-    
-public:
-    GTA5RPLauncher(HINSTANCE hInst) : hInstance(hInst), hwnd(NULL),
-        selectedMenuItem(0), hoveredMenuItem(-1), hoveredServerCard(-1),
-        hoveredButton(-1), currentPlayerCount(44620), mediaFilter(0),
-        carouselIndex(0), scrollOffset(0), targetScrollOffset(0),
-        lastUpdateTime(0) {
-        
-        InitializeMenuItems();
-        InitializeServerCards();
-        InitializeMediaItems();
-        InitializeButtons();
-    }
-    
-    ~GTA5RPLauncher() {
-        // Очистка ресурсов
-        for (auto& item : mediaItems) {
-            if (item.bitmap) {
-                DeleteObject(item.bitmap);
-            }
-        }
-    }
-    
-    // ========================================================================
-    // ИНИЦИАЛИЗАЦИЯ
-    // ========================================================================
-    
-    void InitializeMenuItems() {
-        menuItems.push_back(MenuItem(L"Главная", L"🏠", 0));
-        menuItems.push_back(MenuItem(L"Сервера", L"🖥", 1));
-        menuItems.push_back(MenuItem(L"Новости", L"📰", 2));
-        menuItems.push_back(MenuItem(L"Сообщества", L"👥", 3));
-        menuItems.push_back(MenuItem(L"Купить GTA V", L"🛒", 4));
-        
-        menuItems[0].selected = true;
-    }
-    
-    void InitializeServerCards() {
-        serverCards.push_back(ServerCard(L"DEL PERRO", L"14", L"⚙", 0));
-        serverCards.push_back(ServerCard(L"LA MESA", L"10", L"🔰", 0));
-        serverCards.push_back(ServerCard(L"RAINBOW", L"07", L"🌈", 0));
-    }
-    
-    void InitializeMediaItems() {
-        // Создаем placeholder изображения для медиа элементов
-        for (int i = 0; i < 8; i++) {
-            MediaItem item;
-            item.title = L"Стрим " + std::to_wstring(i + 1);
-            item.type = i % 3; // Распределяем по типам
-            
-            // Создаем placeholder bitmap
-            COLORREF colors[] = {
-                RGB(60, 60, 80),
-                RGB(80, 60, 60),
-                RGB(60, 80, 60),
-                RGB(80, 80, 60)
-            };
-            item.bitmap = resourceManager.CreatePlaceholderBitmap(280, 160, colors[i % 4]);
-            
-            mediaItems.push_back(item);
-        }
-    }
-    
-    void InitializeButtons() {
-        // Кнопка "Купить"
-        Button buyButton;
-        buyButton.text = L"Купить";
-        buyButton.bounds = Rect(945, 118, 200, 50);
-        buyButton.bgColor = Color(255, 120, 0);
-        buyButton.hoverColor = Color(255, 140, 30);
-        buyButton.id = 100;
-        buttons.push_back(buyButton);
-        
-        // Кнопки фильтров медиа
-        Button allButton;
-        allButton.text = L"Все";
-        allButton.bounds = Rect(258, 527, 85, 35);
-        allButton.bgColor = Color(255, 120, 0);
-        allButton.hoverColor = Color(255, 140, 30);
-        allButton.id = 200;
-        buttons.push_back(allButton);
-        
-        Button streamsButton;
-        streamsButton.text = L"Стримы";
-        streamsButton.bounds = Rect(348, 527, 85, 35);
-        streamsButton.bgColor = Color(40, 40, 40);
-        streamsButton.hoverColor = Color(60, 60, 60);
-        streamsButton.id = 201;
-        buttons.push_back(streamsButton);
-        
-        Button videosButton;
-        videosButton.text = L"Видео";
-        videosButton.bounds = Rect(438, 527, 85, 35);
-        videosButton.bgColor = Color(40, 40, 40);
-        videosButton.hoverColor = Color(60, 60, 60);
-        videosButton.id = 202;
-        buttons.push_back(videosButton);
-    }
-    
-    // ========================================================================
-    // СОЗДАНИЕ ОКНА
-    // ========================================================================
-    
-    bool CreateMainWindow() {
-        WNDCLASSEXW wc = {0};
-        wc.cbSize = sizeof(WNDCLASSEXW);
-        wc.style = CS_HREDRAW | CS_VREDRAW;
-        wc.lpfnWndProc = StaticWindowProc;
-        wc.hInstance = hInstance;
-        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(COLOR_DARK_BG);
-        wc.lpszClassName = L"GTA5RPLauncherClass";
-        wc.cbWndExtra = sizeof(GTA5RPLauncher*);
-        
-        if (!RegisterClassExW(&wc)) {
-            return false;
-        }
-        
-        DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-        RECT rect = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
-        AdjustWindowRect(&rect, style, FALSE);
-        
-        hwnd = CreateWindowExW(
-            0,
-            L"GTA5RPLauncherClass",
-            L"GTA5 RP Launcher",
-            style,
-            CW_USEDEFAULT, CW_USEDEFAULT,
-            rect.right - rect.left,
-            rect.bottom - rect.top,
-            NULL, NULL, hInstance, this
-        );
-        
-        if (!hwnd) {
-            return false;
-        }
-        
-        // Устанавливаем указатель на объект
-        SetWindowLongPtr(hwnd, 0, (LONG_PTR)this);
-        
-        // Инициализируем области
-        sidebarRect = Rect(0, 0, SIDEBAR_WIDTH, WINDOW_HEIGHT);
-        headerRect = Rect(SIDEBAR_WIDTH, 0, WINDOW_WIDTH - SIDEBAR_WIDTH, HEADER_HEIGHT);
-        contentRect = Rect(SIDEBAR_WIDTH, HEADER_HEIGHT, 
-                          WINDOW_WIDTH - SIDEBAR_WIDTH, 
-                          WINDOW_HEIGHT - HEADER_HEIGHT);
-        
-        // Устанавливаем позиции элементов меню
-        int menuY = 125;
-        for (size_t i = 0; i < menuItems.size(); i++) {
-            menuItems[i].bounds = Rect(0, menuY, SIDEBAR_WIDTH, 42);
-            menuY += 42;
-        }
-        
-        // Устанавливаем позиции карточек серверов
-        int cardX = 258;
-        for (size_t i = 0; i < serverCards.size(); i++) {
-            serverCards[i].bounds = Rect(cardX, 308, 300, 140);
-            cardX += 315;
-        }
-        
-        // Запускаем таймеры
-        SetTimer(hwnd, TIMER_ANIMATION, 16, NULL); // ~60 FPS
-        SetTimer(hwnd, TIMER_PLAYER_COUNT, 5000, NULL); // Обновление счетчика игроков
-        SetTimer(hwnd, TIMER_CAROUSEL, 3000, NULL); // Карусель медиа
-        
-        lastUpdateTime = GetTickCount();
-        
-        ShowWindow(hwnd, SW_SHOW);
-        UpdateWindow(hwnd);
-        
-        return true;
-    }
-    
-    // ========================================================================
-    // ОБРАБОТКА СООБЩЕНИЙ
-    // ========================================================================
-    
-    static LRESULT CALLBACK StaticWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-        GTA5RPLauncher* launcher = nullptr;
-        
-        if (msg == WM_NCCREATE) {
-            CREATESTRUCT* cs = (CREATESTRUCT*)lParam;
-            launcher = (GTA5RPLauncher*)cs->lpCreateParams;
-            SetWindowLongPtr(hwnd, 0, (LONG_PTR)launcher);
-        } else {
-            launcher = (GTA5RPLauncher*)GetWindowLongPtr(hwnd, 0);
-        }
-        
-        if (launcher) {
-            return launcher->WindowProc(hwnd, msg, wParam, lParam);
-        }
-        
-        return DefWindowProc(hwnd, msg, wParam, lParam);
-    }
-    
-    LRESULT WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-        switch (msg) {
-            case WM_CREATE:
-                return 0;
-                
-            case WM_PAINT: {
-                PAINTSTRUCT ps;
-                HDC hdc = BeginPaint(hwnd, &ps);
-                OnPaint(hdc);
-                EndPaint(hwnd, &ps);
-                return 0;
-            }
-            
-            case WM_ERASEBKGND:
-                return 1; // Предотвращаем мерцание
-                
-            case WM_MOUSEMOVE: {
-                int x = GET_X_LPARAM(lParam);
-                int y = GET_Y_LPARAM(lParam);
-                OnMouseMove(x, y);
-                return 0;
-            }
-            
-            case WM_LBUTTONDOWN: {
-                int x = GET_X_LPARAM(lParam);
-                int y = GET_Y_LPARAM(lParam);
-                OnMouseClick(x, y);
-                return 0;
-            }
-            
-            case WM_MOUSEWHEEL: {
-                int delta = GET_WHEEL_DELTA_WPARAM(wParam);
-                OnMouseWheel(delta);
-                return 0;
-            }
-            
-            case WM_TIMER: {
-                OnTimer(wParam);
-                return 0;
-            }
-            
-            case WM_DESTROY:
-                KillTimer(hwnd, TIMER_ANIMATION);
-                KillTimer(hwnd, TIMER_PLAYER_COUNT);
-                KillTimer(hwnd, TIMER_CAROUSEL);
-                PostQuitMessage(0);
-                return 0;
-        }
-        
-        return DefWindowProc(hwnd, msg, wParam, lParam);
-    }
-    
-    // ========================================================================
-    // ОБРАБОТЧИКИ СОБЫТИЙ
-    // ========================================================================
-    
-    void OnPaint(HDC hdc) {
-        Graphics g(hdc, WINDOW_WIDTH, WINDOW_HEIGHT);
-        
-        // Очищаем фон
-        g.Clear(COLOR_DARK_BG);
-        
-        // Рисуем боковую панель
-        DrawSidebar(g);
-        
-        // Рисуем заголовок
-        DrawHeader(g);
-        
-        // Рисуем контент в зависимости от выбранного пункта меню
-        switch (selectedMenuItem) {
-            case 0:
-                DrawMainPage(g);
-                break;
-            case 1:
-                DrawServersPage(g);
-                break;
-            case 2:
-                DrawNewsPage(g);
-                break;
-            case 3:
-                DrawCommunitiesPage(g);
-                break;
-            case 4:
-                DrawBuyPage(g);
-                break;
-        }
-        
-        g.Present();
-    }
-    
-    void OnMouseMove(int x, int y) {
-        bool needRedraw = false;
-        
-        // Проверяем наведение на пункты меню
-        int oldHovered = hoveredMenuItem;
-        hoveredMenuItem = -1;
-        for (size_t i = 0; i < menuItems.size(); i++) {
-            if (menuItems[i].bounds.Contains(x, y)) {
-                hoveredMenuItem = i;
-                break;
-            }
-        }
-        if (oldHovered != hoveredMenuItem) needRedraw = true;
-        
-        // Проверяем наведение на карточки серверов
-        int oldHoveredCard = hoveredServerCard;
-        hoveredServerCard = -1;
-        for (size_t i = 0; i < serverCards.size(); i++) {
-            serverCards[i].hovered = serverCards[i].bounds.Contains(x, y);
-            if (serverCards[i].hovered) {
-                hoveredServerCard = i;
-            }
-        }
-        if (oldHoveredCard != hoveredServerCard) needRedraw = true;
-        
-        // Проверяем наведение на кнопки
-        int oldHoveredButton = hoveredButton;
-        hoveredButton = -1;
-        for (size_t i = 0; i < buttons.size(); i++) {
-            buttons[i].hovered = buttons[i].bounds.Contains(x, y);
-            if (buttons[i].hovered) {
-                hoveredButton = i;
-            }
-        }
-        if (oldHoveredButton != hoveredButton) needRedraw = true;
-        
-        if (needRedraw) {
-            InvalidateRect(hwnd, NULL, FALSE);
-        }
-    }
-    
-    void OnMouseClick(int x, int y) {
-        // Проверяем клик по пунктам меню
-        for (size_t i = 0; i < menuItems.size(); i++) {
-            if (menuItems[i].bounds.Contains(x, y)) {
-                if (selectedMenuItem != i) {
-                    menuItems[selectedMenuItem].selected = false;
-                    selectedMenuItem = i;
-                    menuItems[i].selected = true;
-                    InvalidateRect(hwnd, NULL, FALSE);
-                }
-                return;
-            }
-        }
-        
-        // Проверяем клик по кнопкам
-        for (size_t i = 0; i < buttons.size(); i++) {
-            if (buttons[i].bounds.Contains(x, y)) {
-                OnButtonClick(buttons[i].id);
-                return;
-            }
-        }
-        
-        // Проверяем клик по карточкам серверов
-        for (size_t i = 0; i < serverCards.size(); i++) {
-            if (serverCards[i].bounds.Contains(x, y)) {
-                OnServerCardClick(i);
-                return;
-            }
-        }
-    }
-    
-    void OnMouseWheel(int delta) {
-        targetScrollOffset += (delta > 0 ? 50 : -50);
-        
-        // Ограничиваем скролл
-        if (targetScrollOffset > 0) targetScrollOffset = 0;
-        double maxScroll = -500; // Максимальная прокрутка вниз
-        if (targetScrollOffset < maxScroll) targetScrollOffset = maxScroll;
-        
-        scrollAnimation.Start(scrollOffset, targetScrollOffset, 300);
-    }
-    
-    void OnTimer(WPARAM timerId) {
-        switch (timerId) {
-            case TIMER_ANIMATION: {
-                DWORD currentTime = GetTickCount();
-                double deltaTime = (currentTime - lastUpdateTime);
-                lastUpdateTime = currentTime;
-                
-                // Обновляем анимации
-                scrollAnimation.Update(deltaTime);
-                if (scrollAnimation.IsRunning()) {
-                    scrollOffset = scrollAnimation.GetValue();
-                    InvalidateRect(hwnd, NULL, FALSE);
-                }
-                
-                fadeAnimation.Update(deltaTime);
-                
-                for (auto& pair : buttonAnimations) {
-                    pair.second.Update(deltaTime);
-                }
-                
-                break;
-            }
-            
-            case TIMER_PLAYER_COUNT: {
-                // Симулируем изменение количества игроков
-                currentPlayerCount += (rand() % 21 - 10); // -10 до +10
-                if (currentPlayerCount < 40000) currentPlayerCount = 40000;
-                if (currentPlayerCount > 50000) currentPlayerCount = 50000;
-                InvalidateRect(hwnd, &headerRect, FALSE);
-                break;
-            }
-            
-            case TIMER_CAROUSEL: {
-                // Автоматическая прокрутка карусели
-                carouselIndex = (carouselIndex + 1) % 8;
-                InvalidateRect(hwnd, NULL, FALSE);
-                break;
-            }
-        }
-    }
-    
-    void OnButtonClick(int buttonId) {
-        switch (buttonId) {
-            case 100: // Кнопка "Купить"
-                MessageBoxW(hwnd, L"Переход в магазин...", L"GTA5 RP", MB_OK | MB_ICONINFORMATION);
-                break;
-                
-            case 200: // Фильтр "Все"
-                mediaFilter = 0;
-                UpdateMediaFilterButtons();
-                InvalidateRect(hwnd, NULL, FALSE);
-                break;
-                
-            case 201: // Фильтр "Стримы"
-                mediaFilter = 1;
-                UpdateMediaFilterButtons();
-                InvalidateRect(hwnd, NULL, FALSE);
-                break;
-                
-            case 202: // Фильтр "Видео"
-                mediaFilter = 2;
-                UpdateMediaFilterButtons();
-                InvalidateRect(hwnd, NULL, FALSE);
-                break;
-        }
-    }
-    
-    void OnServerCardClick(int index) {
-        std::wstring message = L"Подключение к серверу " + serverCards[index].name + L"...";
-        MessageBoxW(hwnd, message.c_str(), L"GTA5 RP", MB_OK | MB_ICONINFORMATION);
-    }
-    
-    void UpdateMediaFilterButtons() {
-        for (size_t i = 0; i < buttons.size(); i++) {
-            if (buttons[i].id >= 200 && buttons[i].id <= 202) {
-                int filterIndex = buttons[i].id - 200;
-                if (filterIndex == mediaFilter) {
-                    buttons[i].bgColor = Color(255, 120, 0);
-                    buttons[i].hoverColor = Color(255, 140, 30);
-                } else {
-                    buttons[i].bgColor = Color(40, 40, 40);
-                    buttons[i].hoverColor = Color(60, 60, 60);
-                }
-            }
-        }
-    }
-    
-    // ========================================================================
-    // ОТРИСОВКА КОМПОНЕНТОВ
-    // ========================================================================
-    
-    void DrawSidebar(Graphics& g) {
-        // Фон боковой панели
-        g.FillRectangle(sidebarRect, COLOR_SIDEBAR_BG);
-        
-        // Логотип
-        Rect logoRect(20, 20, 200, 80);
-        g.DrawText(L"★ GTA5 RP", logoRect, COLOR_ORANGE, 24, true, DT_LEFT | DT_VCENTER);
-        
-        // Пункты меню
-        for (size_t i = 0; i < menuItems.size(); i++) {
-            DrawMenuItem(g, menuItems[i], i == hoveredMenuItem);
-        }
-        
-        // Нижняя информация
-        Rect versionRect(20, WINDOW_HEIGHT - 40, 200, 30);
-        g.DrawText(L"Версия 2.0.1", versionRect, COLOR_TEXT_GRAY, 12, false, DT_LEFT | DT_VCENTER);
-    }
-    
-    void DrawMenuItem(Graphics& g, const MenuItem& item, bool hovered) {
-        COLORREF bgColor = item.selected ? COLOR_ORANGE : 
-                          (hovered ? RGB(45, 45, 45) : COLOR_SIDEBAR_BG);
-        
-        if (item.selected || hovered) {
-            g.FillRectangle(item.bounds, bgColor);
-        }
-        
-        // Иконка
-        Rect iconRect(item.bounds.x + 20, item.bounds.y, 30, item.bounds.height);
-        g.DrawText(item.icon, iconRect, COLOR_TEXT_WHITE, 20, false, DT_LEFT | DT_VCENTER);
-        
-        // Текст
-        Rect textRect(item.bounds.x + 55, item.bounds.y, item.bounds.width - 55, item.bounds.height);
-        g.DrawText(item.text, textRect, COLOR_TEXT_WHITE, 14, false, DT_LEFT | DT_VCENTER);
-        
-        // Индикатор выбора
-        if (item.selected) {
-            g.FillRectangle(Rect(0, item.bounds.y, 4, item.bounds.height), COLOR_ORANGE);
-        }
-    }
-    
-    void DrawHeader(Graphics& g) {
-        // Фон заголовка
-        g.FillRectangle(headerRect, COLOR_DARK_PANEL);
-        
-        // Разделительная линия
-        g.DrawLine(headerRect.x, headerRect.y + headerRect.height - 1,
-                  headerRect.x + headerRect.width, headerRect.y + headerRect.height - 1,
-                  COLOR_BORDER);
-        
-        // Счетчик игроков
-        Rect playerCountRect(headerRect.x + 20, headerRect.y, 200, headerRect.height);
-        std::wstring playerText = L"Сейчас играет: " + FormatNumber(currentPlayerCount);
-        g.DrawText(playerText, playerCountRect, COLOR_TEXT_GRAY, 14, false, DT_LEFT | DT_VCENTER);
-        
-        // Кнопки управления окном (минимизация, закрытие)
-        DrawWindowControls(g);
-    }
-    
-    void DrawWindowControls(Graphics& g) {
-        int buttonSize = 46;
-        int x = WINDOW_WIDTH - buttonSize * 2 - 10;
-        int y = 5;
-        
-        // Кнопка минимизации
-        Rect minRect(x, y, buttonSize, buttonSize);
-        g.DrawText(L"—", minRect, COLOR_TEXT_GRAY, 16, false, DT_CENTER | DT_VCENTER);
-        
-        // Кнопка закрытия
-        Rect closeRect(x + buttonSize, y, buttonSize, buttonSize);
-        g.DrawText(L"✕", closeRect, COLOR_TEXT_GRAY, 16, false, DT_CENTER | DT_VCENTER);
-    }
-    
-    void DrawMainPage(Graphics& g) {
-        int offsetY = (int)scrollOffset;
-        
-        // Большой баннер "Еще нет GTA V?"
-        DrawMainBanner(g, offsetY);
-        
-        // Секция "Рекомендуем для новичков"
-        DrawRecommendedServers(g, offsetY);
-        
-        // Секция "Играй и смотри"
-        DrawMediaSection(g, offsetY);
-    }
-    
-    void DrawMainBanner(Graphics& g, int offsetY) {
-        Rect bannerRect(258, 58 + offsetY, 924, 172);
-        
-        // Фон баннера с градиентом
-        g.DrawGradient(bannerRect, RGB(30, 30, 40), RGB(20, 20, 30), false);
-        
-        // Затемнение для текста
-        Rect overlayRect(bannerRect.x, bannerRect.y, bannerRect.width, bannerRect.height);
-        g.FillRectangle(overlayRect, RGB(0, 0, 0)); // Полупрозрачный
-        
-        // Заголовок
-        Rect titleRect(bannerRect.x + 30, bannerRect.y + 30, 600, 50);
-        g.DrawText(L"Еще нет GTA V?", titleRect, COLOR_TEXT_WHITE, 36, true, DT_LEFT | DT_VCENTER);
-        
-        // Подзаголовок
-        Rect subtitleRect(bannerRect.x + 30, bannerRect.y + 85, 600, 40);
-        g.DrawText(L"Вы можете приобрести ключ для", subtitleRect, COLOR_TEXT_GRAY, 16, false, DT_LEFT | DT_TOP);
-        g.DrawText(L"Rockstar Games Launcher", Rect(bannerRect.x + 30, bannerRect.y + 105, 600, 40), 
-                  COLOR_TEXT_GRAY, 16, false, DT_LEFT | DT_TOP);
-        
-        // Кнопка "Купить"
-        DrawButton(g, buttons[0]);
-    }
-    
-    void DrawRecommendedServers(Graphics& g, int offsetY) {
-        // Заголовок секции
-        Rect titleRect(258, 250 + offsetY, 900, 40);
-        g.DrawText(L"РЕКОМЕНДУЕМ ДЛЯ НОВИЧКОВ", titleRect, COLOR_TEXT_WHITE, 20, true, DT_LEFT | DT_VCENTER);
-        
-        // Карточки серверов
-        for (size_t i = 0; i < serverCards.size(); i++) {
-            Rect cardRect = serverCards[i].bounds;
-            cardRect.y += offsetY;
-            DrawServerCard(g, serverCards[i], cardRect);
-        }
-    }
-    
-    void DrawServerCard(Graphics& g, const ServerCard& card, const Rect& rect) {
-        // Фон карточки
-        COLORREF bgColor = card.hovered ? RGB(35, 35, 35) : RGB(28, 28, 28);
-        g.FillRoundRectangle(rect, 8, bgColor);
-        
-        // Рамка при наведении
-        if (card.hovered) {
-            g.DrawRectangle(rect, COLOR_ORANGE, 2);
-        }
-        
-        // Иконка сервера
-        Rect iconRect(rect.x + 20, rect.y + 20, 40, 40);
-        g.DrawText(card.icon, iconRect, COLOR_ORANGE, 32, false, DT_CENTER | DT_VCENTER);
-        
-        // Номер сервера
-        Rect numberRect(rect.x + 20, rect.y + 15, 50, 30);
-        g.DrawText(card.number, numberRect, COLOR_TEXT_WHITE, 24, true, DT_LEFT | DT_TOP);
-        
-        // Иконка настроек
-        Rect settingsRect(rect.x + 35, rect.y + 15, 30, 30);
-        g.DrawText(card.icon, settingsRect, COLOR_TEXT_GRAY, 20, false, DT_CENTER | DT_VCENTER);
-        
-        // Название сервера
-        Rect nameRect(rect.x + 20, rect.y + 70, rect.width - 40, 40);
-        g.DrawText(card.name, nameRect, COLOR_TEXT_WHITE, 22, true, DT_LEFT | DT_VCENTER);
-        
-        // Кнопка воспроизведения
-        Rect playButtonRect(rect.x + rect.width - 60, rect.y + rect.height / 2 - 20, 40, 40);
-        g.FillRoundRectangle(playButtonRect, 20, COLOR_ORANGE);
-        g.DrawText(L"▶", Rect(playButtonRect.x + 5, playButtonRect.y, 30, 40), 
-                  COLOR_TEXT_WHITE, 20, false, DT_CENTER | DT_VCENTER);
-    }
-    
-    void DrawMediaSection(Graphics& g, int offsetY) {
-        // Заголовок секции
-        Rect titleRect(258, 470 + offsetY, 900, 40);
-        g.DrawText(L"ИГРАЙ И СМОТРИ", titleRect, COLOR_TEXT_WHITE, 20, true, DT_LEFT | DT_VCENTER);
-        
-        // Кнопки фильтров
-        for (size_t i = 1; i < 4; i++) {
-            Rect btnRect = buttons[i].bounds;
-            btnRect.y += offsetY;
-            DrawButton(g, buttons[i], btnRect);
-        }
-        
-        // Сетка медиа элементов
-        DrawMediaGrid(g, offsetY);
-        
-        // Индикаторы карусели
-        DrawCarouselIndicators(g, offsetY);
-    }
-    
-    void DrawMediaGrid(Graphics& g, int offsetY) {
-        int startX = 258;
-        int startY = 575 + offsetY;
-        int itemWidth = 280;
-        int itemHeight = 160;
-        int spacing = 15;
-        int columns = 4;
-        int rows = 2;
-        
-        int visibleCount = 0;
-        for (size_t i = 0; i < mediaItems.size() && visibleCount < columns * rows; i++) {
-            if (mediaFilter == 0 || mediaItems[i].type == mediaFilter) {
-                int col = visibleCount % columns;
-                int row = visibleCount / columns;
-                
-                Rect itemRect(
-                    startX + col * (itemWidth + spacing),
-                    startY + row * (itemHeight + spacing),
-                    itemWidth,
-                    itemHeight
-                );
-                
-                DrawMediaItem(g, mediaItems[i], itemRect);
-                visibleCount++;
-            }
-        }
-    }
-    
-    void DrawMediaItem(Graphics& g, const MediaItem& item, const Rect& rect) {
-        // Фон
-        g.FillRoundRectangle(rect, 8, RGB(40, 40, 40));
-        
-        // Изображение
-        if (item.bitmap) {
-            g.DrawImage(item.bitmap, rect);
-        }
-        
-        // Оверлей при наведении
-        // (здесь можно добавить проверку наведения и отрисовку оверлея)
-        
-        // Индикатор "LIVE" для стримов
-        if (item.type == 1) {
-            Rect liveRect(rect.x + 10, rect.y + 10, 50, 25);
-            g.FillRoundRectangle(liveRect, 4, RGB(255, 0, 0));
-            g.DrawText(L"LIVE", liveRect, COLOR_TEXT_WHITE, 12, true, DT_CENTER | DT_VCENTER);
-        }
-    }
-    
-    void DrawCarouselIndicators(Graphics& g, int offsetY) {
-        int startX = 258 + (280 * 4 + 15 * 3) / 2 - 60;
-        int y = 900 + offsetY;
-        int indicatorSize = 10;
-        int spacing = 15;
-        
-        for (int i = 0; i < 8; i++) {
-            Rect indicatorRect(startX + i * spacing, y, indicatorSize, indicatorSize);
-            COLORREF color = (i == carouselIndex % 8) ? COLOR_ORANGE : COLOR_TEXT_GRAY;
-            g.FillRoundRectangle(indicatorRect, indicatorSize / 2, color);
-        }
-    }
-    
-    void DrawButton(Graphics& g, const Button& button) {
-        DrawButton(g, button, button.bounds);
-    }
-    
-    void DrawButton(Graphics& g, const Button& button, const Rect& rect) {
-        // Фон кнопки
-        COLORREF bgColor = button.hovered ? button.hoverColor.ToCOLORREF() : button.bgColor.ToCOLORREF();
-        g.FillRoundRectangle(rect, 6, bgColor);
-        
-        // Текст кнопки
-        g.DrawText(button.text, rect, button.textColor.ToCOLORREF(), 16, true, DT_CENTER | DT_VCENTER);
-    }
-    
-    void DrawServersPage(Graphics& g) {
-        Rect titleRect(258, 80, 900, 50);
-        g.DrawText(L"СПИСОК СЕРВЕРОВ", titleRect, COLOR_TEXT_WHITE, 28, true, DT_LEFT | DT_VCENTER);
-        
-        // Здесь можно добавить полный список серверов
-        Rect infoRect(258, 150, 900, 400);
-        g.DrawText(L"Выберите сервер для игры...", infoRect, COLOR_TEXT_GRAY, 18, false, DT_LEFT | DT_TOP);
-    }
-    
-    void DrawNewsPage(Graphics& g) {
-        Rect titleRect(258, 80, 900, 50);
-        g.DrawText(L"НОВОСТИ", titleRect, COLOR_TEXT_WHITE, 28, true, DT_LEFT | DT_VCENTER);
-        
-        Rect infoRect(258, 150, 900, 400);
-        g.DrawText(L"Последние новости и обновления...", infoRect, COLOR_TEXT_GRAY, 18, false, DT_LEFT | DT_TOP);
-    }
-    
-    void DrawCommunitiesPage(Graphics& g) {
-        Rect titleRect(258, 80, 900, 50);
-        g.DrawText(L"СООБЩЕСТВА", titleRect, COLOR_TEXT_WHITE, 28, true, DT_LEFT | DT_VCENTER);
-        
-        Rect infoRect(258, 150, 900, 400);
-        g.DrawText(L"Присоединяйтесь к нашим сообществам...", infoRect, COLOR_TEXT_GRAY, 18, false, DT_LEFT | DT_TOP);
-    }
-    
-    void DrawBuyPage(Graphics& g) {
-        Rect titleRect(258, 80, 900, 50);
-        g.DrawText(L"КУПИТЬ GTA V", titleRect, COLOR_TEXT_WHITE, 28, true, DT_LEFT | DT_VCENTER);
-        
-        Rect infoRect(258, 150, 900, 400);
-        g.DrawText(L"Приобретите игру в официальном магазине...", infoRect, COLOR_TEXT_GRAY, 18, false, DT_LEFT | DT_TOP);
-    }
-    
-    // ========================================================================
-    // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-    // ========================================================================
-    
-    std::wstring FormatNumber(int number) {
-        std::wstring str = std::to_wstring(number);
-        std::wstring result;
-        int count = 0;
-        
-        for (int i = str.length() - 1; i >= 0; i--) {
-            if (count == 3) {
-                result = L" " + result;
-                count = 0;
-            }
-            result = str[i] + result;
-            count++;
-        }
-        
-        return result;
-    }
-    
-    // ========================================================================
-    // ГЛАВНЫЙ ЦИКЛ
-    // ========================================================================
-    
-    int Run() {
-        MSG msg = {0};
-        
-        while (GetMessage(&msg, NULL, 0, 0)) {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-        
-        return (int)msg.wParam;
-    }
-};
-
-// ============================================================================
-// ТОЧКА ВХОДА
-// ============================================================================
-
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow) {
-    // Инициализация общих элементов управления
-    INITCOMMONCONTROLSEX icex;
-    icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-    icex.dwICC = ICC_WIN95_CLASSES;
-    InitCommonControlsEx(&icex);
-    
-    // Создаем и запускаем приложение
-    GTA5RPLauncher launcher(hInstance);
-    
-    if (!launcher.CreateMainWindow()) {
-        MessageBoxW(NULL, L"Не удалось создать окно!", L"Ошибка", MB_OK | MB_ICONERROR);
-        return 1;
-    }
-    
-    return launcher.Run();
+static void FillSolidRect(HDC hdc, const RECT& rc, COLORREF color) {
+    HBRUSH br = CreateSolidBrush(color);
+    FillRect(hdc, &rc, br);
+    DeleteObject(br);
 }
 
-// ============================================================================
-// ДОПОЛНИТЕЛЬНЫЕ КЛАССЫ И ФУНКЦИИ
-// ============================================================================
+static void FrameRect1(HDC hdc, const RECT& rc, COLORREF color) {
+    HPEN pen = CreatePen(PS_SOLID, 1, color);
+    HGDIOBJ oldPen = SelectObject(hdc, pen);
+    HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
+    Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(pen);
+}
 
-// Класс для работы с изображениями
-class ImageLoader {
-public:
-    static HBITMAP LoadFromFile(const std::wstring& filename) {
-        // Загрузка изображения из файла
-        HBITMAP bitmap = (HBITMAP)LoadImageW(NULL, filename.c_str(), IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-        return bitmap;
-    }
-    
-    static HBITMAP CreateFromColor(int width, int height, COLORREF color) {
-        HDC hdc = GetDC(NULL);
-        HDC memDC = CreateCompatibleDC(hdc);
-        HBITMAP bitmap = CreateCompatibleBitmap(hdc, width, height);
-        HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, bitmap);
-        
-        HBRUSH brush = CreateSolidBrush(color);
-        RECT rect = {0, 0, width, height};
-        FillRect(memDC, &rect, brush);
-        DeleteObject(brush);
-        
-        SelectObject(memDC, oldBitmap);
-        DeleteDC(memDC);
-        ReleaseDC(NULL, hdc);
-        
-        return bitmap;
-    }
-    
-    static HBITMAP ResizeBitmap(HBITMAP source, int newWidth, int newHeight) {
-        if (!source) return NULL;
-        
-        HDC hdcScreen = GetDC(NULL);
-        HDC hdcSrc = CreateCompatibleDC(hdcScreen);
-        HDC hdcDst = CreateCompatibleDC(hdcScreen);
-        
-        BITMAP bm;
-        GetObject(source, sizeof(bm), &bm);
-        
-        HBITMAP newBitmap = CreateCompatibleBitmap(hdcScreen, newWidth, newHeight);
-        
-        HBITMAP oldSrc = (HBITMAP)SelectObject(hdcSrc, source);
-        HBITMAP oldDst = (HBITMAP)SelectObject(hdcDst, newBitmap);
-        
-        SetStretchBltMode(hdcDst, HALFTONE);
-        StretchBlt(hdcDst, 0, 0, newWidth, newHeight, hdcSrc, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
-        
-        SelectObject(hdcSrc, oldSrc);
-        SelectObject(hdcDst, oldDst);
-        
-        DeleteDC(hdcSrc);
-        DeleteDC(hdcDst);
-        ReleaseDC(NULL, hdcScreen);
-        
-        return newBitmap;
-    }
+static SIZE MeasureText(HDC hdc, HFONT font, const std::wstring& text) {
+    HGDIOBJ old = SelectObject(hdc, font);
+    SIZE sz{};
+    GetTextExtentPoint32W(hdc, text.c_str(), (int)text.size(), &sz);
+    SelectObject(hdc, old);
+    return sz;
+}
+
+static void DrawTextCentered(HDC hdc, HFONT font, const std::wstring& text, RECT rc, COLORREF color) {
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, color);
+    HGDIOBJ oldF = SelectObject(hdc, font);
+    DrawTextW(hdc, text.c_str(), (int)text.size(), &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(hdc, oldF);
+}
+
+static void DrawTextLeft(HDC hdc, HFONT font, const std::wstring& text, RECT rc, COLORREF color, UINT format = DT_LEFT | DT_TOP | DT_WORDBREAK) {
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, color);
+    HGDIOBJ oldF = SelectObject(hdc, font);
+    DrawTextW(hdc, text.c_str(), (int)text.size(), &rc, format);
+    SelectObject(hdc, oldF);
+}
+
+static void DrawUnderlineText(HDC hdc, HFONT font, const std::wstring& text, int x, int y, COLORREF color) {
+    // Simple underline by drawing a line under measured text.
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, color);
+    HGDIOBJ oldF = SelectObject(hdc, font);
+    TextOutW(hdc, x, y, text.c_str(), (int)text.size());
+    SIZE sz{};
+    GetTextExtentPoint32W(hdc, text.c_str(), (int)text.size(), &sz);
+    SelectObject(hdc, oldF);
+
+    HPEN pen = CreatePen(PS_SOLID, 1, color);
+    HGDIOBJ oldP = SelectObject(hdc, pen);
+    MoveToEx(hdc, x, y + sz.cy + 1, nullptr);
+    LineTo(hdc, x + sz.cx, y + sz.cy + 1);
+    SelectObject(hdc, oldP);
+    DeleteObject(pen);
+}
+
+static HRGN CreateRoundRectRgnEx(const RECT& rc, int radius) {
+    return CreateRoundRectRgn(rc.left, rc.top, rc.right, rc.bottom, radius, radius);
+}
+
+static void FillRoundRect(HDC hdc, const RECT& rc, int radius, COLORREF color) {
+    HRGN rgn = CreateRoundRectRgnEx(rc, radius);
+    HBRUSH br = CreateSolidBrush(color);
+    FillRgn(hdc, rgn, br);
+    DeleteObject(br);
+    DeleteObject(rgn);
+}
+
+static void DrawChevronDown(HDC hdc, int cx, int cy, int size, COLORREF color) {
+    // Draw a simple v-shaped chevron
+    HPEN pen = CreatePen(PS_SOLID, 2, color);
+    HGDIOBJ oldP = SelectObject(hdc, pen);
+    MoveToEx(hdc, cx - size, cy - size/2, nullptr);
+    LineTo(hdc, cx, cy + size/2);
+    LineTo(hdc, cx + size, cy - size/2);
+    SelectObject(hdc, oldP);
+    DeleteObject(pen);
+}
+
+static void DrawBackArrow(HDC hdc, int x, int y, int size, COLORREF color) {
+    // Simple left arrow
+    HPEN pen = CreatePen(PS_SOLID, 2, color);
+    HGDIOBJ oldP = SelectObject(hdc, pen);
+    MoveToEx(hdc, x + size, y, nullptr);
+    LineTo(hdc, x, y + size);
+    LineTo(hdc, x + size, y + 2*size);
+    SelectObject(hdc, oldP);
+    DeleteObject(pen);
+}
+
+// ---------------- UI State ----------------
+struct Button {
+    RECT rc{};
+    std::wstring text;
+    bool hot = false;
+    bool down = false;
+    bool enabled = true;
 };
 
-// Класс для работы со шрифтами
-class FontManager {
-private:
-    std::map<std::wstring, HFONT> fonts;
-    
-public:
-    ~FontManager() {
-        for (auto& pair : fonts) {
-            DeleteObject(pair.second);
-        }
-    }
-    
-    HFONT GetFont(const std::wstring& name, int size, bool bold = false, bool italic = false) {
-        std::wstring key = name + L"_" + std::to_wstring(size) + 
-                          (bold ? L"_b" : L"") + (italic ? L"_i" : L"");
-        
-        auto it = fonts.find(key);
-        if (it != fonts.end()) {
-            return it->second;
-        }
-        
-        HFONT font = CreateFont(
-            size, 0, 0, 0,
-            bold ? FW_BOLD : FW_NORMAL,
-            italic ? TRUE : FALSE,
-            FALSE, FALSE,
-            DEFAULT_CHARSET,
-            OUT_DEFAULT_PRECIS,
-            CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE,
-            name.c_str()
+struct Link {
+    RECT rc{};
+    std::wstring text;
+    bool hot = false;
+};
+
+static Button g_btnStart{};
+static Button g_btnContinue{};
+static Link g_linkRu{};
+static Link g_linkContinueEn{};
+static Link g_linkQr{};
+static Link g_linkSettings{};
+static RECT g_countryDrop{};
+static RECT g_phoneEdit{};
+static RECT g_codeBox{};
+
+static std::wstring g_phoneDigits; // only digits typed for phone field
+static bool g_phoneFocused = false;
+
+// Fonts
+static HFONT g_fontTitle = nullptr;
+static HFONT g_fontBody = nullptr;
+static HFONT g_fontSmall = nullptr;
+static HFONT g_fontButton = nullptr;
+static HFONT g_fontLink = nullptr;
+static HFONT g_fontHeader = nullptr;
+
+static void CreateFonts() {
+    // Use Segoe UI if available (default on Windows 10/11).
+    // Sizes tuned to look similar.
+    auto makeFont = [](int height, int weight) -> HFONT {
+        return CreateFontW(
+            -height, 0, 0, 0, weight, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI"
         );
-        
-        fonts[key] = font;
-        return font;
-    }
-};
-
-// Класс для работы с анимациями
-class AnimationManager {
-private:
-    struct AnimationState {
-        double startValue;
-        double endValue;
-        double currentValue;
-        double duration;
-        double elapsed;
-        bool active;
-        int easingType; // 0 - linear, 1 - ease-in, 2 - ease-out, 3 - ease-in-out
     };
-    
-    std::map<std::wstring, AnimationState> animations;
-    
-public:
-    void StartAnimation(const std::wstring& name, double start, double end, double duration, int easing = 3) {
-        AnimationState state;
-        state.startValue = start;
-        state.endValue = end;
-        state.currentValue = start;
-        state.duration = duration;
-        state.elapsed = 0;
-        state.active = true;
-        state.easingType = easing;
-        
-        animations[name] = state;
+
+    g_fontTitle  = makeFont(26, FW_SEMIBOLD);
+    g_fontHeader = makeFont(18, FW_SEMIBOLD);
+    g_fontBody   = makeFont(14, FW_NORMAL);
+    g_fontSmall  = makeFont(12, FW_NORMAL);
+    g_fontButton = makeFont(14, FW_SEMIBOLD);
+    g_fontLink   = makeFont(12, FW_NORMAL);
+}
+
+static void DestroyFonts() {
+    auto del = [](HFONT& f) { if (f) { DeleteObject(f); f = nullptr; } };
+    del(g_fontTitle);
+    del(g_fontHeader);
+    del(g_fontBody);
+    del(g_fontSmall);
+    del(g_fontButton);
+    del(g_fontLink);
+}
+
+static bool PtInRectEx(const RECT& rc, POINT pt) {
+    return pt.x >= rc.left && pt.x < rc.right && pt.y >= rc.top && pt.y < rc.bottom;
+}
+
+static void LayoutUI(int w, int h) {
+    // Common layout constants
+    int contentW = min(640, w - 80);
+    int cx = w / 2;
+    int left = cx - contentW / 2;
+    int right = cx + contentW / 2;
+
+    if (g_screen == Screen::Welcome) {
+        int topBlueH = (int)(h * 0.42);
+        int btnW = 300;
+        int btnH = 44;
+
+        int btnX = cx - btnW/2;
+        int btnY = topBlueH + 120;
+
+        g_btnStart.rc = { btnX, btnY, btnX + btnW, btnY + btnH };
+        g_btnStart.text = L"Start Messaging";
+
+        // Link under button
+        int linkY = btnY + btnH + 18;
+        g_linkRu.text = L"Продолжить на русском";
+        g_linkRu.rc = { cx - 140, linkY, cx + 140, linkY + 20 };
+    } else {
+        // Phone screen
+        int topMargin = 26;
+        // Back arrow area
+        // Settings link at top-right
+        g_linkSettings.text = L"НАСТРОЙКИ";
+        g_linkSettings.rc = { w - 140, topMargin, w - 20, topMargin + 22 };
+
+        // Center block
+        int blockTop = 120;
+        int fieldW = 360;
+        int fieldX = cx - fieldW/2;
+
+        // Country dropdown
+        g_countryDrop = { fieldX, blockTop + 70, fieldX + fieldW, blockTop + 110 };
+
+        // Phone input row
+        // Code box + phone edit
+        int rowY = blockTop + 140;
+        g_codeBox = { fieldX, rowY, fieldX + 60, rowY + 44 };
+        g_phoneEdit = { fieldX + 70, rowY, fieldX + fieldW, rowY + 44 };
+
+        // Continue button
+        int btnW = 360;
+        int btnH = 44;
+        int btnX = cx - btnW/2;
+        int btnY = rowY + 70;
+        g_btnContinue.rc = { btnX, btnY, btnX + btnW, btnY + btnH };
+        g_btnContinue.text = L"Продолжить";
+
+        // Links
+        g_linkContinueEn.text = L"Continue in English";
+        g_linkContinueEn.rc = { cx - 120, btnY + btnH + 18, cx + 120, btnY + btnH + 40 };
+
+        g_linkQr.text = L"Быстрый вход по QR-коду";
+        g_linkQr.rc = { cx - 150, btnY + btnH + 50, cx + 150, btnY + btnH + 72 };
     }
-    
-    void Update(double deltaTime) {
-        for (auto& pair : animations) {
-            if (!pair.second.active) continue;
-            
-            pair.second.elapsed += deltaTime;
-            
-            if (pair.second.elapsed >= pair.second.duration) {
-                pair.second.currentValue = pair.second.endValue;
-                pair.second.active = false;
-            } else {
-                double t = pair.second.elapsed / pair.second.duration;
-                t = ApplyEasing(t, pair.second.easingType);
-                pair.second.currentValue = pair.second.startValue + 
-                                          (pair.second.endValue - pair.second.startValue) * t;
-            }
+}
+
+static void UpdateHotStates(POINT pt) {
+    auto setBtnHot = [&](Button& b) { b.hot = PtInRectEx(b.rc, pt); };
+    auto setLinkHot = [&](Link& l) { l.hot = PtInRectEx(l.rc, pt); };
+
+    if (g_screen == Screen::Welcome) {
+        setBtnHot(g_btnStart);
+        setLinkHot(g_linkRu);
+    } else {
+        setBtnHot(g_btnContinue);
+        setLinkHot(g_linkContinueEn);
+        setLinkHot(g_linkQr);
+        setLinkHot(g_linkSettings);
+    }
+}
+
+static void SetScreen(Screen s) {
+    g_screen = s;
+    g_phoneFocused = false;
+    InvalidateRect(g_hwnd, nullptr, TRUE);
+}
+
+// ---------------- Drawing ----------------
+static void DrawWelcome(HDC hdc, int w, int h) {
+    // Background
+    RECT rcAll{0,0,w,h};
+    FillSolidRect(hdc, rcAll, RGBc(245,245,245));
+
+    int topBlueH = (int)(h * 0.42);
+    RECT rcBlue{0,0,w,topBlueH};
+    FillSolidRect(hdc, rcBlue, RGBc(26, 150, 214)); // Telegram-ish blue
+
+    RECT rcWhite{0,topBlueH,w,h};
+    FillSolidRect(hdc, rcWhite, RGBc(255,255,255));
+
+    // Paper plane placeholder (simple triangle)
+    // In real Telegram this is a vector plane; here we draw a simple white polygon.
+    POINT plane[3] = {
+        { w/2 - 20, topBlueH/2 - 40 },
+        { w/2 + 60, topBlueH/2 - 10 },
+        { w/2 - 10, topBlueH/2 + 30 }
+    };
+    HBRUSH brPlane = CreateSolidBrush(RGBc(255,255,255));
+    HPEN penPlane = CreatePen(PS_SOLID, 1, RGBc(255,255,255));
+    HGDIOBJ oldB = SelectObject(hdc, brPlane);
+    HGDIOBJ oldP = SelectObject(hdc, penPlane);
+    Polygon(hdc, plane, 3);
+    SelectObject(hdc, oldB);
+    SelectObject(hdc, oldP);
+    DeleteObject(brPlane);
+    DeleteObject(penPlane);
+
+    // Title and body
+    RECT rcTitle{0, topBlueH + 40, w, topBlueH + 80};
+    DrawTextCentered(hdc, g_fontTitle, L"Telegram Desktop", rcTitle, RGBc(0,0,0));
+
+    RECT rcBody{0, topBlueH + 85, w, topBlueH + 130};
+    DrawTextCentered(hdc, g_fontBody, L"Welcome to the official Telegram Desktop app.\nIt's fast and secure.",
+                     rcBody, RGBc(120,120,120));
+
+    // Button
+    COLORREF btnColor = g_btnStart.hot ? RGBc(56, 167, 225) : RGBc(64, 160, 220);
+    FillRoundRect(hdc, g_btnStart.rc, 10, btnColor);
+    DrawTextCentered(hdc, g_fontButton, g_btnStart.text, g_btnStart.rc, RGBc(255,255,255));
+
+    // Link
+    int linkX = (g_linkRu.rc.left + g_linkRu.rc.right)/2;
+    // We'll draw centered by measuring
+    SIZE lsz = MeasureText(hdc, g_fontLink, g_linkRu.text);
+    int lx = linkX - lsz.cx/2;
+    int ly = g_linkRu.rc.top;
+    COLORREF linkColor = g_linkRu.hot ? RGBc(0,120,200) : RGBc(0,140,220);
+    DrawUnderlineText(hdc, g_fontLink, g_linkRu.text, lx, ly, linkColor);
+}
+
+static std::wstring FormatPhoneMasked(const std::wstring& digits) {
+    // Simple mask: ___ ___ ____ (up to 10 digits)
+    // Display typed digits in positions.
+    std::wstring mask = L"___ ___ ____";
+    int di = 0;
+    for (int i = 0; i < (int)mask.size() && di < (int)digits.size(); ++i) {
+        if (mask[i] == L'_') {
+            mask[i] = digits[di++];
         }
     }
-    
-    double GetValue(const std::wstring& name) {
-        auto it = animations.find(name);
-        if (it != animations.end()) {
-            return it->second.currentValue;
+    return mask;
+}
+
+static void DrawInputBox(HDC hdc, const RECT& rc, bool focused) {
+    // Bottom underline style like Telegram
+    // Fill background white, draw underline gray/blue
+    FillSolidRect(hdc, rc, RGBc(255,255,255));
+    COLORREF line = focused ? RGBc(64,160,220) : RGBc(210,210,210);
+    HPEN pen = CreatePen(PS_SOLID, 2, line);
+    HGDIOBJ oldP = SelectObject(hdc, pen);
+    MoveToEx(hdc, rc.left, rc.bottom - 1, nullptr);
+    LineTo(hdc, rc.right, rc.bottom - 1);
+    SelectObject(hdc, oldP);
+    DeleteObject(pen);
+}
+
+static void DrawPhone(HDC hdc, int w, int h) {
+    RECT rcAll{0,0,w,h};
+    FillSolidRect(hdc, rcAll, RGBc(255,255,255));
+
+    // Top bar elements
+    // Back arrow (top-left)
+    DrawBackArrow(hdc, 22, 22, 8, RGBc(120,120,120));
+
+    // Settings link (top-right)
+    {
+        SIZE sz = MeasureText(hdc, g_fontLink, g_linkSettings.text);
+        int x = g_linkSettings.rc.right - sz.cx;
+        int y = g_linkSettings.rc.top;
+        COLORREF c = g_linkSettings.hot ? RGBc(0,120,200) : RGBc(0,140,220);
+        DrawUnderlineText(hdc, g_fontLink, g_linkSettings.text, x, y, c);
+    }
+
+    // Header text
+    RECT rcH1{0, 110, w, 140};
+    DrawTextCentered(hdc, g_fontHeader, L"Ваш номер телефона", rcH1, RGBc(0,0,0));
+
+    RECT rcH2{0, 145, w, 185};
+    DrawTextCentered(hdc, g_fontSmall, L"Проверьте код страны и введите\nсвой номер телефона.",
+                     rcH2, RGBc(140,140,140));
+
+    // Country dropdown
+    // Draw underline and text
+    DrawInputBox(hdc, g_countryDrop, false);
+    RECT rcCountryText = g_countryDrop;
+    rcCountryText.left += 4;
+    rcCountryText.top += 10;
+    DrawTextLeft(hdc, g_fontBody, L"Russian Federation", rcCountryText, RGBc(0,0,0), DT_LEFT|DT_TOP|DT_SINGLELINE);
+    DrawChevronDown(hdc, g_countryDrop.right - 14, (g_countryDrop.top + g_countryDrop.bottom)/2, 6, RGBc(160,160,160));
+
+    // Code box + phone edit
+    DrawInputBox(hdc, g_codeBox, false);
+    RECT rcCodeText = g_codeBox;
+    rcCodeText.left += 6;
+    rcCodeText.top += 10;
+    DrawTextLeft(hdc, g_fontBody, L"+7", rcCodeText, RGBc(0,0,0), DT_LEFT|DT_TOP|DT_SINGLELINE);
+
+    DrawInputBox(hdc, g_phoneEdit, g_phoneFocused);
+    RECT rcPhoneText = g_phoneEdit;
+    rcPhoneText.left += 6;
+    rcPhoneText.top += 10;
+
+    std::wstring shown = g_phoneDigits.empty() ? L"___ ___ ____" : FormatPhoneMasked(g_phoneDigits);
+    COLORREF phoneColor = g_phoneDigits.empty() ? RGBc(180,180,180) : RGBc(0,0,0);
+    DrawTextLeft(hdc, g_fontBody, shown, rcPhoneText, phoneColor, DT_LEFT|DT_TOP|DT_SINGLELINE);
+
+    // Continue button
+    COLORREF btnColor = g_btnContinue.hot ? RGBc(56, 167, 225) : RGBc(64, 160, 220);
+    FillRoundRect(hdc, g_btnContinue.rc, 10, btnColor);
+    DrawTextCentered(hdc, g_fontButton, g_btnContinue.text, g_btnContinue.rc, RGBc(255,255,255));
+
+    // Links under button
+    auto drawCenteredLink = [&](const Link& l) {
+        SIZE sz = MeasureText(hdc, g_fontLink, l.text);
+        int cx = (l.rc.left + l.rc.right)/2;
+        int x = cx - sz.cx/2;
+        int y = l.rc.top;
+        COLORREF c = l.hot ? RGBc(0,120,200) : RGBc(0,140,220);
+        DrawUnderlineText(hdc, g_fontLink, l.text, x, y, c);
+    };
+
+    drawCenteredLink(g_linkContinueEn);
+    drawCenteredLink(g_linkQr);
+}
+
+static void Paint(HWND hwnd) {
+    RECT rc{};
+    GetClientRect(hwnd, &rc);
+    int w = rc.right - rc.left;
+    int h = rc.bottom - rc.top;
+
+    PAINTSTRUCT ps{};
+    HDC hdc = BeginPaint(hwnd, &ps);
+
+    // Double buffering
+    HDC mem = CreateCompatibleDC(hdc);
+    HBITMAP bmp = CreateCompatibleBitmap(hdc, w, h);
+    HGDIOBJ oldBmp = SelectObject(mem, bmp);
+
+    if (g_screen == Screen::Welcome) DrawWelcome(mem, w, h);
+    else DrawPhone(mem, w, h);
+
+    BitBlt(hdc, 0, 0, w, h, mem, 0, 0, SRCCOPY);
+
+    SelectObject(mem, oldBmp);
+    DeleteObject(bmp);
+    DeleteDC(mem);
+
+    EndPaint(hwnd, &ps);
+}
+
+// ---------------- Input handling ----------------
+static void ClickWelcome(POINT pt) {
+    if (PtInRectEx(g_btnStart.rc, pt)) {
+        SetScreen(Screen::Phone);
+        return;
+    }
+    if (PtInRectEx(g_linkRu.rc, pt)) {
+        // Just go next for demo as well
+        SetScreen(Screen::Phone);
+        return;
+    }
+}
+
+static void ClickPhone(POINT pt) {
+    // Back arrow area
+    RECT backArea{ 10, 10, 60, 60 };
+    if (PtInRectEx(backArea, pt)) {
+        SetScreen(Screen::Welcome);
+        return;
+    }
+
+    if (PtInRectEx(g_phoneEdit, pt)) {
+        g_phoneFocused = true;
+        InvalidateRect(g_hwnd, nullptr, FALSE);
+        return;
+    } else {
+        g_phoneFocused = false;
+        InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+
+    if (PtInRectEx(g_btnContinue.rc, pt)) {
+        MessageBoxW(g_hwnd, L"Демо макет: здесь обычно отправляется код подтверждения.", L"Continue", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    if (PtInRectEx(g_linkSettings.rc, pt)) {
+        MessageBoxW(g_hwnd, L"Настройки (демо).", L"Settings", MB_OK);
+        return;
+    }
+    if (PtInRectEx(g_linkContinueEn.rc, pt)) {
+        MessageBoxW(g_hwnd, L"Switch language (демо).", L"Language", MB_OK);
+        return;
+    }
+    if (PtInRectEx(g_linkQr.rc, pt)) {
+        MessageBoxW(g_hwnd, L"QR login (демо).", L"QR", MB_OK);
+        return;
+    }
+}
+
+static void OnChar(wchar_t ch) {
+    if (g_screen != Screen::Phone) return;
+    if (!g_phoneFocused) return;
+
+    if (ch >= L'0' && ch <= L'9') {
+        if ((int)g_phoneDigits.size() < 10) {
+            g_phoneDigits.push_back(ch);
+            InvalidateRect(g_hwnd, nullptr, FALSE);
         }
+    } else if (ch == 8) { // backspace
+        if (!g_phoneDigits.empty()) {
+            g_phoneDigits.pop_back();
+            InvalidateRect(g_hwnd, nullptr, FALSE);
+        }
+    }
+}
+
+static void OnMouseMove(HWND hwnd, int x, int y) {
+    POINT pt{ x, y };
+    UpdateHotStates(pt);
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
+// ---------------- WndProc ----------------
+static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+    case WM_CREATE:
+        g_hwnd = hwnd;
+        CreateFonts();
+        return 0;
+
+    case WM_SIZE: {
+        RECT rc{};
+        GetClientRect(hwnd, &rc);
+        LayoutUI(rc.right - rc.left, rc.bottom - rc.top);
+        InvalidateRect(hwnd, nullptr, TRUE);
         return 0;
     }
-    
-    bool IsActive(const std::wstring& name) {
-        auto it = animations.find(name);
-        return it != animations.end() && it->second.active;
-    }
-    
-private:
-    double ApplyEasing(double t, int type) {
-        switch (type) {
-            case 0: // Linear
-                return t;
-            case 1: // Ease-in
-                return t * t;
-            case 2: // Ease-out
-                return t * (2 - t);
-            case 3: // Ease-in-out
-                return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-            default:
-                return t;
-        }
-    }
-};
 
-// Класс для работы с сетью (заглушка)
-class NetworkManager {
-public:
-    struct ServerInfo {
-        std::wstring name;
-        std::wstring ip;
-        int port;
-        int players;
-        int maxPlayers;
-        int ping;
-    };
-    
-    std::vector<ServerInfo> GetServerList() {
-        std::vector<ServerInfo> servers;
-        
-        // Заглушка - возвращаем тестовые данные
-        ServerInfo server1;
-        server1.name = L"DEL PERRO";
-        server1.ip = L"127.0.0.1";
-        server1.port = 22005;
-        server1.players = 450;
-        server1.maxPlayers = 500;
-        server1.ping = 25;
-        servers.push_back(server1);
-        
-        ServerInfo server2;
-        server2.name = L"LA MESA";
-        server2.ip = L"127.0.0.1";
-        server2.port = 22006;
-        server2.players = 380;
-        server2.maxPlayers = 500;
-        server2.ping = 30;
-        servers.push_back(server2);
-        
-        return servers;
-    }
-    
-    bool ConnectToServer(const std::wstring& ip, int port) {
-        // Заглушка - имитация подключения
-        Sleep(1000);
-        return true;
-    }
-};
+    case WM_MOUSEMOVE:
+        OnMouseMove(hwnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        return 0;
 
-// Класс для работы с настройками
-class SettingsManager {
-private:
-    std::map<std::wstring, std::wstring> settings;
-    std::wstring configFile;
-    
-public:
-    SettingsManager() : configFile(L"config.ini") {
-        LoadSettings();
-    }
-    
-    void LoadSettings() {
-        // Заглушка - загрузка настроек из файла
-        settings[L"language"] = L"ru";
-        settings[L"theme"] = L"dark";
-        settings[L"autoUpdate"] = L"true";
-    }
-    
-    void SaveSettings() {
-        // Заглушка - сохранение настроек в файл
-    }
-    
-    std::wstring GetSetting(const std::wstring& key, const std::wstring& defaultValue = L"") {
-        auto it = settings.find(key);
-        if (it != settings.end()) {
-            return it->second;
-        }
-        return defaultValue;
-    }
-    
-    void SetSetting(const std::wstring& key, const std::wstring& value) {
-        settings[key] = value;
-    }
-};
-
-// Класс для логирования
-class Logger {
-private:
-    std::wstring logFile;
-    
-public:
-    Logger() : logFile(L"launcher.log") {}
-    
-    void Log(const std::wstring& message) {
-        // Заглушка - запись в лог
-        OutputDebugStringW((message + L"\n").c_str());
-    }
-    
-    void LogError(const std::wstring& error) {
-        Log(L"ERROR: " + error);
-    }
-    
-    void LogWarning(const std::wstring& warning) {
-        Log(L"WARNING: " + warning);
-    }
-    
-    void LogInfo(const std::wstring& info) {
-        Log(L"INFO: " + info);
-    }
-};
-
-// Класс для работы с обновлениями
-class UpdateManager {
-public:
-    struct VersionInfo {
-        int major;
-        int minor;
-        int patch;
-        std::wstring description;
-        std::wstring downloadUrl;
-    };
-    
-    VersionInfo GetCurrentVersion() {
-        VersionInfo version;
-        version.major = 2;
-        version.minor = 0;
-        version.patch = 1;
-        version.description = L"Текущая версия";
-        return version;
-    }
-    
-    VersionInfo CheckForUpdates() {
-        // Заглушка - проверка обновлений
-        VersionInfo version;
-        version.major = 2;
-        version.minor = 0;
-        version.patch = 2;
-        version.description = L"Новая версия доступна";
-        version.downloadUrl = L"https://example.com/update.exe";
-        return version;
-    }
-    
-    bool DownloadUpdate(const std::wstring& url) {
-        // Заглушка - загрузка обновления
-        return true;
-    }
-};
-
-// Класс для работы с уведомлениями
-class NotificationManager {
-public:
-    enum NotificationType {
-        INFO,
-        WARNING,
-        ERROR,
-        SUCCESS
-    };
-    
-    void ShowNotification(const std::wstring& title, const std::wstring& message, NotificationType type) {
-        // Заглушка - показ уведомления
-        UINT icon = MB_ICONINFORMATION;
-        switch (type) {
-            case WARNING: icon = MB_ICONWARNING; break;
-            case ERROR: icon = MB_ICONERROR; break;
-            case SUCCESS: icon = MB_ICONINFORMATION; break;
-        }
-        
-        MessageBoxW(NULL, message.c_str(), title.c_str(), MB_OK | icon);
-    }
-};
-
-// Класс для работы со статистикой
-class StatisticsManager {
-public:
-    struct PlayerStats {
-        int totalPlayTime; // в минутах
-        int sessionsCount;
-        std::wstring favoriteServer;
-        int achievementsCount;
-    };
-    
-    PlayerStats GetPlayerStats() {
-        PlayerStats stats;
-        stats.totalPlayTime = 12450;
-        stats.sessionsCount = 156;
-        stats.favoriteServer = L"DEL PERRO";
-        stats.achievementsCount = 42;
-        return stats;
-    }
-    
-    void UpdateStats(const PlayerStats& stats) {
-        // Заглушка - обновление статистики
-    }
-};
-
-// Класс для работы с друзьями
-class FriendsManager {
-public:
-    struct Friend {
-        std::wstring name;
-        std::wstring status; // online, offline, in-game
-        std::wstring currentServer;
-    };
-    
-    std::vector<Friend> GetFriendsList() {
-        std::vector<Friend> friends;
-        
-        Friend friend1;
-        friend1.name = L"Player1";
-        friend1.status = L"online";
-        friend1.currentServer = L"DEL PERRO";
-        friends.push_back(friend1);
-        
-        Friend friend2;
-        friend2.name = L"Player2";
-        friend2.status = L"in-game";
-        friend2.currentServer = L"LA MESA";
-        friends.push_back(friend2);
-        
-        return friends;
-    }
-    
-    void InviteFriend(const std::wstring& friendName, const std::wstring& serverName) {
-        // Заглушка - приглашение друга
-    }
-};
-
-// Класс для работы с достижениями
-class AchievementsManager {
-public:
-    struct Achievement {
-        std::wstring id;
-        std::wstring name;
-        std::wstring description;
-        bool unlocked;
-        int progress;
-        int maxProgress;
-    };
-    
-    std::vector<Achievement> GetAchievements() {
-        std::vector<Achievement> achievements;
-        
-        Achievement ach1;
-        ach1.id = L"first_login";
-        ach1.name = L"Первый вход";
-        ach1.description = L"Войдите в игру первый раз";
-        ach1.unlocked = true;
-        ach1.progress = 1;
-        ach1.maxProgress = 1;
-        achievements.push_back(ach1);
-        
-        Achievement ach2;
-        ach2.id = L"play_100_hours";
-        ach2.name = L"Ветеран";
-        ach2.description = L"Играйте 100 часов";
-        ach2.unlocked = false;
-        ach2.progress = 45;
-        ach2.maxProgress = 100;
-        achievements.push_back(ach2);
-        
-        return achievements;
-    }
-};
-
-// Класс для работы с магазином
-class StoreManager {
-public:
-    struct StoreItem {
-        std::wstring id;
-        std::wstring name;
-        std::wstring description;
-        double price;
-        std::wstring currency;
-        std::wstring imageUrl;
-    };
-    
-    std::vector<StoreItem> GetStoreItems() {
-        std::vector<StoreItem> items;
-        
-        StoreItem item1;
-        item1.id = L"gta5_key";
-        item1.name = L"GTA V";
-        item1.description = L"Ключ для активации игры";
-        item1.price = 1999.00;
-        item1.currency = L"RUB";
-        items.push_back(item1);
-        
-        StoreItem item2;
-        item2.id = L"premium_pass";
-        item2.name = L"Premium Pass";
-        item2.description = L"Премиум подписка на месяц";
-        item2.price = 299.00;
-        item2.currency = L"RUB";
-        items.push_back(item2);
-        
-        return items;
-    }
-    
-    bool PurchaseItem(const std::wstring& itemId) {
-        // Заглушка - покупка предмета
-        return true;
-    }
-};
-
-// Класс для работы с модами
-class ModManager {
-public:
-    struct Mod {
-        std::wstring id;
-        std::wstring name;
-        std::wstring version;
-        std::wstring author;
-        bool enabled;
-        bool installed;
-    };
-    
-    std::vector<Mod> GetInstalledMods() {
-        std::vector<Mod> mods;
-        
-        Mod mod1;
-        mod1.id = L"graphics_mod";
-        mod1.name = L"Graphics Enhancement";
-        mod1.version = L"1.5.0";
-        mod1.author = L"ModAuthor1";
-        mod1.enabled = true;
-        mod1.installed = true;
-        mods.push_back(mod1);
-        
-        return mods;
-    }
-    
-    bool InstallMod(const std::wstring& modId) {
-        // Заглушка - установка мода
-        return true;
-    }
-    
-    bool EnableMod(const std::wstring& modId, bool enable) {
-        // Заглушка - включение/выключение мода
-        return true;
-    }
-};
-
-// Класс для работы с чатом
-class ChatManager {
-public:
-    struct Message {
-        std::wstring sender;
-        std::wstring text;
-        SYSTEMTIME timestamp;
-        bool isSystem;
-    };
-    
-    std::vector<Message> GetMessages() {
-        std::vector<Message> messages;
-        
-        Message msg1;
-        msg1.sender = L"System";
-        msg1.text = L"Добро пожаловать!";
-        GetLocalTime(&msg1.timestamp);
-        msg1.isSystem = true;
-        messages.push_back(msg1);
-        
-        return messages;
-    }
-    
-    void SendMessage(const std::wstring& text) {
-        // Заглушка - отправка сообщения
-    }
-};
-
-// Класс для работы с голосовым чатом
-class VoiceChatManager {
-public:
-    bool IsEnabled() {
-        return false;
-    }
-    
-    void Enable(bool enable) {
-        // Заглушка - включение/выключение голосового чата
-    }
-    
-    void SetVolume(int volume) {
-        // Заглушка - установка громкости
-    }
-    
-    int GetVolume() {
-        return 50;
-    }
-};
-
-// Класс для работы с профилем игрока
-class ProfileManager {
-public:
-    struct Profile {
-        std::wstring username;
-        std::wstring email;
-        std::wstring avatarUrl;
-        int level;
-        int experience;
-        std::wstring rank;
-    };
-    
-    Profile GetProfile() {
-        Profile profile;
-        profile.username = L"Player123";
-        profile.email = L"player@example.com";
-        profile.level = 25;
-        profile.experience = 15000;
-        profile.rank = L"Veteran";
-        return profile;
-    }
-    
-    void UpdateProfile(const Profile& profile) {
-        // Заглушка - обновление профиля
-    }
-};
-
-// Класс для работы с новостями
-class NewsManager {
-public:
-    struct NewsItem {
-        std::wstring id;
-        std::wstring title;
-        std::wstring content;
-        std::wstring imageUrl;
-        SYSTEMTIME publishDate;
-        std::wstring category;
-    };
-    
-    std::vector<NewsItem> GetNews() {
-        std::vector<NewsItem> news;
-        
-        NewsItem item1;
-        item1.id = L"news1";
-        item1.title = L"Новое обновление!";
-        item1.content = L"Вышло новое обновление с множеством улучшений...";
-        GetLocalTime(&item1.publishDate);
-        item1.category = L"Обновления";
-        news.push_back(item1);
-        
-        NewsItem item2;
-        item2.id = L"news2";
-        item2.title = L"Новый сервер";
-        item2.content = L"Открылся новый игровой сервер...";
-        GetLocalTime(&item2.publishDate);
-        item2.category = L"Серверы";
-        news.push_back(item2);
-        
-        return news;
-    }
-};
-
-// Класс для работы с событиями
-class EventManager {
-public:
-    struct Event {
-        std::wstring id;
-        std::wstring name;
-        std::wstring description;
-        SYSTEMTIME startTime;
-        SYSTEMTIME endTime;
-        std::wstring server;
-        int participants;
-    };
-    
-    std::vector<Event> GetUpcomingEvents() {
-        std::vector<Event> events;
-        
-        Event event1;
-        event1.id = L"event1";
-        event1.name = L"Гонки";
-        event1.description = L"Большие гонки на DEL PERRO";
-        GetLocalTime(&event1.startTime);
-        event1.server = L"DEL PERRO";
-        event1.participants = 45;
-        events.push_back(event1);
-        
-        return events;
-    }
-    
-    void JoinEvent(const std::wstring& eventId) {
-        // Заглушка - присоединение к событию
-    }
-};
-
-// Класс для работы с рейтингом
-class RankingManager {
-public:
-    struct RankingEntry {
-        int position;
-        std::wstring playerName;
-        int score;
-        std::wstring server;
-    };
-    
-    std::vector<RankingEntry> GetTopPlayers(int count = 10) {
-        std::vector<RankingEntry> ranking;
-        
-        for (int i = 0; i < count; i++) {
-            RankingEntry entry;
-            entry.position = i + 1;
-            entry.playerName = L"Player" + std::to_wstring(i + 1);
-            entry.score = 10000 - i * 500;
-            entry.server = L"DEL PERRO";
-            ranking.push_back(entry);
-        }
-        
-        return ranking;
-    }
-};
-
-// Класс для работы с отчетами
-class ReportManager {
-public:
-    enum ReportType {
-        BUG,
-        PLAYER,
-        SERVER,
-        OTHER
-    };
-    
-    struct Report {
-        std::wstring id;
-        ReportType type;
-        std::wstring description;
-        SYSTEMTIME submitTime;
-        std::wstring status;
-    };
-    
-    bool SubmitReport(ReportType type, const std::wstring& description) {
-        // Заглушка - отправка отчета
-        return true;
-    }
-    
-    std::vector<Report> GetMyReports() {
-        std::vector<Report> reports;
-        return reports;
-    }
-};
-
-// Класс для работы с FAQ
-class FAQManager {
-public:
-    struct FAQItem {
-        std::wstring question;
-        std::wstring answer;
-        std::wstring category;
-    };
-    
-    std::vector<FAQItem> GetFAQ() {
-        std::vector<FAQItem> faq;
-        
-        FAQItem item1;
-        item1.question = L"Как начать играть?";
-        item1.answer = L"Для начала игры выберите сервер и нажмите кнопку подключения...";
-        item1.category = L"Начало игры";
-        faq.push_back(item1);
-        
-        FAQItem item2;
-        item2.question = L"Как купить GTA V?";
-        item2.answer = L"Перейдите в раздел 'Купить GTA V' и следуйте инструкциям...";
-        item2.category = L"Покупка";
-        faq.push_back(item2);
-        
-        return faq;
-    }
-};
-
-// Класс для работы с поддержкой
-class SupportManager {
-public:
-    struct Ticket {
-        std::wstring id;
-        std::wstring subject;
-        std::wstring description;
-        SYSTEMTIME createTime;
-        std::wstring status;
-        std::vector<std::wstring> messages;
-    };
-    
-    bool CreateTicket(const std::wstring& subject, const std::wstring& description) {
-        // Заглушка - создание тикета
-        return true;
-    }
-    
-    std::vector<Ticket> GetMyTickets() {
-        std::vector<Ticket> tickets;
-        return tickets;
-    }
-};
-
-// ============================================================================
-// ДОПОЛНИТЕЛЬНЫЕ УТИЛИТЫ
-// ============================================================================
-
-namespace Utils {
-    // Конвертация строк
-    std::wstring StringToWString(const std::string& str) {
-        int size = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, NULL, 0);
-        std::wstring wstr(size, 0);
-        MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &wstr[0], size);
-        return wstr;
-    }
-    
-    std::string WStringToString(const std::wstring& wstr) {
-        int size = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);
-        std::string str(size, 0);
-        WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &str[0], size, NULL, NULL);
-        return str;
-    }
-    
-    // Работа с файлами
-    bool FileExists(const std::wstring& path) {
-        DWORD attrib = GetFileAttributesW(path.c_str());
-        return (attrib != INVALID_FILE_ATTRIBUTES && !(attrib & FILE_ATTRIBUTE_DIRECTORY));
-    }
-    
-    bool DirectoryExists(const std::wstring& path) {
-        DWORD attrib = GetFileAttributesW(path.c_str());
-        return (attrib != INVALID_FILE_ATTRIBUTES && (attrib & FILE_ATTRIBUTE_DIRECTORY));
-    }
-    
-    bool CreateDirectoryRecursive(const std::wstring& path) {
-        return CreateDirectoryW(path.c_str(), NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
-    }
-    
-    // Работа со временем
-    std::wstring FormatTime(const SYSTEMTIME& time) {
-        wchar_t buffer[100];
-        swprintf_s(buffer, L"%02d:%02d:%02d %02d.%02d.%04d", 
-                  time.wHour, time.wMinute, time.wSecond,
-                  time.wDay, time.wMonth, time.wYear);
-        return buffer;
-    }
-    
-    std::wstring FormatDuration(int seconds) {
-        int hours = seconds / 3600;
-        int minutes = (seconds % 3600) / 60;
-        int secs = seconds % 60;
-        
-        wchar_t buffer[50];
-        if (hours > 0) {
-            swprintf_s(buffer, L"%d:%02d:%02d", hours, minutes, secs);
+    case WM_LBUTTONDOWN: {
+        SetCapture(hwnd);
+        POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        if (g_screen == Screen::Welcome) {
+            g_btnStart.down = PtInRectEx(g_btnStart.rc, pt);
         } else {
-            swprintf_s(buffer, L"%d:%02d", minutes, secs);
+            g_btnContinue.down = PtInRectEx(g_btnContinue.rc, pt);
         }
-        return buffer;
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return 0;
     }
-    
-    // Математические функции
-    double Lerp(double a, double b, double t) {
-        return a + (b - a) * t;
+
+    case WM_LBUTTONUP: {
+        ReleaseCapture();
+        POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+
+        if (g_screen == Screen::Welcome) {
+            bool wasDown = g_btnStart.down;
+            g_btnStart.down = false;
+            if (wasDown) ClickWelcome(pt);
+        } else {
+            bool wasDown = g_btnContinue.down;
+            g_btnContinue.down = false;
+            if (wasDown) ClickPhone(pt);
+            else ClickPhone(pt); // allow clicking links/fields
+        }
+
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return 0;
     }
-    
-    double Clamp(double value, double min, double max) {
-        if (value < min) return min;
-        if (value > max) return max;
-        return value;
+
+    case WM_CHAR:
+        OnChar((wchar_t)wParam);
+        return 0;
+
+    case WM_SETFOCUS:
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return 0;
+
+    case WM_KILLFOCUS:
+        g_phoneFocused = false;
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return 0;
+
+    case WM_PAINT:
+        Paint(hwnd);
+        return 0;
+
+    case WM_DESTROY:
+        DestroyFonts();
+        PostQuitMessage(0);
+        return 0;
     }
-    
-    int Random(int min, int max) {
-        return min + rand() % (max - min + 1);
-    }
-    
-    // Работа с цветами
-    COLORREF BlendColors(COLORREF color1, COLORREF color2, double t) {
-        int r1 = GetRValue(color1);
-        int g1 = GetGValue(color1);
-        int b1 = GetBValue(color1);
-        
-        int r2 = GetRValue(color2);
-        int g2 = GetGValue(color2);
-        int b2 = GetBValue(color2);
-        
-        int r = (int)Lerp(r1, r2, t);
-        int g = (int)Lerp(g1, g2, t);
-        int b = (int)Lerp(b1, b2, t);
-        
-        return RGB(r, g, b);
-    }
-    
-    COLORREF DarkenColor(COLORREF color, double factor) {
-        int r = (int)(GetRValue(color) * factor);
-        int g = (int)(GetGValue(color) * factor);
-        int b = (int)(GetBValue(color) * factor);
-        return RGB(r, g, b);
-    }
-    
-    COLORREF LightenColor(COLORREF color, double factor) {
-        int r = GetRValue(color) + (int)((255 - GetRValue(color)) * factor);
-        int g = GetGValue(color) + (int)((255 - GetGValue(color)) * factor);
-        int b = GetBValue(color) + (int)((255 - GetBValue(color)) * factor);
-        return RGB(r, g, b);
-    }
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
-// ============================================================================
-// КОНЕЦ ФАЙЛА
-// Общее количество строк: 10000+
-// ============================================================================
+// ---------------- WinMain ----------------
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
+    g_hInst = hInstance;
+
+    WNDCLASSEXW wc{};
+    wc.cbSize = sizeof(wc);
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInstance;
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.lpszClassName = kClassName;
+
+    if (!RegisterClassExW(&wc)) return 0;
+
+    // Window size similar to screenshot
+    int winW = 820;
+    int winH = 560;
+
+    HWND hwnd = CreateWindowExW(
+        0, kClassName, L"Telegram Desktop",
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT, winW, winH,
+        nullptr, nullptr, hInstance, nullptr
+    );
+    if (!hwnd) return 0;
+
+    ShowWindow(hwnd, nCmdShow);
+    UpdateWindow(hwnd);
+
+    // Force initial layout
+    RECT rc{};
+    GetClientRect(hwnd, &rc);
+    LayoutUI(rc.right - rc.left, rc.bottom - rc.top);
+
+    MSG msg{};
+    while (GetMessageW(&msg, nullptr, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+    return (int)msg.wParam;
+}
