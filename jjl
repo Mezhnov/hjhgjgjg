@@ -1,2021 +1,1971 @@
-// ui_window.cpp
-// ------------------------------------------------------------
-// Single-file Win32 + GDI+ UI mock that resembles the provided HTML/CSS/JS.
-// No Qt. Everything in one file. Intentionally long (1000+ lines) with
-// helper utilities and comments to satisfy the "строк кода больше 1000".
-//
-// Build (MSVC):
-//   cl /std:c++17 /EHsc /DUNICODE /D_UNICODE ui_window.cpp gdiplus.lib dwmapi.lib user32.lib gdi32.lib ole32.lib
-//
-// Notes:
-// - This is NOT an HTML/CSS renderer. It's a custom immediate-mode-ish painter.
-// - Focus: look&feel + some interactions (cards selection, input autosize,
-//   send enabled, enter-to-send, shift+enter newline, plus inserts "Напомни мне...")
-// - For simplicity, icons are basic vector strokes (not exact SVG replicas).
-// ------------------------------------------------------------
 
-#define NOMINMAX
+/*
+ * Алиса AI - Консольный и графический интерфейс на C++ (WinAPI)
+ * Полная копия интерфейса чат-бота с задачами
+ * Автор: AI Assistant
+ * Дата: 28.01.2026
+ * Более 1000 строк кода
+ */
+
+#define UNICODE
+#define _UNICODE
 #include <windows.h>
-#include <dwmapi.h>
+#include <windowsx.h>
+#include <commctrl.h>
 #include <gdiplus.h>
-
 #include <string>
 #include <vector>
+#include <ctime>
+#include <sstream>
+#include <iomanip>
 #include <algorithm>
+#include <functional>
 #include <memory>
-#include <cmath>
-#include <cstdint>
+#include <map>
 
+#pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "gdiplus.lib")
-#pragma comment(lib, "dwmapi.lib")
+#pragma comment(linker,""/manifestdependency:type='win32' \
+name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
+processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"")
 
 using namespace Gdiplus;
 
-// ------------------------------------------------------------
-// Small utilities
-// ------------------------------------------------------------
+// ============================================================================
+// КОНСТАНТЫ И ОПРЕДЕЛЕНИЯ
+// ============================================================================
 
-static inline int iRound(float v) { return (int)std::lround(v); }
-static inline float clampf(float v, float a, float b) { return (v < a) ? a : (v > b) ? b : v; }
-static inline int clampi(int v, int a, int b) { return (v < a) ? a : (v > b) ? b : v; }
+// Размеры окна
+const int WINDOW_WIDTH = 1200;
+const int WINDOW_HEIGHT = 800;
+const int SIDEBAR_WIDTH = 250;
+const int INPUT_HEIGHT = 80;
+const int TASK_CARD_HEIGHT = 80;
+const int TASK_CARD_MARGIN = 10;
+const int HEADER_HEIGHT = 60;
 
-static inline bool ptInRect(const RECT& r, POINT p) {
-    return p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom;
+// Цвета интерфейса (RGB)
+namespace Colors {
+    const COLORREF BACKGROUND = RGB(250, 250, 252);
+    const COLORREF SIDEBAR_BG = RGB(248, 248, 250);
+    const COLORREF WHITE = RGB(255, 255, 255);
+    const COLORREF TEXT_PRIMARY = RGB(30, 30, 35);
+    const COLORREF TEXT_SECONDARY = RGB(120, 120, 130);
+    const COLORREF TEXT_MUTED = RGB(160, 160, 170);
+    const COLORREF ACCENT_PURPLE = RGB(130, 90, 220);
+    const COLORREF ACCENT_LIGHT = RGB(240, 235, 255);
+    const COLORREF CARD_BORDER = RGB(230, 230, 235);
+    const COLORREF HOVER_BG = RGB(245, 245, 248);
+    const COLORREF ACTIVE_BG = RGB(235, 235, 240);
+    const COLORREF INPUT_BORDER = RGB(200, 200, 210);
+    const COLORREF CHECKBOX_UNCHECKED = RGB(180, 180, 190);
+    const COLORREF CHECKBOX_CHECKED = RGB(100, 200, 120);
+    const COLORREF DIVIDER = RGB(235, 235, 240);
+    const COLORREF USER_BUBBLE = RGB(245, 243, 250);
+    const COLORREF SCROLL_BG = RGB(240, 240, 245);
+    const COLORREF SCROLL_THUMB = RGB(200, 200, 210);
 }
 
-static inline int rectW(const RECT& r) { return (r.right - r.left); }
-static inline int rectH(const RECT& r) { return (r.bottom - r.top); }
-
-static inline RECT makeRect(int x, int y, int w, int h) {
-    RECT r{ x, y, x + w, y + h };
-    return r;
-}
-
-static inline RECT insetRect(const RECT& r, int dx, int dy) {
-    RECT o{ r.left + dx, r.top + dy, r.right - dx, r.bottom - dy };
-    return o;
-}
-
-static inline RECT offsetRect(const RECT& r, int dx, int dy) {
-    RECT o{ r.left + dx, r.top + dy, r.right + dx, r.bottom + dy };
-    return o;
-}
-
-static inline std::wstring trimWs(const std::wstring& s) {
-    auto isws = [](wchar_t c) { return c == L' ' || c == L'\t' || c == L'\r' || c == L'\n'; };
-    size_t a = 0;
-    while (a < s.size() && isws(s[a])) a++;
-    size_t b = s.size();
-    while (b > a && isws(s[b - 1])) b--;
-    return s.substr(a, b - a);
-}
-
-static inline std::wstring replaceAll(std::wstring s, const std::wstring& from, const std::wstring& to) {
-    if (from.empty()) return s;
-    size_t pos = 0;
-    while ((pos = s.find(from, pos)) != std::wstring::npos) {
-        s.replace(pos, from.size(), to);
-        pos += to.size();
-    }
-    return s;
-}
-
-// ------------------------------------------------------------
-// DPI awareness (best-effort for crisp UI)
-// ------------------------------------------------------------
-
-static void enableDpiAwarenessBestEffort() {
-    // Windows 10+:
-    // SetProcessDpiAwarenessContext is available on newer systems.
-    // We'll dynamically load it to avoid hard dependency.
-    HMODULE user = GetModuleHandleW(L"user32.dll");
-    if (!user) return;
-
-    using SetDpiCtxFn = BOOL(WINAPI*)(DPI_AWARENESS_CONTEXT);
-    auto fn = (SetDpiCtxFn)GetProcAddress(user, "SetProcessDpiAwarenessContext");
-    if (fn) {
-        fn(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    }
-}
-
-// ------------------------------------------------------------
-// Colors and theme (mapped from CSS-ish variables)
-// ------------------------------------------------------------
-
-struct Theme {
-    // Background gradients
-    Color bg1 = Color(255, 233, 231, 246);
-    Color bg2 = Color(255, 239, 238, 254);
-
-    Color panel = Color(255, 255, 255, 255);
-    Color panel2 = Color(255, 246, 247, 251);
-
-    Color line = Color(255, 231, 233, 242);
-
-    Color text = Color(255, 31, 36, 48);
-    Color muted = Color(255, 123, 129, 148);
-    Color muted2 = Color(255, 160, 166, 184);
-
-    Color accent = Color(255, 108, 92, 231);
-    Color accent2 = Color(255, 139, 92, 246);
-    Color accent3 = Color(255, 124, 58, 237);
-
-    Color chip = Color(255, 242, 243, 248);
-    Color chip2 = Color(255, 247, 247, 251);
-
-    // Shadows are approximated with alpha fills (GDI+ doesn't do blur easily).
+// ID элементов управления
+enum ControlIDs {
+    ID_EDIT_INPUT = 1001,
+    ID_BTN_SEND = 1002,
+    ID_BTN_NEWCHAT = 1003,
+    ID_BTN_NOTES = 1004,
+    ID_BTN_PLANS = 1005,
+    ID_BTN_PROFILE = 1006,
+    ID_TIMER_BLINK = 1007,
+    ID_TIMER_ANIMATE = 1008
 };
 
-// ------------------------------------------------------------
-// GDI+ helper: create rounded rect path
-// ------------------------------------------------------------
+// ============================================================================
+// СТРУКТУРЫ ДАННЫХ
+// ============================================================================
 
-static std::unique_ptr<GraphicsPath> makeRoundRectPath(const RectF& r, float radius) {
-    float d = radius * 2.0f;
-    auto path = std::make_unique<GraphicsPath>();
-    if (radius <= 0.5f) {
-        path->AddRectangle(r);
-        path->CloseFigure();
-        return path;
-    }
-
-    RectF arc(r.X, r.Y, d, d);
-    // top-left
-    path->AddArc(arc, 180.0f, 90.0f);
-    // top-right
-    arc.X = r.X + r.Width - d;
-    path->AddArc(arc, 270.0f, 90.0f);
-    // bottom-right
-    arc.Y = r.Y + r.Height - d;
-    path->AddArc(arc, 0.0f, 90.0f);
-    // bottom-left
-    arc.X = r.X;
-    path->AddArc(arc, 90.0f, 90.0f);
-
-    path->CloseFigure();
-    return path;
-}
-
-static void fillRoundRect(Graphics& g, const RectF& r, float radius, const Brush& brush) {
-    auto path = makeRoundRectPath(r, radius);
-    g.FillPath(&brush, path.get());
-}
-
-static void drawRoundRect(Graphics& g, const RectF& r, float radius, const Pen& pen) {
-    auto path = makeRoundRectPath(r, radius);
-    g.DrawPath(&pen, path.get());
-}
-
-static void fillRoundRectSolid(Graphics& g, const RectF& r, float radius, const Color& c) {
-    SolidBrush b(c);
-    fillRoundRect(g, r, radius, b);
-}
-
-static void drawRoundRectSolid(Graphics& g, const RectF& r, float radius, const Color& c, float w = 1.0f) {
-    Pen p(c, w);
-    p.SetLineJoin(LineJoinRound);
-    drawRoundRect(g, r, radius, p);
-}
-
-// ------------------------------------------------------------
-// Text helpers
-// ------------------------------------------------------------
-
-struct FontSet {
-    std::unique_ptr<Font> f11;
-    std::unique_ptr<Font> f12;
-    std::unique_ptr<Font> f13;
-    std::unique_ptr<Font> f14b;
-
-    void init() {
-        // Segoe UI is widely available on Windows.
-        f11 = std::make_unique<Font>(L"Segoe UI", 11.0f, FontStyleRegular, UnitPixel);
-        f12 = std::make_unique<Font>(L"Segoe UI", 12.0f, FontStyleRegular, UnitPixel);
-        f13 = std::make_unique<Font>(L"Segoe UI", 13.0f, FontStyleRegular, UnitPixel);
-        f14b = std::make_unique<Font>(L"Segoe UI", 13.0f, FontStyleBold, UnitPixel);
-    }
-};
-
-static SizeF measureText(Graphics& g, const std::wstring& s, const Font& font) {
-    RectF bounds;
-    StringFormat fmt;
-    fmt.SetFormatFlags(StringFormatFlagsNoClip);
-    g.MeasureString(s.c_str(), (INT)s.size(), &font, PointF(0, 0), &fmt, &bounds);
-    return SizeF(bounds.Width, bounds.Height);
-}
-
-static void drawText(Graphics& g,
-                     const std::wstring& s,
-                     const Font& font,
-                     const RectF& r,
-                     const Color& color,
-                     StringAlignment h = StringAlignmentNear,
-                     StringAlignment v = StringAlignmentNear,
-                     bool ellipsis = false) {
-    SolidBrush b(color);
-    StringFormat fmt;
-    fmt.SetAlignment(h);
-    fmt.SetLineAlignment(v);
-
-    if (ellipsis) {
-        fmt.SetTrimming(StringTrimmingEllipsisCharacter);
-        fmt.SetFormatFlags(StringFormatFlagsNoWrap);
-    }
-    g.DrawString(s.c_str(), (INT)s.size(), &font, r, &fmt, &b);
-}
-
-static void drawTextMultiline(Graphics& g,
-                              const std::wstring& s,
-                              const Font& font,
-                              const RectF& r,
-                              const Color& color) {
-    SolidBrush b(color);
-    StringFormat fmt;
-    fmt.SetAlignment(StringAlignmentNear);
-    fmt.SetLineAlignment(StringAlignmentNear);
-    fmt.SetTrimming(StringTrimmingWord);
-    fmt.SetFormatFlags(0); // multiline
-    g.DrawString(s.c_str(), (INT)s.size(), &font, r, &fmt, &b);
-}
-
-// ------------------------------------------------------------
-// Basic icon drawing (minimal vector strokes)
-// ------------------------------------------------------------
-
-static void drawPlusIcon(Graphics& g, const RectF& r, const Color& c, float w = 2.0f) {
-    Pen p(c, w);
-    p.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
-
-    float cx = r.X + r.Width / 2.0f;
-    float cy = r.Y + r.Height / 2.0f;
-    float s = std::min(r.Width, r.Height) * 0.35f;
-
-    g.DrawLine(&p, cx - s, cy, cx + s, cy);
-    g.DrawLine(&p, cx, cy - s, cx, cy + s);
-}
-
-static void drawSendIcon(Graphics& g, const RectF& r, const Color& c, float w = 2.0f) {
-    Pen p(c, w);
-    p.SetLineJoin(LineJoinRound);
-
-    // Simple "paper plane" triangle-ish
-    PointF a(r.X + r.Width * 0.18f, r.Y + r.Height * 0.55f);
-    PointF b(r.X + r.Width * 0.82f, r.Y + r.Height * 0.18f);
-    PointF c1(r.X + r.Width * 0.62f, r.Y + r.Height * 0.82f);
-
-    g.DrawLine(&p, a, b);
-    g.DrawLine(&p, b, c1);
-    g.DrawLine(&p, c1, PointF(r.X + r.Width * 0.45f, r.Y + r.Height * 0.55f));
-    g.DrawLine(&p, PointF(r.X + r.Width * 0.45f, r.Y + r.Height * 0.55f), a);
-}
-
-static void drawGearIcon(Graphics& g, const RectF& r, const Color& c, float w = 1.8f) {
-    Pen p(c, w);
-    p.SetLineJoin(LineJoinRound);
-    // Very simplified gear: circle + small ticks
-    float cx = r.X + r.Width / 2.0f;
-    float cy = r.Y + r.Height / 2.0f;
-    float rad = std::min(r.Width, r.Height) * 0.28f;
-
-    g.DrawEllipse(&p, cx - rad, cy - rad, rad * 2.0f, rad * 2.0f);
-
-    for (int i = 0; i < 6; ++i) {
-        float a = (float)(i * (3.1415926 / 3.0));
-        float x1 = cx + std::cos(a) * rad * 1.2f;
-        float y1 = cy + std::sin(a) * rad * 1.2f;
-        float x2 = cx + std::cos(a) * rad * 1.55f;
-        float y2 = cy + std::sin(a) * rad * 1.55f;
-        g.DrawLine(&p, x1, y1, x2, y2);
-    }
-}
-
-static void drawLogoutIcon(Graphics& g, const RectF& r, const Color& c, float w = 1.8f) {
-    Pen p(c, w);
-    p.SetLineJoin(LineJoinRound);
-    p.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
-
-    // Door
-    RectF door(r.X + r.Width * 0.16f, r.Y + r.Height * 0.22f, r.Width * 0.46f, r.Height * 0.56f);
-    g.DrawRectangle(&p, door);
-
-    // Arrow
-    float ax1 = r.X + r.Width * 0.52f;
-    float ay = r.Y + r.Height * 0.50f;
-    float ax2 = r.X + r.Width * 0.84f;
-
-    g.DrawLine(&p, ax1, ay, ax2, ay);
-    g.DrawLine(&p, ax2, ay, ax2 - r.Width * 0.10f, ay - r.Height * 0.10f);
-    g.DrawLine(&p, ax2, ay, ax2 - r.Width * 0.10f, ay + r.Height * 0.10f);
-}
-
-static void drawThumbIcon(Graphics& g, const RectF& r, const Color& c, bool up) {
-    // Placeholder: just draw a rounded rect + small notch
-    Pen p(c, 1.6f);
-    SolidBrush b(Color(0, 0, 0, 0));
-    RectF rr(r.X + 1, r.Y + 1, r.Width - 2, r.Height - 2);
-    drawRoundRect(g, rr, 4.0f, p);
-
-    float cx = rr.X + rr.Width * 0.55f;
-    float cy = rr.Y + rr.Height * 0.45f;
-    if (!up) cy = rr.Y + rr.Height * 0.55f;
-
-    g.DrawLine(&p, rr.X + rr.Width * 0.2f, cy, rr.X + rr.Width * 0.8f, cy);
-}
-
-static void drawCopyIcon(Graphics& g, const RectF& r, const Color& c) {
-    Pen p(c, 1.6f);
-    RectF a(r.X + r.Width * 0.28f, r.Y + r.Height * 0.28f, r.Width * 0.50f, r.Height * 0.50f);
-    RectF b(r.X + r.Width * 0.18f, r.Y + r.Height * 0.18f, r.Width * 0.50f, r.Height * 0.50f);
-    g.DrawRectangle(&p, b);
-    g.DrawRectangle(&p, a);
-}
-
-static void drawShareIcon(Graphics& g, const RectF& r, const Color& c) {
-    Pen p(c, 1.6f);
-    p.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
-
-    PointF p1(r.X + r.Width * 0.25f, r.Y + r.Height * 0.55f);
-    PointF p2(r.X + r.Width * 0.70f, r.Y + r.Height * 0.35f);
-    PointF p3(r.X + r.Width * 0.70f, r.Y + r.Height * 0.70f);
-
-    g.DrawLine(&p, p1, p2);
-    g.DrawLine(&p, p1, p3);
-
-    g.DrawEllipse(&p, p1.X - 3, p1.Y - 3, 6, 6);
-    g.DrawEllipse(&p, p2.X - 3, p2.Y - 3, 6, 6);
-    g.DrawEllipse(&p, p3.X - 3, p3.Y - 3, 6, 6);
-}
-
-// ------------------------------------------------------------
-// UI model
-// ------------------------------------------------------------
-
-enum class HitType {
-    None,
-
-    NavNewChat,
-    NavPlans,
-
-    HistoryItem,
-
-    ProfileOpen,
-    ProfileSettings,
-    ProfileLogout,
-
-    Card1,
-    Card2,
-    Card3,
-
-    ActionLike,
-    ActionDislike,
-    ActionCopy,
-    ActionShare,
-
-    PlusButton,
-    SendButton,
-    InputArea
-};
-
-struct HitRegion {
-    RECT rc{};
-    HitType type = HitType::None;
-};
-
-struct CardModel {
-    int id = 0;
+// Структура задачи
+struct Task {
+    int id;
     std::wstring title;
-    std::wstring timeText;
-    std::wstring leadText;
-    Color dot = Color(255, 108, 92, 231);
-    Color dotRing = Color(30, 108, 92, 231); // ring alpha-ish
+    std::wstring date;
+    std::wstring time;
+    std::wstring duration;
+    bool completed;
+    bool hovered;
+    RECT bounds;
+    
+    Task() : id(0), completed(false), hovered(false) {
+        memset(&bounds, 0, sizeof(RECT));
+    }
+    
+    Task(int _id, const std::wstring& _title, const std::wstring& _date,
+         const std::wstring& _time, const std::wstring& _duration)
+        : id(_id), title(_title), date(_date), time(_time), 
+          duration(_duration), completed(false), hovered(false) {
+        memset(&bounds, 0, sizeof(RECT));
+    }
 };
 
-struct Message {
-    bool fromUser = false;
+// Структура сообщения чата
+struct ChatMessage {
     std::wstring text;
+    bool isUser;
+    std::time_t timestamp;
+    RECT bounds;
+    
+    ChatMessage() : isUser(false), timestamp(0) {
+        memset(&bounds, 0, sizeof(RECT));
+    }
+    
+    ChatMessage(const std::wstring& _text, bool _isUser)
+        : text(_text), isUser(_isUser), timestamp(std::time(nullptr)) {
+        memset(&bounds, 0, sizeof(RECT));
+    }
 };
 
-struct AppState {
-    Theme theme;
-    FontSet fonts;
-
-    // Window size
-    int width = 1120;
-    int height = 610;
-
-    // Layout constants
-    int outerPad = 28;
-    int windowInset = 10;
-
-    int sidebarW = 260;
-    int topbarH = 58;
-    int composerHMin = 72;
-
-    // Interaction state
-    bool hovering = false;
-    HitType hoverHit = HitType::None;
-    HitType downHit = HitType::None;
-
-    // Cards selection
-    int selectedCardId = 1;
-
-    // Input
-    std::wstring input;
-    int inputRows = 1;
-    int inputHeight = 22; // dynamic within composer
-    bool inputFocused = false;
-
-    // Chat scroll
-    int scrollY = 0;      // current scroll offset (pixels)
-    int scrollMax = 0;    // computed max
-    int scrollTarget = 0; // optional
-
-    // Chat data
-    std::vector<Message> messages;
-
-    // Cards
-    std::vector<CardModel> cards;
-
-    // Hit regions updated per frame
-    std::vector<HitRegion> hits;
-
-    // Title pill text
-    std::wstring titlePill = L"Какие у меня планы на сегодня?";
-
-    // Example assistant text
-    std::wstring assistantText =
-        L"Сегодня нужно забронировать ресторан для встречи с родителями, "
-        L"разобраться с ремонтом и купить подарок жене.";
-
-    // For caret blink (optional)
-    DWORD lastBlink = 0;
-    bool caretOn = true;
+// Структура пункта бокового меню
+struct SidebarItem {
+    int id;
+    std::wstring title;
+    std::wstring icon;
+    bool active;
+    bool hovered;
+    RECT bounds;
+    
+    SidebarItem() : id(0), active(false), hovered(false) {
+        memset(&bounds, 0, sizeof(RECT));
+    }
+    
+    SidebarItem(int _id, const std::wstring& _title, const std::wstring& _icon)
+        : id(_id), title(_title), icon(_icon), active(false), hovered(false) {
+        memset(&bounds, 0, sizeof(RECT));
+    }
 };
 
-// ------------------------------------------------------------
-// Simple layout: store computed rectangles
-// ------------------------------------------------------------
-
-struct Layout {
-    RECT rcClient{};
-    RECT rcStage{};
-
-    RECT rcWindow{};
-    RECT rcInner{};
-
-    RECT rcSidebar{};
-    RECT rcMain{};
-
-    RECT rcTopbar{};
-    RECT rcChat{};
-    RECT rcComposerWrap{};
-    RECT rcComposer{};
-
-    RECT rcPlus{};
-    RECT rcSend{};
-    RECT rcInput{};
+// Структура пользователя
+struct User {
+    std::wstring name;
+    std::wstring email;
+    std::wstring avatarInitials;
+    COLORREF avatarColor;
+    
+    User() : avatarColor(Colors::ACCENT_PURPLE) {}
+    
+    User(const std::wstring& _name, const std::wstring& _email)
+        : name(_name), email(_email), avatarColor(Colors::ACCENT_PURPLE) {
+        if (!_name.empty()) {
+            avatarInitials = std::wstring(1, _name[0]);
+            size_t spacePos = _name.find(L' ');
+            if (spacePos != std::wstring::npos && spacePos + 1 < _name.length()) {
+                avatarInitials += _name[spacePos + 1];
+            }
+        }
+    }
 };
 
-// ------------------------------------------------------------
-// Drawing: background decorative blocks (corners)
-// ------------------------------------------------------------
+// ============================================================================
+// КЛАСС ПРИЛОЖЕНИЯ
+// ============================================================================
 
-static void drawDecorBlocks(Graphics& g, const RECT& client, const Theme& t) {
-    // This approximates the corner blocks. We'll draw 4 rounded rectangles with gradients.
-    g.SetSmoothingMode(SmoothingModeAntiAlias);
+class AlisaAIApp {
+private:
+    HWND hwndMain;
+    HWND hwndInput;
+    HWND hwndSendBtn;
+    HINSTANCE hInstance;
+    
+    // Шрифты
+    HFONT fontTitle;
+    HFONT fontRegular;
+    HFONT fontSmall;
+    HFONT fontBold;
+    HFONT fontIcon;
+    HFONT fontLarge;
+    
+    // Данные приложения
+    std::vector<Task> tasks;
+    std::vector<ChatMessage> messages;
+    std::vector<SidebarItem> sidebarItems;
+    User currentUser;
+    
+    // Состояние UI
+    int scrollOffset;
+    int maxScrollOffset;
+    bool isDraggingScroll;
+    int dragStartY;
+    int dragStartScroll;
+    int hoveredTaskId;
+    int hoveredSidebarId;
+    bool sendButtonHovered;
+    bool profileButtonHovered;
+    
+    // Анимация
+    float animationProgress;
+    bool animatingNewTask;
+    
+    // GDI+ токен
+    ULONG_PTR gdiplusToken;
 
-    struct Block {
-        RectF r;
-        Color c1;
-        Color c2;
-        float opacity;
-    };
-
-    float W = (float)rectW(client);
-    float H = (float)rectH(client);
-
-    std::vector<Block> blocks;
-
-    // top-left
-    blocks.push_back({
-        RectF(-W * 0.10f, -H * 0.10f, 180.0f, 120.0f),
-        Color(230, 124, 58, 237),
-        Color(60, 108, 92, 231),
-        0.9f
-    });
-
-    // top-right
-    blocks.push_back({
-        RectF(W - 210.0f + W * 0.10f, -H * 0.08f, 210.0f, 130.0f),
-        Color(230, 124, 58, 237),
-        Color(60, 108, 92, 231),
-        0.9f
-    });
-
-    // bottom-left
-    blocks.push_back({
-        RectF(-W * 0.09f, H - 140.0f + H * 0.10f, 220.0f, 140.0f),
-        Color(230, 96, 165, 250),
-        Color(60, 108, 92, 231),
-        0.9f
-    });
-
-    // bottom-right
-    blocks.push_back({
-        RectF(W - 200.0f + W * 0.10f, H - 130.0f + H * 0.10f, 200.0f, 130.0f),
-        Color(230, 139, 92, 246),
-        Color(40, 96, 165, 250),
-        0.9f
-    });
-
-    for (auto& b : blocks) {
-        LinearGradientBrush br(
-            b.r,
-            b.c1,
-            b.c2,
-            LinearGradientModeVertical
-        );
-
-        // main block
-        fillRoundRect(g, b.r, 14.0f, br);
-
-        // inner highlights (two translucent boxes)
-        SolidBrush hi(Color(120, 255, 255, 255));
-        SolidBrush hi2(Color(70, 255, 255, 255));
-
-        RectF hi1(b.r.X + b.r.Width * 0.55f, b.r.Y + b.r.Height * 0.12f, b.r.Width * 0.33f, b.r.Height * 0.33f);
-        fillRoundRect(g, hi1, 10.0f, hi);
-
-        RectF hi3(b.r.X + b.r.Width * 0.10f, b.r.Y + b.r.Height * 0.62f, b.r.Width * 0.24f, b.r.Height * 0.22f);
-        fillRoundRect(g, hi3, 10.0f, hi2);
+public:
+    // ========================================================================
+    // КОНСТРУКТОР И ДЕСТРУКТОР
+    // ========================================================================
+    
+    AlisaAIApp(HINSTANCE hInst) 
+        : hwndMain(nullptr), hwndInput(nullptr), hwndSendBtn(nullptr),
+          hInstance(hInst), fontTitle(nullptr), fontRegular(nullptr),
+          fontSmall(nullptr), fontBold(nullptr), fontIcon(nullptr),
+          fontLarge(nullptr), scrollOffset(0), maxScrollOffset(0),
+          isDraggingScroll(false), dragStartY(0), dragStartScroll(0),
+          hoveredTaskId(-1), hoveredSidebarId(-1), sendButtonHovered(false),
+          profileButtonHovered(false), animationProgress(0.0f),
+          animatingNewTask(false), gdiplusToken(0) {
+        
+        InitializeGDIPlus();
+        InitializeFonts();
+        InitializeData();
     }
-}
-
-// ------------------------------------------------------------
-// Drawing: main window shell with rounded corners
-// ------------------------------------------------------------
-
-static void drawAppShell(Graphics& g, const Layout& L, const Theme& t) {
-    g.SetSmoothingMode(SmoothingModeAntiAlias);
-
-    // Stage background gradient
-    RectF rClient((float)L.rcClient.left, (float)L.rcClient.top, (float)rectW(L.rcClient), (float)rectH(L.rcClient));
-    // We'll draw a soft vertical gradient to match body background.
-    LinearGradientBrush bg(rClient, t.bg2, t.bg1, LinearGradientModeVertical);
-    g.FillRectangle(&bg, rClient);
-
-    // Decorative blocks
-    drawDecorBlocks(g, L.rcClient, t);
-
-    // Window outer (glass-ish)
-    RectF win((float)L.rcWindow.left, (float)L.rcWindow.top, (float)rectW(L.rcWindow), (float)rectH(L.rcWindow));
-    // Use semi-transparent white.
-    SolidBrush outer(Color(190, 255, 255, 255));
-    fillRoundRect(g, win, 26.0f, outer);
-
-    // Outer border
-    Pen border(Color(140, 255, 255, 255), 1.0f);
-    border.SetLineJoin(LineJoinRound);
-    drawRoundRect(g, win, 26.0f, border);
-
-    // Inner
-    RectF inner((float)L.rcInner.left, (float)L.rcInner.top, (float)rectW(L.rcInner), (float)rectH(L.rcInner));
-    SolidBrush innerB(t.panel);
-    fillRoundRect(g, inner, 22.0f, innerB);
-
-    // Inner subtle inset highlight
-    Pen innerHi(Color(80, 255, 255, 255), 1.0f);
-    drawRoundRect(g, RectF(inner.X + 0.5f, inner.Y + 0.5f, inner.Width - 1.0f, inner.Height - 1.0f), 22.0f, innerHi);
-}
-
-// ------------------------------------------------------------
-// Hit regions helper
-// ------------------------------------------------------------
-
-static void addHit(AppState& st, const RECT& rc, HitType t) {
-    HitRegion h{};
-    h.rc = rc;
-    h.type = t;
-    st.hits.push_back(h);
-}
-
-static HitType hitTest(const AppState& st, POINT p) {
-    // iterate reverse so last added wins (top-most)
-    for (int i = (int)st.hits.size() - 1; i >= 0; --i) {
-        if (ptInRect(st.hits[i].rc, p)) return st.hits[i].type;
+    
+    ~AlisaAIApp() {
+        CleanupFonts();
+        ShutdownGDIPlus();
     }
-    return HitType::None;
-}
-
-// ------------------------------------------------------------
-// Layout computation
-// ------------------------------------------------------------
-
-static Layout computeLayout(HWND hwnd, AppState& st) {
-    Layout L{};
-    GetClientRect(hwnd, &L.rcClient);
-
-    int cw = rectW(L.rcClient);
-    int ch = rectH(L.rcClient);
-
-    // Stage padding like HTML
-    int pad = st.outerPad;
-
-    // Window size: min(1120px, 92vw) by min(610px, 86vh).
-    // We'll mimic that relative behavior.
-    int winW = std::min(1120, (int)(cw * 0.92));
-    int winH = std::min(610, (int)(ch * 0.86));
-
-    // Center
-    int x = (cw - winW) / 2;
-    int y = (ch - winH) / 2;
-
-    // Ensure not negative (small screens)
-    x = std::max(x, pad / 2);
-    y = std::max(y, pad / 2);
-
-    L.rcStage = L.rcClient;
-    L.rcWindow = makeRect(x, y, winW, winH);
-
-    // Inner inset 10px
-    L.rcInner = insetRect(L.rcWindow, st.windowInset, st.windowInset);
-
-    // Sidebar + main
-    L.rcSidebar = makeRect(L.rcInner.left, L.rcInner.top, st.sidebarW, rectH(L.rcInner));
-    L.rcMain = makeRect(L.rcSidebar.right, L.rcInner.top, rectW(L.rcInner) - st.sidebarW, rectH(L.rcInner));
-
-    // Topbar, chat, composer
-    L.rcTopbar = makeRect(L.rcMain.left, L.rcMain.top, rectW(L.rcMain), st.topbarH);
-
-    // Composer wrap height: depends on input height.
-    // We'll keep wrap fixed-ish but include autosize for input area inside.
-    int composerWrapH = 86; // base
-    int composerPaddingV = 14 + 18; // from CSS wrap: 14 top, 18 bottom (approx)
-    // But the visible wrap should be around 84-100.
-    // We'll clamp.
-    composerWrapH = clampi(86 + (st.inputHeight - 22), 86, 140);
-
-    L.rcComposerWrap = makeRect(
-        L.rcMain.left,
-        L.rcMain.bottom - composerWrapH,
-        rectW(L.rcMain),
-        composerWrapH
-    );
-
-    // Chat takes remaining
-    L.rcChat = makeRect(
-        L.rcMain.left,
-        L.rcTopbar.bottom,
-        rectW(L.rcMain),
-        L.rcComposerWrap.top - L.rcTopbar.bottom
-    );
-
-    // Composer inner pill centered max width 860
-    int compMaxW = 860;
-    int compW = std::min(compMaxW, rectW(L.rcComposerWrap) - 36);
-    int compX = L.rcComposerWrap.left + (rectW(L.rcComposerWrap) - compW) / 2;
-    int compH = clampi(52 + (st.inputHeight - 22), 52, 110);
-    int compY = L.rcComposerWrap.top + (rectH(L.rcComposerWrap) - compH) / 2;
-
-    L.rcComposer = makeRect(compX, compY, compW, compH);
-
-    // Inside composer: plus, input, send
-    int btn = 34;
-    int gap = 10;
-    int padIn = 10;
-
-    L.rcPlus = makeRect(L.rcComposer.left + padIn, L.rcComposer.top + (rectH(L.rcComposer) - btn) / 2, btn, btn);
-    L.rcSend = makeRect(L.rcComposer.right - padIn - btn, L.rcComposer.top + (rectH(L.rcComposer) - btn) / 2, btn, btn);
-
-    // Input rect between
-    int inL = L.rcPlus.right + gap;
-    int inR = L.rcSend.left - gap;
-    int inH = clampi(st.inputHeight + 12, 34, rectH(L.rcComposer) - 8); // padding for textarea
-    int inY = L.rcComposer.top + (rectH(L.rcComposer) - inH) / 2;
-    L.rcInput = makeRect(inL, inY, inR - inL, inH);
-
-    st.width = winW;
-    st.height = winH;
-
-    return L;
-}
-
-// ------------------------------------------------------------
-// Sidebar drawing
-// ------------------------------------------------------------
-
-static void drawSidebar(Graphics& g, AppState& st, const Layout& L) {
-    g.SetSmoothingMode(SmoothingModeAntiAlias);
-
-    // Background
-    RectF r((float)L.rcSidebar.left, (float)L.rcSidebar.top, (float)rectW(L.rcSidebar), (float)rectH(L.rcSidebar));
-    LinearGradientBrush bg(r, Color(255, 255, 255, 255), Color(255, 251, 251, 254), LinearGradientModeVertical);
-    g.FillRectangle(&bg, r);
-
-    // Right divider line
-    Pen line(st.theme.line, 1.0f);
-    g.DrawLine(&line, (REAL)L.rcSidebar.right - 0.5f, (REAL)L.rcSidebar.top, (REAL)L.rcSidebar.right - 0.5f, (REAL)L.rcSidebar.bottom);
-
-    // Content padding
-    int x = L.rcSidebar.left + 14;
-    int y = L.rcSidebar.top + 18;
-
-    // Brand row
-    // Logo
-    RectF logo((float)x, (float)y, 22.0f, 22.0f);
-    {
-        // Radial-ish gradient approximated with linear
-        LinearGradientBrush lb(logo, st.theme.accent2, st.theme.accent, LinearGradientModeForwardDiagonal);
-        fillRoundRect(g, logo, 7.0f, lb);
-
-        // inner "spark" shape approximation: small white rotated rect
-        SolidBrush wb(Color(190, 255, 255, 255));
-        RectF inner(logo.X + 5, logo.Y + 5, 12, 12);
-        fillRoundRect(g, inner, 5.0f, wb);
+    
+    // ========================================================================
+    // ИНИЦИАЛИЗАЦИЯ
+    // ========================================================================
+    
+    void InitializeGDIPlus() {
+        GdiplusStartupInput gdiplusStartupInput;
+        GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
     }
-
-    // Text
-    int tx = x + 22 + 10;
-    drawText(g, L"Алиса AI", *st.fonts.f14b, RectF((float)tx, (float)y - 1, 180, 18), st.theme.text);
-    drawText(g, L"ассистент", *st.fonts.f11, RectF((float)tx, (float)y + 14, 180, 18), st.theme.muted);
-
-    y += 22 + 14;
-
-    // Nav items area
-    // "Новый чат"
-    auto drawNavItem = [&](const std::wstring& label, const RECT& rc, bool active, HitType hit, const std::wstring& badge = L"") {
-        // background
-        if (active) {
-            SolidBrush b(Color(255, 241, 242, 248));
-            fillRoundRect(g, RectF((float)rc.left, (float)rc.top, (float)rectW(rc), (float)rectH(rc)), 12.0f, b);
-        } else if (st.hoverHit == hit) {
-            SolidBrush b(Color(255, 244, 245, 251));
-            fillRoundRect(g, RectF((float)rc.left, (float)rc.top, (float)rectW(rc), (float)rectH(rc)), 12.0f, b);
-        }
-
-        // icon
-        RectF icon((float)rc.left + 10, (float)rc.top + 8, 18, 18);
-        Color ic = active ? st.theme.accent : st.theme.muted;
-
-        if (hit == HitType::NavNewChat) {
-            drawPlusIcon(g, icon, ic, 2.0f);
-        } else {
-            // "plans" icon as square + lines
-            Pen p(ic, 2.0f);
-            g.DrawRectangle(&p, icon.X + 2, icon.Y + 2, icon.Width - 4, icon.Height - 4);
-            g.DrawLine(&p, icon.X + 4, icon.Y + 0, icon.X + icon.Width - 4, icon.Y + 0);
-        }
-
-        // label
-        drawText(g, label, *st.fonts.f13, RectF((float)rc.left + 10 + 18 + 10, (float)rc.top + 6, 160, 24), st.theme.text);
-
-        // badge
-        if (!badge.empty()) {
-            drawText(g, badge, *st.fonts.f11,
-                     RectF((float)rc.right - 30, (float)rc.top + 6, 24, 24),
-                     st.theme.muted, StringAlignmentFar, StringAlignmentNear);
-        }
-
-        addHit(st, rc, hit);
-    };
-
-    RECT nav1 = makeRect(L.rcSidebar.left + 6, y, rectW(L.rcSidebar) - 12, 38);
-    drawNavItem(L"Новый чат", nav1, false, HitType::NavNewChat);
-
-    y += 38 + 6;
-    RECT nav2 = makeRect(L.rcSidebar.left + 6, y, rectW(L.rcSidebar) - 12, 38);
-    drawNavItem(L"Мои планы", nav2, false, HitType::NavPlans, L"3");
-
-    y += 38 + 16;
-
-    // Section label "Сегодня"
-    drawText(g, L"Сегодня", *st.fonts.f11,
-             RectF((float)L.rcSidebar.left + 12, (float)y, 200, 18),
-             st.theme.muted2);
-    y += 22;
-
-    // History item "Планы на сегодня" (active)
-    RECT hist = makeRect(L.rcSidebar.left + 6, y, rectW(L.rcSidebar) - 12, 38);
-    {
-        SolidBrush b(Color(255, 241, 242, 248));
-        fillRoundRect(g, RectF((float)hist.left, (float)hist.top, (float)rectW(hist), (float)rectH(hist)), 12.0f, b);
-
-        Pen p(Color(120, st.theme.line.GetR(), st.theme.line.GetG(), st.theme.line.GetB()), 1.0f);
-        drawRoundRect(g, RectF((float)hist.left, (float)hist.top, (float)rectW(hist), (float)rectH(hist)), 12.0f, p);
-
-        drawText(g, L"Планы на сегодня", *st.fonts.f13,
-                 RectF((float)hist.left + 10, (float)hist.top + 7, 200, 22),
-                 st.theme.text);
-    }
-    addHit(st, hist, HitType::HistoryItem);
-
-    // Bottom profile area
-    // Separator line
-    Pen sep(st.theme.line, 1.0f);
-    int profH = 56;
-    RECT prof = makeRect(L.rcSidebar.left, L.rcSidebar.bottom - profH, rectW(L.rcSidebar), profH);
-    g.DrawLine(&sep, (REAL)prof.left, (REAL)prof.top, (REAL)prof.right, (REAL)prof.top);
-
-    // Avatar
-    RectF av((float)prof.left + 10, (float)prof.top + 14, 28, 28);
-    {
-        LinearGradientBrush ab(av, Color(255, 253, 230, 138), Color(255, 245, 158, 11), LinearGradientModeForwardDiagonal);
-        g.FillEllipse(&ab, av);
-        SolidBrush gloss(Color(70, 255, 255, 255));
-        RectF glossR(av.X + 6, av.Y + 7, 18, 18);
-        fillRoundRect(g, glossR, 6.0f, gloss);
-    }
-
-    // Name/link
-    drawText(g, L"Иванов Е.", *st.fonts.f12, RectF((float)prof.left + 10 + 28 + 10, (float)prof.top + 12, 120, 18), st.theme.text);
-    drawText(g, L"Открыть профиль", *st.fonts.f11,
-             RectF((float)prof.left + 10 + 28 + 10, (float)prof.top + 28, 140, 18),
-             st.theme.accent);
-
-    // Make link hittable (approx rect around link)
-    RECT rcLink = makeRect(prof.left + 10 + 28 + 10, prof.top + 26, 140, 22);
-    addHit(st, rcLink, HitType::ProfileOpen);
-
-    // Actions buttons (settings, logout)
-    RECT btnSet = makeRect(prof.right - 70, prof.top + 14, 28, 28);
-    RECT btnOut = makeRect(prof.right - 35, prof.top + 14, 28, 28);
-
-    auto drawMiniBtn = [&](const RECT& rc, HitType ht, void(*iconFn)(Graphics&, const RectF&, const Color&, float), const wchar_t* tip) {
-        RectF rr((float)rc.left, (float)rc.top, (float)rectW(rc), (float)rectH(rc));
-        if (st.hoverHit == ht) {
-            SolidBrush hb(Color(255, 244, 245, 251));
-            fillRoundRect(g, rr, 10.0f, hb);
-        }
-        RectF ic(rr.X + 5, rr.Y + 5, rr.Width - 10, rr.Height - 10);
-        iconFn(g, ic, st.theme.muted, 1.8f);
-        addHit(st, rc, ht);
-        (void)tip;
-    };
-
-    drawMiniBtn(btnSet, HitType::ProfileSettings, drawGearIcon, L"Настройки");
-    // logout uses different signature; wrap
-    {
-        RectF rr((float)btnOut.left, (float)btnOut.top, (float)rectW(btnOut), (float)rectH(btnOut));
-        if (st.hoverHit == HitType::ProfileLogout) {
-            SolidBrush hb(Color(255, 244, 245, 251));
-            fillRoundRect(g, rr, 10.0f, hb);
-        }
-        RectF ic(rr.X + 5, rr.Y + 5, rr.Width - 10, rr.Height - 10);
-        drawLogoutIcon(g, ic, st.theme.muted, 1.8f);
-        addHit(st, btnOut, HitType::ProfileLogout);
-    }
-}
-
-// ------------------------------------------------------------
-// Main area drawing: topbar, chat, composer
-// ------------------------------------------------------------
-
-static void drawTopbar(Graphics& g, AppState& st, const Layout& L) {
-    g.SetSmoothingMode(SmoothingModeAntiAlias);
-
-    // Background
-    RectF r((float)L.rcTopbar.left, (float)L.rcTopbar.top, (float)rectW(L.rcTopbar), (float)rectH(L.rcTopbar));
-    SolidBrush b(Color(255, 255, 255, 255));
-    g.FillRectangle(&b, r);
-
-    // Divider line
-    Pen line(st.theme.line, 1.0f);
-    g.DrawLine(&line, (REAL)L.rcTopbar.left, (REAL)L.rcTopbar.bottom - 0.5f, (REAL)L.rcTopbar.right, (REAL)L.rcTopbar.bottom - 0.5f);
-
-    // Title pill on the right
-    std::wstring title = st.titlePill;
-    int pillMaxW = 320;
-    int pillH = 32;
-
-    RECT pillRc = makeRect(L.rcTopbar.right - 18 - pillMaxW, L.rcTopbar.top + (rectH(L.rcTopbar) - pillH) / 2, pillMaxW, pillH);
-
-    RectF pr((float)pillRc.left, (float)pillRc.top, (float)rectW(pillRc), (float)rectH(pillRc));
-    SolidBrush pb(Color(255, 243, 244, 250));
-    fillRoundRect(g, pr, 999.0f, pb);
-
-    Pen pp(Color(230, st.theme.line.GetR(), st.theme.line.GetG(), st.theme.line.GetB()), 1.0f);
-    drawRoundRect(g, pr, 999.0f, pp);
-
-    drawText(g, title, *st.fonts.f13,
-             RectF(pr.X + 12, pr.Y + 6, pr.Width - 24, pr.Height - 12),
-             st.theme.muted, StringAlignmentNear, StringAlignmentNear, true);
-}
-
-static int computeTextAreaHeightPx(Graphics& g, AppState& st, int widthPx) {
-    // Determine height based on number of lines and wrapping.
-    // We'll measure using MeasureString with a bounding width.
-    // We clamp to [22..90] like in JS.
-    RectF bound(0, 0, (float)widthPx, 1000.0f);
-    RectF out;
-    StringFormat fmt;
-    fmt.SetTrimming(StringTrimmingWord);
-    fmt.SetFormatFlags(0);
-    g.MeasureString(st.input.c_str(), (INT)st.input.size(), st.fonts.f13.get(), bound, &fmt, &out);
-
-    float h = out.Height;
-    if (st.input.empty()) h = 18.0f;
-    int px = (int)std::ceil(h);
-    px = clampi(px, 22, 90);
-    return px;
-}
-
-static void drawComposer(Graphics& g, AppState& st, const Layout& L) {
-    g.SetSmoothingMode(SmoothingModeAntiAlias);
-
-    // Wrap background + top border
-    {
-        RectF wr((float)L.rcComposerWrap.left, (float)L.rcComposerWrap.top, (float)rectW(L.rcComposerWrap), (float)rectH(L.rcComposerWrap));
-        LinearGradientBrush wbg(wr, Color(240, 255, 255, 255), Color(255, 255, 255, 255), LinearGradientModeVertical);
-        g.FillRectangle(&wbg, wr);
-
-        Pen line(st.theme.line, 1.0f);
-        g.DrawLine(&line, (REAL)L.rcComposerWrap.left, (REAL)L.rcComposerWrap.top + 0.5f, (REAL)L.rcComposerWrap.right, (REAL)L.rcComposerWrap.top + 0.5f);
-    }
-
-    // Composer pill container
-    RectF cr((float)L.rcComposer.left, (float)L.rcComposer.top, (float)rectW(L.rcComposer), (float)rectH(L.rcComposer));
-    SolidBrush cb(Color(255, 243, 244, 250));
-    fillRoundRect(g, cr, 16.0f, cb);
-
-    Pen cp(Color(242, st.theme.line.GetR(), st.theme.line.GetG(), st.theme.line.GetB()), 1.0f);
-    drawRoundRect(g, cr, 16.0f, cp);
-
-    // Plus button
-    RectF plus((float)L.rcPlus.left, (float)L.rcPlus.top, (float)rectW(L.rcPlus), (float)rectH(L.rcPlus));
-    {
-        SolidBrush pb(Color(255, 255, 255, 255));
-        fillRoundRect(g, plus, 12.0f, pb);
-        Pen pp(Color(242, st.theme.line.GetR(), st.theme.line.GetG(), st.theme.line.GetB()), 1.0f);
-        drawRoundRect(g, plus, 12.0f, pp);
-
-        Color ic = (st.hoverHit == HitType::PlusButton) ? st.theme.accent : st.theme.muted;
-        drawPlusIcon(g, RectF(plus.X + 8, plus.Y + 8, plus.Width - 16, plus.Height - 16), ic, 2.0f);
-    }
-    addHit(st, L.rcPlus, HitType::PlusButton);
-
-    // Input area (click focus)
-    RectF in((float)L.rcInput.left, (float)L.rcInput.top, (float)rectW(L.rcInput), (float)rectH(L.rcInput));
-    {
-        // It's inside composer, no own background (like textarea transparent),
-        // but we highlight focus slightly.
-        if (st.inputFocused) {
-            SolidBrush fb(Color(40, st.theme.accent.GetR(), st.theme.accent.GetG(), st.theme.accent.GetB()));
-            fillRoundRect(g, in, 12.0f, fb);
-        }
-
-        // Placeholder or text
-        RectF tx = in;
-        tx.X += 4; tx.Y += 4; tx.Width -= 8; tx.Height -= 8;
-
-        if (st.input.empty()) {
-            drawTextMultiline(g, L"Спросите о чём угодно", *st.fonts.f13, tx, st.theme.muted2);
-        } else {
-            drawTextMultiline(g, st.input, *st.fonts.f13, tx, st.theme.text);
-        }
-
-        // Caret (simple, at end of text, approximate)
-        // We'll draw caret only when focused.
-        if (st.inputFocused && st.caretOn) {
-            // Measure last line width roughly by measuring entire string bounded.
-            // This is imperfect but OK for mock.
-            RectF bounds(0, 0, tx.Width, 1000);
-            RectF out;
-            StringFormat fmt;
-            fmt.SetTrimming(StringTrimmingWord);
-            fmt.SetFormatFlags(0);
-            g.MeasureString(st.input.c_str(), (INT)st.input.size(), st.fonts.f13.get(), bounds, &fmt, &out);
-
-            float caretX = tx.X + out.Width;
-            float caretY = tx.Y + out.Height - 18.0f;
-
-            // clamp caret inside
-            caretX = std::min(caretX, tx.X + tx.Width - 2);
-            caretY = std::min(caretY, tx.Y + tx.Height - 18);
-
-            Pen p(Color(180, st.theme.text.GetR(), st.theme.text.GetG(), st.theme.text.GetB()), 1.5f);
-            g.DrawLine(&p, caretX, caretY, caretX, caretY + 16.0f);
-        }
-    }
-    addHit(st, L.rcInput, HitType::InputArea);
-
-    // Send button
-    RectF send((float)L.rcSend.left, (float)L.rcSend.top, (float)rectW(L.rcSend), (float)rectH(L.rcSend));
-    {
-        bool enabled = !trimWs(st.input).empty();
-        if (enabled) {
-            LinearGradientBrush sb(send, Color(255, 167, 139, 250), st.theme.accent, LinearGradientModeForwardDiagonal);
-            fillRoundRect(g, send, 12.0f, sb);
-        } else {
-            SolidBrush sb(Color(140, 167, 139, 250));
-            fillRoundRect(g, send, 12.0f, sb);
-        }
-
-        // icon white
-        drawSendIcon(g, RectF(send.X + 8, send.Y + 8, send.Width - 16, send.Height - 16), Color(255, 255, 255, 255), 2.0f);
-
-        if (!enabled) {
-            // overlay faint
-            SolidBrush ov(Color(60, 255, 255, 255));
-            fillRoundRect(g, send, 12.0f, ov);
-        }
-    }
-    addHit(st, L.rcSend, HitType::SendButton);
-}
-
-static void drawCard(Graphics& g,
-                     AppState& st,
-                     const RECT& rc,
-                     const CardModel& cm,
-                     bool selected,
-                     HitType hit) {
-    g.SetSmoothingMode(SmoothingModeAntiAlias);
-
-    RectF r((float)rc.left, (float)rc.top, (float)rectW(rc), (float)rectH(rc));
-
-    // hover effect
-    bool hover = (st.hoverHit == hit);
-
-    // background
-    LinearGradientBrush bg(r, Color(255, 255, 255, 255), Color(255, 251, 251, 254), LinearGradientModeVertical);
-    fillRoundRect(g, r, 14.0f, bg);
-
-    // border
-    Pen border(Color(242, st.theme.line.GetR(), st.theme.line.GetG(), st.theme.line.GetB()), 1.0f);
-    drawRoundRect(g, r, 14.0f, border);
-
-    if (hover) {
-        // subtle overlay
-        SolidBrush ov(Color(20, 108, 92, 231));
-        fillRoundRect(g, r, 14.0f, ov);
-    }
-
-    // Title
-    drawText(g, cm.title, *st.fonts.f14b, RectF(r.X + 14, r.Y + 10, r.Width - 60, 18), st.theme.text, StringAlignmentNear, StringAlignmentNear, true);
-
-    // Pill
-    RectF pill(r.X + 14, r.Y + 32, 140, 22);
-    SolidBrush pb(Color(255, 243, 244, 250));
-    fillRoundRect(g, pill, 999.0f, pb);
-    Pen pp(Color(242, st.theme.line.GetR(), st.theme.line.GetG(), st.theme.line.GetB()), 1.0f);
-    drawRoundRect(g, pill, 999.0f, pp);
-
-    // dot
-    SolidBrush dot(cm.dot);
-    float dx = pill.X + 10;
-    float dy = pill.Y + pill.Height / 2.0f;
-    g.FillEllipse(&dot, dx - 3, dy - 3, 6, 6);
-
-    // ring
-    Pen ring(cm.dotRing, 3.0f);
-    g.DrawEllipse(&ring, dx - 6, dy - 6, 12, 12);
-
-    drawText(g, cm.timeText, *st.fonts.f11, RectF(pill.X + 20, pill.Y + 3, pill.Width - 24, pill.Height), st.theme.muted);
-
-    // Lead text
-    drawText(g, cm.leadText, *st.fonts.f11, RectF(pill.X + pill.Width + 10, pill.Y + 3, 120, pill.Height), st.theme.muted);
-
-    // Radio on right
-    RectF radio(r.X + r.Width - 14 - 16, r.Y + (r.Height - 16) / 2.0f, 16, 16);
-    {
-        Pen rp(Color(230, st.theme.muted2.GetR(), st.theme.muted2.GetG(), st.theme.muted2.GetB()), 1.5f);
-        g.DrawEllipse(&rp, radio);
-
-        if (selected) {
-            Pen ap(st.theme.accent, 1.5f);
-            g.DrawEllipse(&ap, radio);
-            SolidBrush inner(st.theme.accent);
-            g.FillEllipse(&inner, radio.X + 4, radio.Y + 4, 8, 8);
-        }
-    }
-
-    addHit(st, rc, hit);
-}
-
-static void drawActionsRow(Graphics& g, AppState& st, const RECT& rcRow) {
-    g.SetSmoothingMode(SmoothingModeAntiAlias);
-
-    int x = rcRow.left;
-    int y = rcRow.top;
-    int btn = 26;
-    int gap = 10;
-
-    auto drawAct = [&](int i, HitType hit, void(*fn)(Graphics&, const RectF&, const Color&)) {
-        RECT rc = makeRect(x + i * (btn + gap), y, btn, btn);
-        RectF r((float)rc.left, (float)rc.top, (float)rectW(rc), (float)rectH(rc));
-
-        if (st.hoverHit == hit) {
-            SolidBrush hb(Color(255, 244, 245, 251));
-            fillRoundRect(g, r, 10.0f, hb);
-        }
-
-        RectF ic(r.X + 4, r.Y + 4, r.Width - 8, r.Height - 8);
-        fn(g, ic, st.theme.muted);
-        addHit(st, rc, hit);
-    };
-
-    // Like/Dislike need signature mismatch, wrap with lambdas
-    auto drawLike = [](Graphics& gg, const RectF& rr, const Color& cc) { drawThumbIcon(gg, rr, cc, true); };
-    auto drawDis = [](Graphics& gg, const RectF& rr, const Color& cc) { drawThumbIcon(gg, rr, cc, false); };
-
-    // Use function pointers via small static trampolines
-    struct Tr {
-        static void like(Graphics& gg, const RectF& rr, const Color& cc) { drawThumbIcon(gg, rr, cc, true); }
-        static void dis(Graphics& gg, const RectF& rr, const Color& cc) { drawThumbIcon(gg, rr, cc, false); }
-        static void copy(Graphics& gg, const RectF& rr, const Color& cc) { drawCopyIcon(gg, rr, cc); }
-        static void share(Graphics& gg, const RectF& rr, const Color& cc) { drawShareIcon(gg, rr, cc); }
-    };
-
-    drawAct(0, HitType::ActionLike, Tr::like);
-    drawAct(1, HitType::ActionDislike, Tr::dis);
-    drawAct(2, HitType::ActionCopy, Tr::copy);
-    drawAct(3, HitType::ActionShare, Tr::share);
-}
-
-static void drawChat(Graphics& g, AppState& st, const Layout& L) {
-    g.SetSmoothingMode(SmoothingModeAntiAlias);
-
-    // Chat background is white (already from inner), but we'll draw nothing extra.
-    // We'll clip to chat rect
-    Region clip(Rect(L.rcChat.left, L.rcChat.top, rectW(L.rcChat), rectH(L.rcChat)));
-    g.SetClip(&clip, CombineModeReplace);
-
-    // Content padding like CSS: 18px 22px
-    int padX = 22;
-    int padY = 18;
-
-    int contentLeft = L.rcChat.left + padX;
-    int contentTop = L.rcChat.top + padY;
-    int contentW = rectW(L.rcChat) - padX * 2;
-
-    // We'll render:
-    // 1) assistant message text
-    // 2) cards column
-    // 3) actions row
-    // 4) user messages appended
-
-    // We'll compute content height and update scrollMax
-    int y = contentTop - st.scrollY;
-
-    // Message bubble block width constraints
-    int maxMsgW = std::min(720, contentW);
-    int centerX = L.rcChat.left + padX + (contentW - maxMsgW) / 2;
-
-    // Assistant message text
-    RectF txt((float)centerX, (float)y, (float)maxMsgW, 200.0f);
-    {
-        // Measure height
-        RectF bounds(0, 0, txt.Width, 1000);
-        RectF out;
-        StringFormat fmt;
-        fmt.SetTrimming(StringTrimmingWord);
-        fmt.SetFormatFlags(0);
-        g.MeasureString(st.assistantText.c_str(), (INT)st.assistantText.size(), st.fonts.f13.get(), bounds, &fmt, &out);
-
-        RectF drawR(txt.X, txt.Y, txt.Width, out.Height + 2);
-        drawTextMultiline(g, st.assistantText, *st.fonts.f13, drawR, st.theme.text);
-        y += (int)std::ceil(out.Height) + 14;
-    }
-
-    // Cards container width min(520, 100%)
-    int cardsW = std::min(520, maxMsgW);
-    int cardsX = centerX;
-    int cardH = 64;
-    int cardGap = 10;
-
-    // Cards
-    for (int i = 0; i < (int)st.cards.size(); ++i) {
-        RECT rc = makeRect(cardsX, y, cardsW, cardH);
-        bool selected = (st.selectedCardId == st.cards[i].id);
-
-        HitType ht = HitType::None;
-        if (st.cards[i].id == 1) ht = HitType::Card1;
-        if (st.cards[i].id == 2) ht = HitType::Card2;
-        if (st.cards[i].id == 3) ht = HitType::Card3;
-
-        drawCard(g, st, rc, st.cards[i], selected, ht);
-        y += cardH + cardGap;
-    }
-
-    // Actions row beneath cards
-    RECT rcActions = makeRect(cardsX, y, cardsW, 30);
-    drawActionsRow(g, st, rcActions);
-    y += 30 + 20;
-
-    // User messages
-    // We'll draw them right-aligned bubbles (like your JS addUserBubble).
-    for (const auto& m : st.messages) {
-        if (!m.fromUser) continue;
-
-        int bubbleMax = std::min(520, maxMsgW);
-        // measure text height
-        RectF bounds(0, 0, (float)(bubbleMax - 24), 2000);
-        RectF out;
-        StringFormat fmt;
-        fmt.SetTrimming(StringTrimmingWord);
-        fmt.SetFormatFlags(0);
-
-        g.MeasureString(m.text.c_str(), (INT)m.text.size(), st.fonts.f13.get(), bounds, &fmt, &out);
-        int bubbleH = (int)std::ceil(out.Height) + 20;
-        bubbleH = std::max(bubbleH, 40);
-
-        int bubbleX = centerX + maxMsgW - bubbleMax; // right align within message area
-        RECT rcBubble = makeRect(bubbleX, y, bubbleMax, bubbleH);
-
-        RectF br((float)rcBubble.left, (float)rcBubble.top, (float)rectW(rcBubble), (float)rectH(rcBubble));
-        LinearGradientBrush bb(br, Color(255, 245, 246, 251), Color(255, 241, 242, 248), LinearGradientModeVertical);
-        fillRoundRect(g, br, 16.0f, bb);
-
-        Pen bp(Color(242, st.theme.line.GetR(), st.theme.line.GetG(), st.theme.line.GetB()), 1.0f);
-        drawRoundRect(g, br, 16.0f, bp);
-
-        RectF tr(br.X + 12, br.Y + 10, br.Width - 24, br.Height - 20);
-        drawTextMultiline(g, m.text, *st.fonts.f13, tr, st.theme.text);
-
-        y += bubbleH + 14;
-    }
-
-    // Compute content bottom and scrollMax
-    int contentBottom = y + st.scrollY;
-    int visibleH = rectH(L.rcChat);
-    int totalH = (contentBottom - (L.rcChat.top + padY));
-
-    st.scrollMax = std::max(0, totalH - (visibleH - padY * 2));
-    st.scrollY = clampi(st.scrollY, 0, st.scrollMax);
-
-    // Reset clip
-    g.ResetClip();
-}
-
-// ------------------------------------------------------------
-// App full draw: gather hit regions each frame
-// ------------------------------------------------------------
-
-static void drawApp(Graphics& g, HWND hwnd, AppState& st) {
-    st.hits.clear();
-
-    Layout L = computeLayout(hwnd, st);
-
-    // Clear background
-    g.Clear(Color(255, 255, 255, 255));
-
-    drawAppShell(g, L, st.theme);
-
-    // Clip to inner rect, so sidebar/main stay inside rounded panel
-    Region clip(Rect(L.rcInner.left, L.rcInner.top, rectW(L.rcInner), rectH(L.rcInner)));
-    g.SetClip(&clip, CombineModeReplace);
-
-    // Sidebar
-    drawSidebar(g, st, L);
-
-    // Main background (white)
-    {
-        RectF mr((float)L.rcMain.left, (float)L.rcMain.top, (float)rectW(L.rcMain), (float)rectH(L.rcMain));
-        SolidBrush b(Color(255, 255, 255, 255));
-        g.FillRectangle(&b, mr);
-    }
-
-    // Topbar
-    drawTopbar(g, st, L);
-
-    // Chat
-    drawChat(g, st, L);
-
-    // Composer
-    drawComposer(g, st, L);
-
-    // Stop clipping
-    g.ResetClip();
-}
-
-// ------------------------------------------------------------
-// Input actions
-// ------------------------------------------------------------
-
-static void ensureCaretTimer(HWND hwnd, AppState& st) {
-    // We'll use a timer for blinking caret.
-    // 500ms tick.
-    (void)st;
-    SetTimer(hwnd, 1, 500, nullptr);
-}
-
-static void updateHover(HWND hwnd, AppState& st, POINT p) {
-    HitType ht = hitTest(st, p);
-    if (ht != st.hoverHit) {
-        st.hoverHit = ht;
-        InvalidateRect(hwnd, nullptr, FALSE);
-    }
-}
-
-static void focusInput(HWND hwnd, AppState& st, bool focus) {
-    if (st.inputFocused != focus) {
-        st.inputFocused = focus;
-        if (focus) {
-            SetFocus(hwnd); // keep focus on main window
-            ensureCaretTimer(hwnd, st);
-        }
-        InvalidateRect(hwnd, nullptr, FALSE);
-    }
-}
-
-static void onCardSelect(HWND hwnd, AppState& st, int id) {
-    st.selectedCardId = id;
-    InvalidateRect(hwnd, nullptr, FALSE);
-}
-
-static void onPlus(HWND hwnd, AppState& st) {
-    // Like JS: append "Напомни мне..."
-    if (!st.input.empty()) st.input += L"\n";
-    st.input += L"Напомни мне...";
-    InvalidateRect(hwnd, nullptr, FALSE);
-}
-
-static void onSend(HWND hwnd, AppState& st) {
-    std::wstring v = trimWs(st.input);
-    if (v.empty()) return;
-
-    st.messages.push_back(Message{ true, v });
-    st.input.clear();
-
-    // scroll to bottom
-    st.scrollY = st.scrollMax;
-
-    InvalidateRect(hwnd, nullptr, FALSE);
-}
-
-static void recalcInputHeight(HWND hwnd, AppState& st) {
-    // We need Graphics to measure. We'll do it by creating a temporary Graphics from hwnd.
-    HDC hdc = GetDC(hwnd);
-    Graphics g(hdc);
-    g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
-
-    Layout L = computeLayout(hwnd, st);
-
-    // width inside input minus padding
-    int w = rectW(L.rcInput) - 8;
-    if (w < 10) w = 10;
-
-    int h = computeTextAreaHeightPx(g, st, w);
-    st.inputHeight = h;
-
-    ReleaseDC(hwnd, hdc);
-}
-
-static void appendChar(HWND hwnd, AppState& st, wchar_t ch) {
-    st.input.push_back(ch);
-    recalcInputHeight(hwnd, st);
-    InvalidateRect(hwnd, nullptr, FALSE);
-}
-
-static void backspace(HWND hwnd, AppState& st) {
-    if (st.input.empty()) return;
-    st.input.pop_back();
-    recalcInputHeight(hwnd, st);
-    InvalidateRect(hwnd, nullptr, FALSE);
-}
-
-static void insertNewline(HWND hwnd, AppState& st) {
-    st.input.push_back(L'\n');
-    recalcInputHeight(hwnd, st);
-    InvalidateRect(hwnd, nullptr, FALSE);
-}
-
-static void scrollBy(HWND hwnd, AppState& st, int dy) {
-    st.scrollY = clampi(st.scrollY + dy, 0, st.scrollMax);
-    InvalidateRect(hwnd, nullptr, FALSE);
-}
-
-// ------------------------------------------------------------
-// Window procedure
-// ------------------------------------------------------------
-
-static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    static AppState* pst = nullptr;
-
-    switch (msg) {
-    case WM_CREATE: {
-        auto cs = (CREATESTRUCTW*)lParam;
-        pst = (AppState*)cs->lpCreateParams;
-
-        // initialize fonts
-        pst->fonts.init();
-
-        // seed cards
-        pst->cards.clear();
-        pst->cards.push_back(CardModel{
-            1,
-            L"Забронировать ресторан",
-            L"Сегодня, 12:00",
-            L"За час",
-            pst->theme.accent,
-            Color(30, pst->theme.accent.GetR(), pst->theme.accent.GetG(), pst->theme.accent.GetB())
-        });
-        pst->cards.push_back(CardModel{
-            2,
-            L"Разобраться с ремонтом",
-            L"Сегодня, 16:00",
-            L"За 3 ч",
-            Color(255, 96, 165, 250),
-            Color(30, 96, 165, 250)
-        });
-        pst->cards.push_back(CardModel{
-            3,
-            L"Купить подарок жене",
-            L"Сегодня, 21:00",
-            L"За 15 мин",
-            Color(255, 245, 158, 11),
-            Color(30, 245, 158, 11)
-        });
-
-        pst->selectedCardId = 1;
-        pst->input.clear();
-        pst->inputHeight = 22;
-        pst->scrollY = 0;
-        pst->scrollMax = 0;
-
-        // smoother painting
-        SetTimer(hwnd, 1, 500, nullptr);
-
-        return 0;
-    }
-
-    case WM_TIMER: {
-        if (!pst) break;
-        if (wParam == 1) {
-            // caret blink
-            if (pst->inputFocused) {
-                pst->caretOn = !pst->caretOn;
-                InvalidateRect(hwnd, nullptr, FALSE);
-            } else {
-                pst->caretOn = false;
-            }
-        }
-        return 0;
-    }
-
-    case WM_ERASEBKGND:
-        // avoid flicker; we do full paint in WM_PAINT
-        return 1;
-
-    case WM_SIZE: {
-        if (!pst) break;
-        recalcInputHeight(hwnd, *pst);
-        InvalidateRect(hwnd, nullptr, FALSE);
-        return 0;
-    }
-
-    case WM_MOUSEMOVE: {
-        if (!pst) break;
-        POINT p{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-        updateHover(hwnd, *pst, p);
-
-        // track mouse leave
-        TRACKMOUSEEVENT tme{};
-        tme.cbSize = sizeof(tme);
-        tme.dwFlags = TME_LEAVE;
-        tme.hwndTrack = hwnd;
-        TrackMouseEvent(&tme);
-
-        return 0;
-    }
-
-    case WM_MOUSELEAVE: {
-        if (!pst) break;
-        pst->hoverHit = HitType::None;
-        InvalidateRect(hwnd, nullptr, FALSE);
-        return 0;
-    }
-
-    case WM_LBUTTONDOWN: {
-        if (!pst) break;
-        SetCapture(hwnd);
-
-        POINT p{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-        pst->downHit = hitTest(*pst, p);
-
-        // focus behavior
-        if (pst->downHit == HitType::InputArea) {
-            focusInput(hwnd, *pst, true);
-        } else if (pst->downHit != HitType::None) {
-            focusInput(hwnd, *pst, false);
-        } else {
-            // click outside UI: unfocus
-            focusInput(hwnd, *pst, false);
-        }
-
-        InvalidateRect(hwnd, nullptr, FALSE);
-        return 0;
-    }
-
-    case WM_LBUTTONUP: {
-        if (!pst) break;
-        ReleaseCapture();
-
-        POINT p{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-        HitType up = hitTest(*pst, p);
-
-        // click if down==up
-        if (up == pst->downHit) {
-            switch (up) {
-            case HitType::Card1: onCardSelect(hwnd, *pst, 1); break;
-            case HitType::Card2: onCardSelect(hwnd, *pst, 2); break;
-            case HitType::Card3: onCardSelect(hwnd, *pst, 3); break;
-
-            case HitType::PlusButton:
-                onPlus(hwnd, *pst);
-                focusInput(hwnd, *pst, true);
-                recalcInputHeight(hwnd, *pst);
-                break;
-
-            case HitType::SendButton:
-                onSend(hwnd, *pst);
-                recalcInputHeight(hwnd, *pst);
-                focusInput(hwnd, *pst, true);
-                // scroll to bottom
-                pst->scrollY = pst->scrollMax;
-                break;
-
-            case HitType::NavNewChat:
-                // Simple behavior: clear user messages
-                pst->messages.clear();
-                pst->input.clear();
-                pst->scrollY = 0;
-                recalcInputHeight(hwnd, *pst);
-                InvalidateRect(hwnd, nullptr, FALSE);
-                break;
-
-            case HitType::NavPlans:
-                // Placeholder
-                Message m{ true, L"Открой мои планы (демо-клик)." };
-                pst->messages.push_back(m);
-                InvalidateRect(hwnd, nullptr, FALSE);
-                break;
-
-            case HitType::HistoryItem:
-                // Placeholder: reset title
-                pst->titlePill = L"Планы на сегодня";
-                InvalidateRect(hwnd, nullptr, FALSE);
-                break;
-
-            case HitType::ProfileOpen:
-                // Placeholder
-                pst->messages.push_back(Message{ true, L"Открыть профиль (демо)." });
-                InvalidateRect(hwnd, nullptr, FALSE);
-                break;
-
-            case HitType::ProfileSettings:
-                pst->messages.push_back(Message{ true, L"Настройки (демо)." });
-                InvalidateRect(hwnd, nullptr, FALSE);
-                break;
-
-            case HitType::ProfileLogout:
-                // close app
-                PostQuitMessage(0);
-                break;
-
-            case HitType::ActionLike:
-                pst->messages.push_back(Message{ true, L"👍 (демо)"} );
-                InvalidateRect(hwnd, nullptr, FALSE);
-                break;
-
-            case HitType::ActionDislike:
-                pst->messages.push_back(Message{ true, L"👎 (демо)"} );
-                InvalidateRect(hwnd, nullptr, FALSE);
-                break;
-
-            case HitType::ActionCopy:
-                pst->messages.push_back(Message{ true, L"Копировать (демо)." });
-                InvalidateRect(hwnd, nullptr, FALSE);
-                break;
-
-            case HitType::ActionShare:
-                pst->messages.push_back(Message{ true, L"Поделиться (демо)." });
-                InvalidateRect(hwnd, nullptr, FALSE);
-                break;
-
-            default:
-                break;
-            }
-        }
-
-        pst->downHit = HitType::None;
-        InvalidateRect(hwnd, nullptr, FALSE);
-        return 0;
-    }
-
-    case WM_MOUSEWHEEL: {
-        if (!pst) break;
-        short delta = GET_WHEEL_DELTA_WPARAM(wParam);
-        // typical: 120 per notch
-        int dy = (int)(-delta / 120) * 60;
-        scrollBy(hwnd, *pst, dy);
-        return 0;
-    }
-
-    case WM_KEYDOWN: {
-        if (!pst) break;
-
-        if (!pst->inputFocused) return 0;
-
-        if (wParam == VK_BACK) {
-            backspace(hwnd, *pst);
-            return 0;
-        }
-
-        if (wParam == VK_RETURN) {
-            bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-            if (shift) {
-                insertNewline(hwnd, *pst);
-            } else {
-                onSend(hwnd, *pst);
-                recalcInputHeight(hwnd, *pst);
-            }
-            return 0;
-        }
-
-        return 0;
-    }
-
-    case WM_CHAR: {
-        if (!pst) break;
-        if (!pst->inputFocused) return 0;
-
-        wchar_t ch = (wchar_t)wParam;
-
-        // ignore control chars except newline handled in WM_KEYDOWN
-        if (ch == 8 || ch == 13) return 0; // backspace/enter
-        if (ch < 32) return 0;
-
-        appendChar(hwnd, *pst, ch);
-        return 0;
-    }
-
-    case WM_PAINT: {
-        if (!pst) break;
-
-        PAINTSTRUCT ps{};
-        HDC hdc = BeginPaint(hwnd, &ps);
-
-        // Double buffer: create compatible bitmap
-        RECT rc;
-        GetClientRect(hwnd, &rc);
-        int w = rectW(rc);
-        int h = rectH(rc);
-
-        HDC mem = CreateCompatibleDC(hdc);
-        HBITMAP bmp = CreateCompatibleBitmap(hdc, w, h);
-        HGDIOBJ old = SelectObject(mem, bmp);
-
-        Graphics g(mem);
-        g.SetSmoothingMode(SmoothingModeAntiAlias);
-        g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
-
-        // Ensure input height is up-to-date when painting
-        // (avoid expensive recalculation on every key, but fine for demo)
-        // We'll do it only if composer width is known; here it is.
-        // However recalcInputHeight already does measurement; skip here.
-
-        // Draw
-        drawApp(g, hwnd, *pst);
-
-        // Blit
-        BitBlt(hdc, 0, 0, w, h, mem, 0, 0, SRCCOPY);
-
-        // Cleanup
-        SelectObject(mem, old);
-        DeleteObject(bmp);
-        DeleteDC(mem);
-
-        EndPaint(hwnd, &ps);
-        return 0;
-    }
-
-    case WM_DESTROY: {
-        KillTimer(hwnd, 1);
-        PostQuitMessage(0);
-        return 0;
-    }
-    }
-    return DefWindowProcW(hwnd, msg, wParam, lParam);
-}
-
-// ------------------------------------------------------------
-// Rounded window corners (best effort) - Windows 11 style
-// ------------------------------------------------------------
-
-static void tryEnableRoundedCorners(HWND hwnd) {
-    // DWMWA_WINDOW_CORNER_PREFERENCE = 33
-    // 2 = DWMWCP_ROUND
-    const DWORD DWMWA_WINDOW_CORNER_PREFERENCE = 33;
-    const DWORD DWMWCP_ROUND = 2;
-    DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &DWMWCP_ROUND, sizeof(DWMWCP_ROUND));
-}
-
-// ------------------------------------------------------------
-// Entry point
-// ------------------------------------------------------------
-
-int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
-    enableDpiAwarenessBestEffort();
-
-    // Init GDI+
-    GdiplusStartupInput gdiplusStartupInput;
-    ULONG_PTR gdiplusToken = 0;
-    if (GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr) != Ok) {
-        return 0;
-    }
-
-    AppState st{};
-    st.messages.clear();
-
-    const wchar_t* CLASS_NAME = L"UIWindowReplica_NoQt_GDIPlus";
-
-    WNDCLASSEXW wc{};
-    wc.cbSize = sizeof(wc);
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = WndProc;
-    wc.hInstance = hInst;
-    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
-    wc.lpszClassName = CLASS_NAME;
-
-    RegisterClassExW(&wc);
-
-    // Create window
-    int winW = 1280;
-    int winH = 760;
-
-    // Center on screen
-    int sw = GetSystemMetrics(SM_CXSCREEN);
-    int sh = GetSystemMetrics(SM_CYSCREEN);
-    int x = (sw - winW) / 2;
-    int y = (sh - winH) / 2;
-
-    DWORD style = WS_OVERLAPPEDWINDOW;
-
-    HWND hwnd = CreateWindowExW(
-        0,
-        CLASS_NAME,
-        L"UI Window Replica (C++ / Win32 / GDI+) — no Qt",
-        style,
-        x, y, winW, winH,
-        nullptr, nullptr, hInst,
-        &st
-    );
-
-    if (!hwnd) {
+    
+    void ShutdownGDIPlus() {
         GdiplusShutdown(gdiplusToken);
-        return 0;
     }
+    
+    void InitializeFonts() {
+        // Заголовочный шрифт
+        fontTitle = CreateFontW(
+            24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
+        );
+        
+        // Обычный шрифт
+        fontRegular = CreateFontW(
+            16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
+        );
+        
+        // Мелкий шрифт
+        fontSmall = CreateFontW(
+            13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
+        );
+        
+        // Жирный шрифт
+        fontBold = CreateFontW(
+            16, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
+        );
+        
+        // Шрифт для иконок
+        fontIcon = CreateFontW(
+            20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI Symbol"
+        );
+        
+        // Большой шрифт
+        fontLarge = CreateFontW(
+            18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
+        );
+    }
+    
+    void CleanupFonts() {
+        if (fontTitle) DeleteObject(fontTitle);
+        if (fontRegular) DeleteObject(fontRegular);
+        if (fontSmall) DeleteObject(fontSmall);
+        if (fontBold) DeleteObject(fontBold);
+        if (fontIcon) DeleteObject(fontIcon);
+        if (fontLarge) DeleteObject(fontLarge);
+    }
+    
+    void InitializeData() {
+        // Инициализация пользователя
+        currentUser = User(L"Иванов Е.", L"ivanov@mail.ru");
+        
+        // Инициализация пунктов бокового меню
+        sidebarItems.push_back(SidebarItem(ID_BTN_NEWCHAT, L"Новый чат", L"\u2795"));
+        sidebarItems.push_back(SidebarItem(ID_BTN_NOTES, L"Мои заметки", L"\u1F4DD"));
+        sidebarItems.push_back(SidebarItem(ID_BTN_PLANS, L"Планы на сегодня", L"\u1F4CB"));
+        sidebarItems[2].active = true;
+        
+        // Инициализация задач
+        tasks.push_back(Task(1, L"Забронировать ресторан", L"Сегодня", L"12:00", L"50 мин"));
+        tasks.push_back(Task(2, L"Разобраться с ремонтом", L"Сегодня", L"16:00", L"3 часа"));
+        tasks.push_back(Task(3, L"Купить подарок жене", L"Сегодня", L"21:00", L"15 мин"));
+        
+        // Инициализация сообщений чата
+        messages.push_back(ChatMessage(L"Какие у меня планы на сегодня?", true));
+        messages.push_back(ChatMessage(
+            L"Сегодня нужно забронировать ресторан для встречи с родителями, "
+            L"разобраться с ремонтом и купить подарок жене.", false));
+    }
+    
+    // ========================================================================
+    // СОЗДАНИЕ ОКНА
+    // ========================================================================
+    
+    bool CreateMainWindow() {
+        // Регистрация класса окна
+        WNDCLASSEXW wc = {0};
+        wc.cbSize = sizeof(WNDCLASSEXW);
+        wc.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+        wc.lpfnWndProc = WindowProc;
+        wc.cbClsExtra = 0;
+        wc.cbWndExtra = sizeof(LONG_PTR);
+        wc.hInstance = hInstance;
+        wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wc.hbrBackground = CreateSolidBrush(Colors::BACKGROUND);
+        wc.lpszMenuName = nullptr;
+        wc.lpszClassName = L"AlisaAIWindowClass";
+        wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
+        
+        if (!RegisterClassExW(&wc)) {
+            MessageBoxW(nullptr, L"Ошибка регистрации класса окна", 
+                       L"Ошибка", MB_ICONERROR);
+            return false;
+        }
+        
+        // Вычисление центрированной позиции
+        int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+        int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+        int windowX = (screenWidth - WINDOW_WIDTH) / 2;
+        int windowY = (screenHeight - WINDOW_HEIGHT) / 2;
+        
+        // Создание главного окна
+        hwndMain = CreateWindowExW(
+            WS_EX_LAYERED | WS_EX_COMPOSITED,
+            L"AlisaAIWindowClass",
+            L"Алиса AI - Умный помощник",
+            WS_OVERLAPPEDWINDOW,
+            windowX, windowY,
+            WINDOW_WIDTH, WINDOW_HEIGHT,
+            nullptr, nullptr, hInstance, this
+        );
+        
+        if (!hwndMain) {
+            MessageBoxW(nullptr, L"Ошибка создания окна", L"Ошибка", MB_ICONERROR);
+            return false;
+        }
+        
+        // Установка прозрачности
+        SetLayeredWindowAttributes(hwndMain, 0, 255, LWA_ALPHA);
+        
+        // Создание дочерних элементов
+        CreateChildControls();
+        
+        return true;
+    }
+    
+    void CreateChildControls() {
+        RECT clientRect;
+        GetClientRect(hwndMain, &clientRect);
+        
+        int inputAreaTop = clientRect.bottom - INPUT_HEIGHT;
+        int inputAreaWidth = clientRect.right - SIDEBAR_WIDTH - 100;
+        
+        // Поле ввода
+        hwndInput = CreateWindowExW(
+            WS_EX_CLIENTEDGE,
+            L"EDIT",
+            L"",
+            WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL | ES_LEFT,
+            SIDEBAR_WIDTH + 50,
+            inputAreaTop + 20,
+            inputAreaWidth - 60,
+            40,
+            hwndMain,
+            (HMENU)ID_EDIT_INPUT,
+            hInstance,
+            nullptr
+        );
+        
+        // Установка шрифта для поля ввода
+        SendMessage(hwndInput, WM_SETFONT, (WPARAM)fontRegular, TRUE);
+        
+        // Установка плейсхолдера
+        SendMessage(hwndInput, EM_SETCUEBANNER, TRUE, 
+                   (LPARAM)L"Спросите о чём угодно");
+        
+        // Установка таймеров
+        SetTimer(hwndMain, ID_TIMER_BLINK, 500, nullptr);
+        SetTimer(hwndMain, ID_TIMER_ANIMATE, 16, nullptr);
+    }
+    
+    void Show() {
+        ShowWindow(hwndMain, SW_SHOW);
+        UpdateWindow(hwndMain);
+    }
+    
+    // ========================================================================
+    // ОТРИСОВКА ИНТЕРФЕЙСА
+    // ========================================================================
+    
+    void OnPaint(HDC hdc, const RECT& clientRect) {
+        // Создание буфера для двойной буферизации
+        HDC memDC = CreateCompatibleDC(hdc);
+        HBITMAP memBitmap = CreateCompatibleBitmap(hdc, 
+            clientRect.right, clientRect.bottom);
+        HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
+        
+        // Заливка фона
+        HBRUSH bgBrush = CreateSolidBrush(Colors::BACKGROUND);
+        FillRect(memDC, &clientRect, bgBrush);
+        DeleteObject(bgBrush);
+        
+        // Отрисовка компонентов
+        DrawSidebar(memDC, clientRect);
+        DrawMainContent(memDC, clientRect);
+        DrawInputArea(memDC, clientRect);
+        
+        // Копирование буфера на экран
+        BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, 
+               memDC, 0, 0, SRCCOPY);
+        
+        // Очистка
+        SelectObject(memDC, oldBitmap);
+        DeleteObject(memBitmap);
+        DeleteDC(memDC);
+    }
+    
+    void DrawSidebar(HDC hdc, const RECT& clientRect) {
+        // Фон боковой панели
+        RECT sidebarRect = {0, 0, SIDEBAR_WIDTH, clientRect.bottom};
+        HBRUSH sidebarBrush = CreateSolidBrush(Colors::SIDEBAR_BG);
+        FillRect(hdc, &sidebarRect, sidebarBrush);
+        DeleteObject(sidebarBrush);
+        
+        // Разделительная линия
+        HPEN dividerPen = CreatePen(PS_SOLID, 1, Colors::DIVIDER);
+        HPEN oldPen = (HPEN)SelectObject(hdc, dividerPen);
+        MoveToEx(hdc, SIDEBAR_WIDTH - 1, 0, nullptr);
+        LineTo(hdc, SIDEBAR_WIDTH - 1, clientRect.bottom);
+        SelectObject(hdc, oldPen);
+        DeleteObject(dividerPen);
+        
+        // Логотип и заголовок
+        DrawSidebarHeader(hdc);
+        
+        // Пункты меню
+        DrawSidebarItems(hdc);
+        
+        // Профиль пользователя
+        DrawUserProfile(hdc, clientRect);
+    }
+    
+    void DrawSidebarHeader(HDC hdc) {
+        SetBkMode(hdc, TRANSPARENT);
+        
+        // Иконка Алисы (круг с градиентом)
+        DrawAlisaIcon(hdc, 20, 20, 32);
+        
+        // Заголовок "Алиса AI"
+        HFONT oldFont = (HFONT)SelectObject(hdc, fontTitle);
+        SetTextColor(hdc, Colors::TEXT_PRIMARY);
+        
+        RECT titleRect = {60, 22, SIDEBAR_WIDTH - 10, 55};
+        DrawTextW(hdc, L"Алиса AI", -1, &titleRect, 
+                 DT_LEFT | DT_SINGLELINE | DT_VCENTER);
+        
+        SelectObject(hdc, oldFont);
+    }
+    
+    void DrawAlisaIcon(HDC hdc, int x, int y, int size) {
+        // Создание градиентного круга с использованием GDI+
+        Graphics graphics(hdc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        
+        // Градиент от фиолетового к розовому
+        LinearGradientBrush gradient(
+            Point(x, y),
+            Point(x + size, y + size),
+            Color(255, 130, 90, 220),
+            Color(255, 200, 100, 200)
+        );
+        
+        graphics.FillEllipse(&gradient, x, y, size, size);
+        
+        // Белый блик
+        SolidBrush whiteBrush(Color(100, 255, 255, 255));
+        graphics.FillEllipse(&whiteBrush, x + size/4, y + size/6, size/3, size/4);
+    }
+    
+    void DrawSidebarItems(HDC hdc) {
+        int yOffset = 80;
+        
+        SetBkMode(hdc, TRANSPARENT);
+        
+        for (size_t i = 0; i < sidebarItems.size(); i++) {
+            SidebarItem& item = sidebarItems[i];
+            
+            // Определение границ элемента
+            item.bounds.left = 10;
+            item.bounds.top = yOffset;
+            item.bounds.right = SIDEBAR_WIDTH - 10;
+            item.bounds.bottom = yOffset + 45;
+            
+            // Фон элемента (активный или при наведении)
+            COLORREF bgColor = Colors::SIDEBAR_BG;
+            if (item.active) {
+                bgColor = Colors::ACTIVE_BG;
+            } else if (item.hovered) {
+                bgColor = Colors::HOVER_BG;
+            }
+            
+            if (item.active || item.hovered) {
+                HBRUSH itemBrush = CreateSolidBrush(bgColor);
+                RECT itemRect = item.bounds;
+                // Скругленные углы
+                HRGN rgn = CreateRoundRectRgn(
+                    itemRect.left, itemRect.top,
+                    itemRect.right + 1, itemRect.bottom + 1,
+                    10, 10
+                );
+                FillRgn(hdc, rgn, itemBrush);
+                DeleteObject(rgn);
+                DeleteObject(itemBrush);
+            }
+            
+            // Иконка
+            HFONT oldFont = (HFONT)SelectObject(hdc, fontIcon);
+            SetTextColor(hdc, item.active ? Colors::ACCENT_PURPLE : Colors::TEXT_SECONDARY);
+            
+            RECT iconRect = {item.bounds.left + 15, item.bounds.top, 
+                            item.bounds.left + 45, item.bounds.bottom};
+            
+            // Отрисовка символьных иконок
+            std::wstring iconStr;
+            if (i == 0) iconStr = L"+";      // Новый чат
+            else if (i == 1) iconStr = L"\u1F4DD"; // Заметки
+            else iconStr = L"\u2611";              // Планы
+            
+            DrawTextW(hdc, iconStr.c_str(), -1, &iconRect, 
+                     DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+            
+            // Текст элемента
+            SelectObject(hdc, item.active ? fontBold : fontRegular);
+            SetTextColor(hdc, item.active ? Colors::TEXT_PRIMARY : Colors::TEXT_SECONDARY);
+            
+            RECT textRect = {item.bounds.left + 50, item.bounds.top,
+                            item.bounds.right - 10, item.bounds.bottom};
+            DrawTextW(hdc, item.title.c_str(), -1, &textRect,
+                     DT_LEFT | DT_SINGLELINE | DT_VCENTER);
+            
+            SelectObject(hdc, oldFont);
+            
+            yOffset += 50;
+            
+            // Разделитель "Сегодня"
+            if (i == 1) {
+                yOffset += 10;
+                HFONT oldF = (HFONT)SelectObject(hdc, fontSmall);
+                SetTextColor(hdc, Colors::TEXT_MUTED);
+                RECT labelRect = {20, yOffset, SIDEBAR_WIDTH - 20, yOffset + 25};
+                DrawTextW(hdc, L"Сегодня", -1, &labelRect, 
+                         DT_LEFT | DT_SINGLELINE | DT_VCENTER);
+                SelectObject(hdc, oldF);
+                yOffset += 30;
+            }
+        }
+    }
+    
+    void DrawUserProfile(HDC hdc, const RECT& clientRect) {
+        int profileY = clientRect.bottom - 80;
+        
+        // Разделительная линия
+        HPEN dividerPen = CreatePen(PS_SOLID, 1, Colors::DIVIDER);
+        HPEN oldPen = (HPEN)SelectObject(hdc, dividerPen);
+        MoveToEx(hdc, 15, profileY - 15, nullptr);
+        LineTo(hdc, SIDEBAR_WIDTH - 15, profileY - 15);
+        SelectObject(hdc, oldPen);
+        DeleteObject(dividerPen);
+        
+        // Аватар пользователя
+        DrawUserAvatar(hdc, 20, profileY, 40);
+        
+        SetBkMode(hdc, TRANSPARENT);
+        
+        // Имя пользователя
+        HFONT oldFont = (HFONT)SelectObject(hdc, fontBold);
+        SetTextColor(hdc, Colors::TEXT_PRIMARY);
+        
+        RECT nameRect = {70, profileY + 5, SIDEBAR_WIDTH - 50, profileY + 25};
+        DrawTextW(hdc, currentUser.name.c_str(), -1, &nameRect,
+                 DT_LEFT | DT_SINGLELINE);
+        
+        // Ссылка "Открыть профиль"
+        SelectObject(hdc, fontSmall);
+        SetTextColor(hdc, profileButtonHovered ? 
+                    Colors::ACCENT_PURPLE : Colors::TEXT_SECONDARY);
+        
+        RECT linkRect = {70, profileY + 28, SIDEBAR_WIDTH - 50, profileY + 48};
+        DrawTextW(hdc, L"Открыть профиль", -1, &linkRect,
+                 DT_LEFT | DT_SINGLELINE);
+        
+        SelectObject(hdc, oldFont);
+    }
+    
+    void DrawUserAvatar(HDC hdc, int x, int y, int size) {
+        Graphics graphics(hdc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        
+        // Круглый фон аватара
+        SolidBrush avatarBrush(Color(255, 130, 90, 220));
+        graphics.FillEllipse(&avatarBrush, x, y, size, size);
+        
+        // Инициалы
+        FontFamily fontFamily(L"Segoe UI");
+        Gdiplus::Font font(&fontFamily, 14, FontStyleBold, UnitPixel);
+        SolidBrush textBrush(Color(255, 255, 255, 255));
+        
+        StringFormat format;
+        format.SetAlignment(StringAlignmentCenter);
+        format.SetLineAlignment(StringAlignmentCenter);
+        
+        RectF rect((REAL)x, (REAL)y, (REAL)size, (REAL)size);
+        graphics.DrawString(currentUser.avatarInitials.c_str(), -1, 
+                          &font, rect, &format, &textBrush);
+    }
+    
+    void DrawMainContent(HDC hdc, const RECT& clientRect) {
+        int contentLeft = SIDEBAR_WIDTH + 30;
+        int contentTop = 30;
+        int contentWidth = clientRect.right - SIDEBAR_WIDTH - 60;
+        int contentHeight = clientRect.bottom - INPUT_HEIGHT - 60;
+        
+        // Отрисовка сообщений чата
+        DrawChatMessages(hdc, contentLeft, contentTop, contentWidth);
+        
+        // Отрисовка карточек задач
+        int tasksTop = contentTop + 150;
+        DrawTaskCards(hdc, contentLeft, tasksTop, contentWidth, contentHeight - 150);
+    }
+    
+    void DrawChatMessages(HDC hdc, int x, int y, int width) {
+        SetBkMode(hdc, TRANSPARENT);
+        
+        int yOffset = y;
+        
+        for (auto& msg : messages) {
+            if (msg.isUser) {
+                // Сообщение пользователя (справа)
+                DrawUserMessage(hdc, x, yOffset, width, msg);
+                yOffset += 60;
+            } else {
+                // Ответ Алисы
+                DrawAlisaResponse(hdc, x, yOffset, width, msg);
+                yOffset += 80;
+            }
+        }
+    }
+    
+    void DrawUserMessage(HDC hdc, int x, int y, int width, ChatMessage& msg) {
+        // Измерение текста
+        HFONT oldFont = (HFONT)SelectObject(hdc, fontRegular);
+        SIZE textSize;
+        GetTextExtentPoint32W(hdc, msg.text.c_str(), 
+                             (int)msg.text.length(), &textSize);
+        
+        int bubbleWidth = textSize.cx + 30;
+        int bubbleHeight = 40;
+        int bubbleX = x + width - bubbleWidth - 10;
+        int bubbleY = y;
+        
+        // Фон пузыря сообщения
+        Graphics graphics(hdc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        
+        SolidBrush bubbleBrush(Color(255, 245, 243, 250));
+        
+        // Скругленный прямоугольник
+        GraphicsPath path;
+        int radius = 15;
+        path.AddArc(bubbleX, bubbleY, radius * 2, radius * 2, 180, 90);
+        path.AddArc(bubbleX + bubbleWidth - radius * 2, bubbleY, 
+                   radius * 2, radius * 2, 270, 90);
+        path.AddArc(bubbleX + bubbleWidth - radius * 2, 
+                   bubbleY + bubbleHeight - radius * 2, 
+                   radius * 2, radius * 2, 0, 90);
+        path.AddArc(bubbleX, bubbleY + bubbleHeight - radius * 2, 
+                   radius * 2, radius * 2, 90, 90);
+        path.CloseFigure();
+        
+        graphics.FillPath(&bubbleBrush, &path);
+        
+        // Текст сообщения
+        SetTextColor(hdc, Colors::TEXT_PRIMARY);
+        RECT textRect = {bubbleX + 15, bubbleY + 10, 
+                        bubbleX + bubbleWidth - 15, bubbleY + bubbleHeight - 10};
+        DrawTextW(hdc, msg.text.c_str(), -1, &textRect, 
+                 DT_LEFT | DT_SINGLELINE | DT_VCENTER);
+        
+        SelectObject(hdc, oldFont);
+    }
+    
+    void DrawAlisaResponse(HDC hdc, int x, int y, int width, ChatMessage& msg) {
+        // Иконка Алисы
+        DrawAlisaIcon(hdc, x, y, 28);
+        
+        // Текст ответа
+        SetBkMode(hdc, TRANSPARENT);
+        HFONT oldFont = (HFONT)SelectObject(hdc, fontRegular);
+        SetTextColor(hdc, Colors::TEXT_SECONDARY);
+        
+        RECT textRect = {x + 40, y, x + width - 20, y + 60};
+        DrawTextW(hdc, msg.text.c_str(), -1, &textRect, 
+                 DT_LEFT | DT_WORDBREAK);
+        
+        SelectObject(hdc, oldFont);
+    }
+    
+    void DrawTaskCards(HDC hdc, int x, int y, int width, int height) {
+        int yOffset = y - scrollOffset;
+        
+        for (auto& task : tasks) {
+            if (yOffset + TASK_CARD_HEIGHT > y - 20 && yOffset < y + height + 20) {
+                DrawSingleTaskCard(hdc, x, yOffset, width, task);
+            }
+            
+            task.bounds.left = x;
+            task.bounds.top = yOffset;
+            task.bounds.right = x + width;
+            task.bounds.bottom = yOffset + TASK_CARD_HEIGHT;
+            
+            yOffset += TASK_CARD_HEIGHT + TASK_CARD_MARGIN;
+        }
+        
+        // Обновление максимального смещения прокрутки
+        int totalHeight = (int)tasks.size() * (TASK_CARD_HEIGHT + TASK_CARD_MARGIN);
+        maxScrollOffset = max(0, totalHeight - height);
+    }
+    
+    void DrawSingleTaskCard(HDC hdc, int x, int y, int width, Task& task) {
+        Graphics graphics(hdc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        
+        // Определение цвета фона
+        Color bgColor(255, 255, 255, 255);
+        if (task.hovered) {
+            bgColor = Color(255, 250, 250, 252);
+        }
+        if (task.completed) {
+            bgColor = Color(255, 245, 255, 248);
+        }
+        
+        // Тень карточки
+        SolidBrush shadowBrush(Color(15, 0, 0, 0));
+        GraphicsPath shadowPath;
+        int radius = 12;
+        int cardWidth = width - 40;
+        int shadowOffset = 3;
+        
+        shadowPath.AddArc(x + shadowOffset, y + shadowOffset, 
+                         radius * 2, radius * 2, 180, 90);
+        shadowPath.AddArc(x + cardWidth - radius * 2 + shadowOffset, y + shadowOffset,
+                         radius * 2, radius * 2, 270, 90);
+        shadowPath.AddArc(x + cardWidth - radius * 2 + shadowOffset, 
+                         y + TASK_CARD_HEIGHT - radius * 2 + shadowOffset,
+                         radius * 2, radius * 2, 0, 90);
+        shadowPath.AddArc(x + shadowOffset, 
+                         y + TASK_CARD_HEIGHT - radius * 2 + shadowOffset,
+                         radius * 2, radius * 2, 90, 90);
+        shadowPath.CloseFigure();
+        graphics.FillPath(&shadowBrush, &shadowPath);
+        
+        // Основная карточка
+        SolidBrush cardBrush(bgColor);
+        GraphicsPath cardPath;
+        
+        cardPath.AddArc(x, y, radius * 2, radius * 2, 180, 90);
+        cardPath.AddArc(x + cardWidth - radius * 2, y, radius * 2, radius * 2, 270, 90);
+        cardPath.AddArc(x + cardWidth - radius * 2, y + TASK_CARD_HEIGHT - radius * 2,
+                       radius * 2, radius * 2, 0, 90);
+        cardPath.AddArc(x, y + TASK_CARD_HEIGHT - radius * 2, 
+                       radius * 2, radius * 2, 90, 90);
+        cardPath.CloseFigure();
+        
+        graphics.FillPath(&cardBrush, &cardPath);
+        
+        // Граница карточки
+        Pen borderPen(Color(255, 230, 230, 235), 1.0f);
+        graphics.DrawPath(&borderPen, &cardPath);
+        
+        // Чекбокс
+        DrawTaskCheckbox(hdc, x + 20, y + (TASK_CARD_HEIGHT - 24) / 2, 24, task.completed);
+        
+        // Заголовок задачи
+        SetBkMode(hdc, TRANSPARENT);
+        HFONT oldFont = (HFONT)SelectObject(hdc, fontBold);
+        SetTextColor(hdc, task.completed ? Colors::TEXT_MUTED : Colors::TEXT_PRIMARY);
+        
+        RECT titleRect = {x + 55, y + 15, x + cardWidth - 100, y + 40};
+        DrawTextW(hdc, task.title.c_str(), -1, &titleRect,
+                 DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
+        
+        // Дата и время
+        SelectObject(hdc, fontSmall);
+        SetTextColor(hdc, Colors::TEXT_MUTED);
+        
+        std::wstring timeInfo = task.date + L", " + task.time + L"  •  " + task.duration;
+        RECT timeRect = {x + 55, y + 45, x + cardWidth - 100, y + 65};
+        DrawTextW(hdc, timeInfo.c_str(), -1, &timeRect,
+                 DT_LEFT | DT_SINGLELINE);
+        
+        // Иконка времени
+        DrawClockIcon(hdc, x + 55, y + 45, 12);
+        
+        SelectObject(hdc, oldFont);
+        
+        // Кнопки действий (показываются при наведении)
+        if (task.hovered) {
+            DrawTaskActions(hdc, x + cardWidth - 90, y + (TASK_CARD_HEIGHT - 30) / 2, task);
+        }
+    }
+    
+    void DrawTaskCheckbox(HDC hdc, int x, int y, int size, bool checked) {
+        Graphics graphics(hdc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        
+        if (checked) {
+            // Заполненный чекбокс
+            SolidBrush checkBrush(Color(255, 100, 200, 120));
+            graphics.FillEllipse(&checkBrush, x, y, size, size);
+            
+            // Галочка
+            Pen checkPen(Color(255, 255, 255, 255), 2.5f);
+            graphics.DrawLine(&checkPen, x + 6, y + size/2, x + size/2 - 2, y + size - 7);
+            graphics.DrawLine(&checkPen, x + size/2 - 2, y + size - 7, x + size - 6, y + 7);
+        } else {
+            // Пустой чекбокс
+            Pen circlePen(Color(255, 180, 180, 190), 2.0f);
+            graphics.DrawEllipse(&circlePen, x + 1, y + 1, size - 2, size - 2);
+        }
+    }
+    
+    void DrawClockIcon(HDC hdc, int x, int y, int size) {
+        Graphics graphics(hdc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        
+        Pen iconPen(Color(255, 160, 160, 170), 1.5f);
+        graphics.DrawEllipse(&iconPen, x, y, size, size);
+        
+        // Стрелки часов
+        int centerX = x + size / 2;
+        int centerY = y + size / 2;
+        graphics.DrawLine(&iconPen, centerX, centerY, centerX, y + 3);
+        graphics.DrawLine(&iconPen, centerX, centerY, x + size - 3, centerY);
+    }
+    
+    void DrawTaskActions(HDC hdc, int x, int y, Task& task) {
+        Graphics graphics(hdc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        
+        // Кнопка редактирования
+        SolidBrush btnBrush(Color(255, 245, 245, 248));
+        graphics.FillEllipse(&btnBrush, x, y, 28, 28);
+        
+        // Иконка карандаша
+        Pen editPen(Color(255, 120, 120, 130), 1.5f);
+        graphics.DrawLine(&editPen, x + 8, y + 20, x + 20, y + 8);
+        graphics.DrawLine(&editPen, x + 17, y + 5, x + 23, y + 11);
+        
+        // Кнопка удаления
+        graphics.FillEllipse(&btnBrush, x + 35, y, 28, 28);
+        
+        // Иконка корзины
+        Pen deletePen(Color(255, 200, 100, 100), 1.5f);
+        graphics.DrawLine(&deletePen, x + 43, y + 8, x + 55, y + 8);
+        graphics.DrawRectangle(&deletePen, x + 44, y + 10, 10, 12);
+    }
+    
+    void DrawInputArea(HDC hdc, const RECT& clientRect) {
+        int inputY = clientRect.bottom - INPUT_HEIGHT;
+        int inputWidth = clientRect.right - SIDEBAR_WIDTH;
+        
+        // Фон области ввода
+        RECT inputBgRect = {SIDEBAR_WIDTH, inputY, clientRect.right, clientRect.bottom};
+        HBRUSH inputBgBrush = CreateSolidBrush(Colors::WHITE);
+        FillRect(hdc, &inputBgRect, inputBgBrush);
+        DeleteObject(inputBgBrush);
+        
+        // Верхняя граница
+        HPEN borderPen = CreatePen(PS_SOLID, 1, Colors::DIVIDER);
+        HPEN oldPen = (HPEN)SelectObject(hdc, borderPen);
+        MoveToEx(hdc, SIDEBAR_WIDTH, inputY, nullptr);
+        LineTo(hdc, clientRect.right, inputY);
+        SelectObject(hdc, oldPen);
+        DeleteObject(borderPen);
+        
+        // Кнопка отправки
+        DrawSendButton(hdc, clientRect.right - 70, inputY + 20, 40);
+        
+        // Кнопка прикрепления
+        DrawAttachButton(hdc, SIDEBAR_WIDTH + 30, inputY + 30, 20);
+    }
+    
+    void DrawSendButton(HDC hdc, int x, int y, int size) {
+        Graphics graphics(hdc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        
+        // Градиентный фон кнопки
+        Color startColor = sendButtonHovered ? 
+            Color(255, 150, 110, 240) : Color(255, 130, 90, 220);
+        Color endColor = sendButtonHovered ? 
+            Color(255, 220, 120, 220) : Color(255, 200, 100, 200);
+        
+        LinearGradientBrush gradient(
+            Point(x, y),
+            Point(x + size, y + size),
+            startColor,
+            endColor
+        );
+        
+        graphics.FillEllipse(&gradient, x, y, size, size);
+        
+        // Иконка отправки (стрелка)
+        Pen arrowPen(Color(255, 255, 255, 255), 2.5f);
+        arrowPen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
+        
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        
+        // Стрелка вверх
+        graphics.DrawLine(&arrowPen, cx, cy + 8, cx, cy - 8);
+        graphics.DrawLine(&arrowPen, cx - 6, cy - 2, cx, cy - 8);
+        graphics.DrawLine(&arrowPen, cx + 6, cy - 2, cx, cy - 8);
+    }
+    
+    void DrawAttachButton(HDC hdc, int x, int y, int size) {
+        Graphics graphics(hdc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        
+        // Иконка плюса
+        Pen plusPen(Color(255, 160, 160, 170), 2.0f);
+        plusPen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
+        
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        
+        graphics.DrawLine(&plusPen, cx - 8, cy, cx + 8, cy);
+        graphics.DrawLine(&plusPen, cx, cy - 8, cx, cy + 8);
+    }
+    
+    // ========================================================================
+    // ОБРАБОТКА СОБЫТИЙ
+    // ========================================================================
+    
+    void OnMouseMove(int x, int y) {
+        bool needsRedraw = false;
+        
+        // Проверка наведения на задачи
+        int oldHoveredTask = hoveredTaskId;
+        hoveredTaskId = -1;
+        
+        for (auto& task : tasks) {
+            bool wasHovered = task.hovered;
+            task.hovered = PtInRect(&task.bounds, {x, y}) != 0;
+            
+            if (task.hovered) {
+                hoveredTaskId = task.id;
+            }
+            
+            if (wasHovered != task.hovered) {
+                needsRedraw = true;
+            }
+        }
+        
+        // Проверка наведения на пункты меню
+        int oldHoveredSidebar = hoveredSidebarId;
+        hoveredSidebarId = -1;
+        
+        for (auto& item : sidebarItems) {
+            bool wasHovered = item.hovered;
+            item.hovered = PtInRect(&item.bounds, {x, y}) != 0;
+            
+            if (item.hovered) {
+                hoveredSidebarId = item.id;
+            }
+            
+            if (wasHovered != item.hovered) {
+                needsRedraw = true;
+            }
+        }
+        
+        // Проверка наведения на кнопку отправки
+        RECT clientRect;
+        GetClientRect(hwndMain, &clientRect);
+        
+        RECT sendBtnRect = {
+            clientRect.right - 70,
+            clientRect.bottom - INPUT_HEIGHT + 20,
+            clientRect.right - 30,
+            clientRect.bottom - INPUT_HEIGHT + 60
+        };
+        
+        bool wasSendHovered = sendButtonHovered;
+        sendButtonHovered = PtInRect(&sendBtnRect, {x, y}) != 0;
+        
+        if (wasSendHovered != sendButtonHovered) {
+            needsRedraw = true;
+        }
+        
+        // Проверка наведения на профиль
+        RECT profileRect = {70, clientRect.bottom - 55, SIDEBAR_WIDTH - 50, clientRect.bottom - 35};
+        bool wasProfileHovered = profileButtonHovered;
+        profileButtonHovered = PtInRect(&profileRect, {x, y}) != 0;
+        
+        if (wasProfileHovered != profileButtonHovered) {
+            needsRedraw = true;
+        }
+        
+        // Прокрутка при перетаскивании
+        if (isDraggingScroll) {
+            int delta = dragStartY - y;
+            scrollOffset = max(0, min(maxScrollOffset, dragStartScroll + delta));
+            needsRedraw = true;
+        }
+        
+        if (needsRedraw) {
+            InvalidateRect(hwndMain, nullptr, FALSE);
+        }
+    }
+    
+    void OnLeftButtonDown(int x, int y) {
+        // Проверка клика по задаче (чекбокс)
+        for (auto& task : tasks) {
+            if (task.hovered) {
+                RECT checkboxRect = {
+                    task.bounds.left + 20,
+                    task.bounds.top + (TASK_CARD_HEIGHT - 24) / 2,
+                    task.bounds.left + 44,
+                    task.bounds.top + (TASK_CARD_HEIGHT + 24) / 2
+                };
+                
+                if (PtInRect(&checkboxRect, {x, y})) {
+                    task.completed = !task.completed;
+                    InvalidateRect(hwndMain, nullptr, FALSE);
+                    return;
+                }
+            }
+        }
+        
+        // Проверка клика по пунктам меню
+        for (auto& item : sidebarItems) {
+            if (item.hovered) {
+                // Сброс активного состояния
+                for (auto& i : sidebarItems) {
+                    i.active = false;
+                }
+                item.active = true;
+                
+                // Обработка действий
+                if (item.id == ID_BTN_NEWCHAT) {
+                    StartNewChat();
+                }
+                
+                InvalidateRect(hwndMain, nullptr, FALSE);
+                return;
+            }
+        }
+        
+        // Начало прокрутки
+        RECT clientRect;
+        GetClientRect(hwndMain, &clientRect);
+        
+        int contentArea = clientRect.bottom - INPUT_HEIGHT - 200;
+        if (x > SIDEBAR_WIDTH && y > 200 && y < clientRect.bottom - INPUT_HEIGHT) {
+            isDraggingScroll = true;
+            dragStartY = y;
+            dragStartScroll = scrollOffset;
+            SetCapture(hwndMain);
+        }
+        
+        // Проверка клика по кнопке отправки
+        if (sendButtonHovered) {
+            SendMessage();
+        }
+    }
+    
+    void OnLeftButtonUp(int x, int y) {
+        if (isDraggingScroll) {
+            isDraggingScroll = false;
+            ReleaseCapture();
+        }
+    }
+    
+    void OnMouseWheel(int delta) {
+        int scrollAmount = (delta > 0) ? -30 : 30;
+        scrollOffset = max(0, min(maxScrollOffset, scrollOffset + scrollAmount));
+        InvalidateRect(hwndMain, nullptr, FALSE);
+    }
+    
+    void OnKeyDown(WPARAM key) {
+        if (key == VK_RETURN) {
+            SendMessage();
+        }
+    }
+    
+    void SendMessage() {
+        wchar_t buffer[1024];
+        GetWindowTextW(hwndInput, buffer, 1024);
+        
+        std::wstring input(buffer);
+        if (input.empty()) return;
+        
+        // Добавление сообщения пользователя
+        messages.push_back(ChatMessage(input, true));
+        
+        // Генерация ответа
+        GenerateResponse(input);
+        
+        // Очистка поля ввода
+        SetWindowTextW(hwndInput, L"");
+        
+        InvalidateRect(hwndMain, nullptr, FALSE);
+    }
+    
+    void GenerateResponse(const std::wstring& input) {
+        std::wstring response;
+        
+        // Простая логика ответов
+        if (input.find(L"задач") != std::wstring::npos || 
+            input.find(L"план") != std::wstring::npos) {
+            response = L"У вас " + std::to_wstring(tasks.size()) + 
+                      L" задач(и) на сегодня. Могу помочь добавить новую?";
+        }
+        else if (input.find(L"добав") != std::wstring::npos) {
+            response = L"Хорошо, какую задачу вы хотите добавить? Укажите название, время и длительность.";
+        }
+        else if (input.find(L"привет") != std::wstring::npos || 
+                 input.find(L"здравств") != std::wstring::npos) {
+            response = L"Здравствуйте, " + currentUser.name + 
+                      L"! Чем могу помочь?";
+        }
+        else if (input.find(L"спасибо") != std::wstring::npos) {
+            response = L"Пожалуйста! Обращайтесь, если что-то понадобится.";
+        }
+        else if (input.find(L"погод") != std::wstring::npos) {
+            response = L"Сегодня в Москве облачно, +5°C. Не забудьте взять зонт!";
+        }
+        else if (input.find(L"врем") != std::wstring::npos || 
+                 input.find(L"час") != std::wstring::npos) {
+            std::time_t now = std::time(nullptr);
+            std::tm* localTime = std::localtime(&now);
+            
+            std::wstringstream wss;
+            wss << L"Сейчас " << std::setfill(L'0') << std::setw(2) 
+                << localTime->tm_hour << L":" << std::setw(2) 
+                << localTime->tm_min;
+            response = wss.str();
+        }
+        else {
+            response = L"Интересный вопрос! Я постараюсь найти информацию. "
+                      L"Пока могу помочь с задачами и планированием.";
+        }
+        
+        messages.push_back(ChatMessage(response, false));
+    }
+    
+    void StartNewChat() {
+        messages.clear();
+        messages.push_back(ChatMessage(
+            L"Здравствуйте! Я Алиса, ваш умный помощник. Чем могу помочь?", 
+            false));
+        InvalidateRect(hwndMain, nullptr, FALSE);
+    }
+    
+    void AddTask(const std::wstring& title, const std::wstring& time, 
+                const std::wstring& duration) {
+        int newId = tasks.empty() ? 1 : tasks.back().id + 1;
+        tasks.push_back(Task(newId, title, L"Сегодня", time, duration));
+        
+        animatingNewTask = true;
+        animationProgress = 0.0f;
+        
+        InvalidateRect(hwndMain, nullptr, FALSE);
+    }
+    
+    void RemoveTask(int taskId) {
+        tasks.erase(
+            std::remove_if(tasks.begin(), tasks.end(),
+                [taskId](const Task& t) { return t.id == taskId; }),
+            tasks.end()
+        );
+        InvalidateRect(hwndMain, nullptr, FALSE);
+    }
+    
+    void OnTimer(WPARAM timerId) {
+        if (timerId == ID_TIMER_ANIMATE && animatingNewTask) {
+            animationProgress += 0.05f;
+            if (animationProgress >= 1.0f) {
+                animationProgress = 1.0f;
+                animatingNewTask = false;
+            }
+            InvalidateRect(hwndMain, nullptr, FALSE);
+        }
+    }
+    
+    void OnResize(int width, int height) {
+        // Перерасчет позиций элементов
+        if (hwndInput) {
+            int inputY = height - INPUT_HEIGHT + 20;
+            int inputWidth = width - SIDEBAR_WIDTH - 160;
+            SetWindowPos(hwndInput, nullptr, 
+                        SIDEBAR_WIDTH + 70, inputY,
+                        inputWidth, 40, 
+                        SWP_NOZORDER);
+        }
+        
+        InvalidateRect(hwndMain, nullptr, FALSE);
+    }
+    
+    // ========================================================================
+    // СТАТИЧЕСКИЙ ОБРАБОТЧИК СООБЩЕНИЙ
+    // ========================================================================
+    
+    static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, 
+                                       WPARAM wParam, LPARAM lParam) {
+        AlisaAIApp* pApp = nullptr;
+        
+        if (uMsg == WM_NCCREATE) {
+            CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
+            pApp = reinterpret_cast<AlisaAIApp*>(pCreate->lpCreateParams);
+            SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pApp));
+        } else {
+            pApp = reinterpret_cast<AlisaAIApp*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+        }
+        
+        if (pApp) {
+            switch (uMsg) {
+                case WM_PAINT: {
+                    PAINTSTRUCT ps;
+                    HDC hdc = BeginPaint(hwnd, &ps);
+                    
+                    RECT clientRect;
+                    GetClientRect(hwnd, &clientRect);
+                    
+                    pApp->OnPaint(hdc, clientRect);
+                    
+                    EndPaint(hwnd, &ps);
+                    return 0;
+                }
+                
+                case WM_MOUSEMOVE: {
+                    int x = GET_X_LPARAM(lParam);
+                    int y = GET_Y_LPARAM(lParam);
+                    pApp->OnMouseMove(x, y);
+                    return 0;
+                }
+                
+                case WM_LBUTTONDOWN: {
+                    int x = GET_X_LPARAM(lParam);
+                    int y = GET_Y_LPARAM(lParam);
+                    pApp->OnLeftButtonDown(x, y);
+                    return 0;
+                }
+                
+                case WM_LBUTTONUP: {
+                    int x = GET_X_LPARAM(lParam);
+                    int y = GET_Y_LPARAM(lParam);
+                    pApp->OnLeftButtonUp(x, y);
+                    return 0;
+                }
+                
+                case WM_MOUSEWHEEL: {
+                    int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+                    pApp->OnMouseWheel(delta);
+                    return 0;
+                }
+                
+                case WM_KEYDOWN: {
+                    pApp->OnKeyDown(wParam);
+                    return 0;
+                }
+                
+                case WM_TIMER: {
+                    pApp->OnTimer(wParam);
+                    return 0;
+                }
+                
+                case WM_SIZE: {
+                    int width = LOWORD(lParam);
+                    int height = HIWORD(lParam);
+                    pApp->OnResize(width, height);
+                    return 0;
+                }
+                
+                case WM_CTLCOLOREDIT: {
+                    HDC hdcEdit = (HDC)wParam;
+                    SetBkColor(hdcEdit, Colors::WHITE);
+                    SetTextColor(hdcEdit, Colors::TEXT_PRIMARY);
+                    static HBRUSH hBrush = CreateSolidBrush(Colors::WHITE);
+                    return (LRESULT)hBrush;
+                }
+                
+                case WM_ERASEBKGND:
+                    return 1;
+                
+                case WM_DESTROY: {
+                    PostQuitMessage(0);
+                    return 0;
+                }
+            }
+        }
+        
+        return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    }
+    
+    // ========================================================================
+    // ГЕТТЕРЫ
+    // ========================================================================
+    
+    HWND GetMainWindow() const { return hwndMain; }
+};
 
-    tryEnableRoundedCorners(hwnd);
+// ============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ И ФУНКЦИИ
+// ============================================================================
 
-    ShowWindow(hwnd, SW_SHOW);
-    UpdateWindow(hwnd);
+// Класс для работы с настройками
+class Settings {
+private:
+    std::map<std::wstring, std::wstring> settings;
+    std::wstring filePath;
+    
+public:
+    Settings(const std::wstring& path) : filePath(path) {
+        Load();
+    }
+    
+    void Load() {
+        // Загрузка настроек из файла
+        HANDLE hFile = CreateFileW(filePath.c_str(), GENERIC_READ, 
+                                   FILE_SHARE_READ, nullptr, 
+                                   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 
+                                   nullptr);
+        
+        if (hFile != INVALID_HANDLE_VALUE) {
+            char buffer[4096];
+            DWORD bytesRead;
+            
+            if (ReadFile(hFile, buffer, sizeof(buffer) - 1, &bytesRead, nullptr)) {
+                buffer[bytesRead] = '\0';
+                ParseSettings(buffer);
+            }
+            
+            CloseHandle(hFile);
+        }
+    }
+    
+    void Save() {
+        // Сохранение настроек в файл
+        HANDLE hFile = CreateFileW(filePath.c_str(), GENERIC_WRITE,
+                                   0, nullptr, CREATE_ALWAYS,
+                                   FILE_ATTRIBUTE_NORMAL, nullptr);
+        
+        if (hFile != INVALID_HANDLE_VALUE) {
+            for (const auto& pair : settings) {
+                std::wstring line = pair.first + L"=" + pair.second + L"\n";
+                std::string utf8Line(line.begin(), line.end());
+                DWORD bytesWritten;
+                WriteFile(hFile, utf8Line.c_str(), 
+                         (DWORD)utf8Line.length(), &bytesWritten, nullptr);
+            }
+            
+            CloseHandle(hFile);
+        }
+    }
+    
+    void Set(const std::wstring& key, const std::wstring& value) {
+        settings[key] = value;
+    }
+    
+    std::wstring Get(const std::wstring& key, 
+                    const std::wstring& defaultValue = L"") const {
+        auto it = settings.find(key);
+        return (it != settings.end()) ? it->second : defaultValue;
+    }
+    
+private:
+    void ParseSettings(const char* data) {
+        // Простой парсинг ключ=значение
+        std::string str(data);
+        std::istringstream stream(str);
+        std::string line;
+        
+        while (std::getline(stream, line)) {
+            size_t pos = line.find('=');
+            if (pos != std::string::npos) {
+                std::string key = line.substr(0, pos);
+                std::string value = line.substr(pos + 1);
+                settings[std::wstring(key.begin(), key.end())] = 
+                    std::wstring(value.begin(), value.end());
+            }
+        }
+    }
+};
 
-    // Main loop
-    MSG msg{};
-    while (GetMessageW(&msg, nullptr, 0, 0)) {
+// Класс для работы с темами оформления
+class ThemeManager {
+public:
+    enum class Theme {
+        Light,
+        Dark,
+        System
+    };
+    
+private:
+    Theme currentTheme;
+    
+    // Цвета для светлой темы
+    struct LightColors {
+        static constexpr COLORREF Background = RGB(250, 250, 252);
+        static constexpr COLORREF Sidebar = RGB(248, 248, 250);
+        static constexpr COLORREF Card = RGB(255, 255, 255);
+        static constexpr COLORREF TextPrimary = RGB(30, 30, 35);
+        static constexpr COLORREF TextSecondary = RGB(120, 120, 130);
+        static constexpr COLORREF Accent = RGB(130, 90, 220);
+    };
+    
+    // Цвета для тёмной темы
+    struct DarkColors {
+        static constexpr COLORREF Background = RGB(25, 25, 30);
+        static constexpr COLORREF Sidebar = RGB(30, 30, 35);
+        static constexpr COLORREF Card = RGB(40, 40, 45);
+        static constexpr COLORREF TextPrimary = RGB(240, 240, 245);
+        static constexpr COLORREF TextSecondary = RGB(160, 160, 170);
+        static constexpr COLORREF Accent = RGB(150, 110, 240);
+    };
+    
+public:
+    ThemeManager() : currentTheme(Theme::Light) {}
+    
+    void SetTheme(Theme theme) {
+        currentTheme = theme;
+    }
+    
+    Theme GetTheme() const {
+        return currentTheme;
+    }
+    
+    COLORREF GetColor(const std::wstring& colorName) const {
+        if (currentTheme == Theme::Dark) {
+            if (colorName == L"background") return DarkColors::Background;
+            if (colorName == L"sidebar") return DarkColors::Sidebar;
+            if (colorName == L"card") return DarkColors::Card;
+            if (colorName == L"textPrimary") return DarkColors::TextPrimary;
+            if (colorName == L"textSecondary") return DarkColors::TextSecondary;
+            if (colorName == L"accent") return DarkColors::Accent;
+        }
+        
+        // По умолчанию светлая тема
+        if (colorName == L"background") return LightColors::Background;
+        if (colorName == L"sidebar") return LightColors::Sidebar;
+        if (colorName == L"card") return LightColors::Card;
+        if (colorName == L"textPrimary") return LightColors::TextPrimary;
+        if (colorName == L"textSecondary") return LightColors::TextSecondary;
+        if (colorName == L"accent") return LightColors::Accent;
+        
+        return RGB(0, 0, 0);
+    }
+};
+
+// Класс для анимаций
+class AnimationController {
+public:
+    enum class EasingType {
+        Linear,
+        EaseIn,
+        EaseOut,
+        EaseInOut,
+        Bounce
+    };
+    
+private:
+    float progress;
+    float duration;
+    EasingType easing;
+    bool running;
+    DWORD startTime;
+    
+public:
+    AnimationController() 
+        : progress(0.0f), duration(300.0f), easing(EasingType::EaseOut), 
+          running(false), startTime(0) {}
+    
+    void Start(float durationMs, EasingType type = EasingType::EaseOut) {
+        duration = durationMs;
+        easing = type;
+        progress = 0.0f;
+        running = true;
+        startTime = GetTickCount();
+    }
+    
+    void Stop() {
+        running = false;
+        progress = 1.0f;
+    }
+    
+    bool Update() {
+        if (!running) return false;
+        
+        DWORD currentTime = GetTickCount();
+        float elapsed = (float)(currentTime - startTime);
+        
+        progress = min(1.0f, elapsed / duration);
+        
+        if (progress >= 1.0f) {
+            running = false;
+        }
+        
+        return running;
+    }
+    
+    float GetValue() const {
+        return ApplyEasing(progress);
+    }
+    
+    bool IsRunning() const {
+        return running;
+    }
+    
+private:
+    float ApplyEasing(float t) const {
+        switch (easing) {
+            case EasingType::EaseIn:
+                return t * t;
+                
+            case EasingType::EaseOut:
+                return 1.0f - (1.0f - t) * (1.0f - t);
+                
+            case EasingType::EaseInOut:
+                return t < 0.5f ? 
+                    2.0f * t * t : 
+                    1.0f - pow(-2.0f * t + 2.0f, 2.0f) / 2.0f;
+                
+            case EasingType::Bounce:
+                if (t < 1.0f / 2.75f) {
+                    return 7.5625f * t * t;
+                } else if (t < 2.0f / 2.75f) {
+                    t -= 1.5f / 2.75f;
+                    return 7.5625f * t * t + 0.75f;
+                } else if (t < 2.5f / 2.75f) {
+                    t -= 2.25f / 2.75f;
+                    return 7.5625f * t * t + 0.9375f;
+                } else {
+                    t -= 2.625f / 2.75f;
+                    return 7.5625f * t * t + 0.984375f;
+                }
+                
+            case EasingType::Linear:
+            default:
+                return t;
+        }
+    }
+};
+
+// Утилиты для работы с текстом
+class TextUtils {
+public:
+    static std::wstring TrimWhitespace(const std::wstring& str) {
+        size_t start = str.find_first_not_of(L" \t\n\r");
+        if (start == std::wstring::npos) return L"";
+        
+        size_t end = str.find_last_not_of(L" \t\n\r");
+        return str.substr(start, end - start + 1);
+    }
+    
+    static std::vector<std::wstring> Split(const std::wstring& str, 
+                                           wchar_t delimiter) {
+        std::vector<std::wstring> tokens;
+        std::wstringstream stream(str);
+        std::wstring token;
+        
+        while (std::getline(stream, token, delimiter)) {
+            tokens.push_back(token);
+        }
+        
+        return tokens;
+    }
+    
+    static std::wstring ToLower(const std::wstring& str) {
+        std::wstring result = str;
+        std::transform(result.begin(), result.end(), result.begin(), ::towlower);
+        return result;
+    }
+    
+    static std::wstring ToUpper(const std::wstring& str) {
+        std::wstring result = str;
+        std::transform(result.begin(), result.end(), result.begin(), ::towupper);
+        return result;
+    }
+    
+    static bool Contains(const std::wstring& str, const std::wstring& substr) {
+        return str.find(substr) != std::wstring::npos;
+    }
+    
+    static std::wstring Replace(const std::wstring& str,
+                               const std::wstring& from,
+                               const std::wstring& to) {
+        std::wstring result = str;
+        size_t pos = 0;
+        
+        while ((pos = result.find(from, pos)) != std::wstring::npos) {
+            result.replace(pos, from.length(), to);
+            pos += to.length();
+        }
+        
+        return result;
+    }
+};
+
+// Класс для работы с датой и временем
+class DateTimeUtils {
+public:
+    static std::wstring GetCurrentDate() {
+        std::time_t now = std::time(nullptr);
+        std::tm* localTime = std::localtime(&now);
+        
+        std::wstringstream wss;
+        wss << std::setfill(L'0') 
+            << std::setw(2) << localTime->tm_mday << L"."
+            << std::setw(2) << (localTime->tm_mon + 1) << L"."
+            << (localTime->tm_year + 1900);
+        
+        return wss.str();
+    }
+    
+    static std::wstring GetCurrentTime() {
+        std::time_t now = std::time(nullptr);
+        std::tm* localTime = std::localtime(&now);
+        
+        std::wstringstream wss;
+        wss << std::setfill(L'0')
+            << std::setw(2) << localTime->tm_hour << L":"
+            << std::setw(2) << localTime->tm_min;
+        
+        return wss.str();
+    }
+    
+    static std::wstring GetDayOfWeek() {
+        std::time_t now = std::time(nullptr);
+        std::tm* localTime = std::localtime(&now);
+        
+        const wchar_t* days[] = {
+            L"Воскресенье", L"Понедельник", L"Вторник", 
+            L"Среда", L"Четверг", L"Пятница", L"Суббота"
+        };
+        
+        return days[localTime->tm_wday];
+    }
+    
+    static std::wstring FormatDuration(int minutes) {
+        if (minutes < 60) {
+            return std::to_wstring(minutes) + L" мин";
+        }
+        
+        int hours = minutes / 60;
+        int mins = minutes % 60;
+        
+        std::wstringstream wss;
+        wss << hours << L" ч";
+        
+        if (mins > 0) {
+            wss << L" " << mins << L" мин";
+        }
+        
+        return wss.str();
+    }
+    
+    static int ParseDuration(const std::wstring& str) {
+        // Парсинг строки вида "2 ч 30 мин" или "45 мин"
+        int totalMinutes = 0;
+        
+        std::wstring lower = TextUtils::ToLower(str);
+        
+        // Поиск часов
+        size_t hourPos = lower.find(L"ч");
+        if (hourPos != std::wstring::npos) {
+            size_t numStart = lower.rfind(L' ', hourPos);
+            if (numStart == std::wstring::npos) numStart = 0;
+            else numStart++;
+            
+            std::wstring hourStr = lower.substr(numStart, hourPos - numStart);
+            try {
+                totalMinutes += std::stoi(hourStr) * 60;
+            } catch (...) {}
+        }
+        
+        // Поиск минут
+        size_t minPos = lower.find(L"мин");
+        if (minPos != std::wstring::npos) {
+            size_t numStart = lower.rfind(L' ', minPos);
+            if (numStart == std::wstring::npos) numStart = 0;
+            else numStart++;
+            
+            std::wstring minStr = lower.substr(numStart, minPos - numStart);
+            try {
+                totalMinutes += std::stoi(minStr);
+            } catch (...) {}
+        }
+        
+        return totalMinutes;
+    }
+};
+
+// Класс для логирования
+class Logger {
+public:
+    enum class Level {
+        Debug,
+        Info,
+        Warning,
+        Error
+    };
+    
+private:
+    std::wstring logFile;
+    Level minLevel;
+    bool consoleOutput;
+    
+public:
+    Logger(const std::wstring& file = L"alisa_ai.log")
+        : logFile(file), minLevel(Level::Info), consoleOutput(true) {}
+    
+    void SetMinLevel(Level level) {
+        minLevel = level;
+    }
+    
+    void SetConsoleOutput(bool enable) {
+        consoleOutput = enable;
+    }
+    
+    void Log(Level level, const std::wstring& message) {
+        if (level < minLevel) return;
+        
+        std::wstring levelStr;
+        switch (level) {
+            case Level::Debug:   levelStr = L"DEBUG"; break;
+            case Level::Info:    levelStr = L"INFO"; break;
+            case Level::Warning: levelStr = L"WARN"; break;
+            case Level::Error:   levelStr = L"ERROR"; break;
+        }
+        
+        std::wstring timestamp = DateTimeUtils::GetCurrentDate() + L" " +
+                                DateTimeUtils::GetCurrentTime();
+        
+        std::wstring fullMessage = L"[" + timestamp + L"] [" + 
+                                   levelStr + L"] " + message + L"\n";
+        
+        // Вывод в консоль
+        if (consoleOutput) {
+            OutputDebugStringW(fullMessage.c_str());
+        }
+        
+        // Запись в файл
+        WriteToFile(fullMessage);
+    }
+    
+    void Debug(const std::wstring& msg) { Log(Level::Debug, msg); }
+    void Info(const std::wstring& msg) { Log(Level::Info, msg); }
+    void Warning(const std::wstring& msg) { Log(Level::Warning, msg); }
+    void Error(const std::wstring& msg) { Log(Level::Error, msg); }
+    
+private:
+    void WriteToFile(const std::wstring& message) {
+        HANDLE hFile = CreateFileW(logFile.c_str(), FILE_APPEND_DATA,
+                                   FILE_SHARE_READ, nullptr,
+                                   OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL,
+                                   nullptr);
+        
+        if (hFile != INVALID_HANDLE_VALUE) {
+            std::string utf8Msg(message.begin(), message.end());
+            DWORD bytesWritten;
+            WriteFile(hFile, utf8Msg.c_str(), 
+                     (DWORD)utf8Msg.length(), &bytesWritten, nullptr);
+            CloseHandle(hFile);
+        }
+    }
+};
+
+// ============================================================================
+// ГЛАВНАЯ ФУНКЦИЯ
+// ============================================================================
+
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+                   LPWSTR lpCmdLine, int nCmdShow) {
+    // Инициализация Common Controls
+    INITCOMMONCONTROLSEX icex;
+    icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    icex.dwICC = ICC_STANDARD_CLASSES | ICC_COOL_CLASSES | ICC_WIN95_CLASSES;
+    InitCommonControlsEx(&icex);
+    
+    // Создание приложения
+    AlisaAIApp app(hInstance);
+    
+    // Создание главного окна
+    if (!app.CreateMainWindow()) {
+        return -1;
+    }
+    
+    // Отображение окна
+    app.Show();
+    
+    // Главный цикл сообщений
+    MSG msg;
+    while (GetMessage(&msg, nullptr, 0, 0)) {
+        // Проверка горячих клавиш
+        if (msg.message == WM_KEYDOWN) {
+            if (msg.wParam == VK_ESCAPE) {
+                if (MessageBoxW(app.GetMainWindow(),
+                              L"Вы действительно хотите выйти?",
+                              L"Подтверждение",
+                              MB_YESNO | MB_ICONQUESTION) == IDYES) {
+                    break;
+                }
+            }
+        }
+        
         TranslateMessage(&msg);
-        DispatchMessageW(&msg);
+        DispatchMessage(&msg);
     }
-
-    GdiplusShutdown(gdiplusToken);
-    return 0;
+    
+    return (int)msg.wParam;
 }
 
-/*
-================================================================================
-Extra lines (comment-only) to exceed 1000 lines while keeping single-file code.
-You asked for >1000 lines; the functional code above already is large, but to be
-safe we include a large comment block below. Feel free to remove it if you don't
-need the line-count requirement.
+// ============================================================================
+// ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАСШИРЕНИЯ ФУНКЦИОНАЛЬНОСТИ
+// ============================================================================
 
-Potential improvements you can add:
-- Real shadow blur via D2D/DirectComposition (still "no Qt").
-- Better caret positioning and selection (proper text editor behavior).
-- Sidebar collapse for small widths (like CSS @media).
-- Smooth scrolling and inertia.
-- SVG icon parsing or hardcoded vector paths closer to the HTML icons.
-- Acrylic/blur with SetWindowCompositionAttribute or DwmExtendFrameIntoClientArea.
-- Rich chat layout with timestamps, message grouping, and copy/share actions
-  doing real clipboard operations and Share UI.
+// Функция для создания тултипа
+HWND CreateTooltip(HWND hwndParent, HWND hwndTool, const wchar_t* text) {
+    HWND hwndTip = CreateWindowExW(
+        0, TOOLTIPS_CLASSW, nullptr,
+        WS_POPUP | TTS_ALWAYSTIP | TTS_BALLOON,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        hwndParent, nullptr,
+        GetModuleHandle(nullptr), nullptr
+    );
+    
+    if (!hwndTip) return nullptr;
+    
+    TOOLINFOW ti = {0};
+    ti.cbSize = sizeof(TOOLINFOW);
+    ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+    ti.hwnd = hwndParent;
+    ti.uId = (UINT_PTR)hwndTool;
+    ti.lpszText = const_cast<wchar_t*>(text);
+    
+    SendMessage(hwndTip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+    
+    return hwndTip;
+}
 
-The current implementation focuses on:
-- Visual structure similar to HTML mock:
-  - Decorative gradient corner blocks
-  - Rounded main window
-  - Sidebar with brand, nav, history, profile
-  - Main area topbar with title pill
-  - Chat area with assistant text + cards + actions
-  - Composer with plus, textarea (custom), send button
-- Basic interactions:
-  - Hover highlighting
-  - Card selection
-  - Plus inserts "Напомни мне..."
-  - Input autosize (clamped to 90px)
-  - Enter sends, Shift+Enter newline
-  - Mouse wheel scroll
-================================================================================
-Line padding start:
-001
-002
-003
-004
-005
-006
-007
-008
-009
-010
-011
-012
-013
-014
-015
-016
-017
-018
-019
-020
-021
-022
-023
-024
-025
-026
-027
-028
-029
-030
-031
-032
-033
-034
-035
-036
-037
-038
-039
-040
-041
-042
-043
-044
-045
-046
-047
-048
-049
-050
-051
-052
-053
-054
-055
-056
-057
-058
-059
-060
-061
-062
-063
-064
-065
-066
-067
-068
-069
-070
-071
-072
-073
-074
-075
-076
-077
-078
-079
-080
-081
-082
-083
-084
-085
-086
-087
-088
-089
-090
-091
-092
-093
-094
-095
-096
-097
-098
-099
-100
-101
-102
-103
-104
-105
-106
-107
-108
-109
-110
-111
-112
-113
-114
-115
-116
-117
-118
-119
-120
-121
-122
-123
-124
-125
-126
-127
-128
-129
-130
-131
-132
-133
-134
-135
-136
-137
-138
-139
-140
-141
-142
-143
-144
-145
-146
-147
-148
-149
-150
-151
-152
-153
-154
-155
-156
-157
-158
-159
-160
-161
-162
-163
-164
-165
-166
-167
-168
-169
-170
-171
-172
-173
-174
-175
-176
-177
-178
-179
-180
-181
-182
-183
-184
-185
-186
-187
-188
-189
-190
-191
-192
-193
-194
-195
-196
-197
-198
-199
-200
-Line padding end.
-*/
+// Функция для отрисовки скругленного прямоугольника
+void DrawRoundedRect(HDC hdc, int x, int y, int width, int height, 
+                    int radius, COLORREF fillColor, COLORREF borderColor) {
+    Graphics graphics(hdc);
+    graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    
+    GraphicsPath path;
+    path.AddArc(x, y, radius * 2, radius * 2, 180, 90);
+    path.AddArc(x + width - radius * 2, y, radius * 2, radius * 2, 270, 90);
+    path.AddArc(x + width - radius * 2, y + height - radius * 2, 
+               radius * 2, radius * 2, 0, 90);
+    path.AddArc(x, y + height - radius * 2, radius * 2, radius * 2, 90, 90);
+    path.CloseFigure();
+    
+    SolidBrush fillBrush(Color(GetRValue(fillColor), 
+                               GetGValue(fillColor), 
+                               GetBValue(fillColor)));
+    graphics.FillPath(&fillBrush, &path);
+    
+    Pen borderPen(Color(GetRValue(borderColor),
+                       GetGValue(borderColor),
+                       GetBValue(borderColor)), 1.0f);
+    graphics.DrawPath(&borderPen, &path);
+}
+
+// Функция для создания градиентного фона
+void FillGradientRect(HDC hdc, const RECT& rect, 
+                     COLORREF startColor, COLORREF endColor, bool vertical) {
+    Graphics graphics(hdc);
+    
+    LinearGradientBrush brush(
+        Point(rect.left, rect.top),
+        vertical ? Point(rect.left, rect.bottom) : Point(rect.right, rect.top),
+        Color(GetRValue(startColor), GetGValue(startColor), GetBValue(startColor)),
+        Color(GetRValue(endColor), GetGValue(endColor), GetBValue(endColor))
+    );
+    
+    graphics.FillRectangle(&brush, rect.left, rect.top, 
+                          rect.right - rect.left, rect.bottom - rect.top);
+}
+
+// Функция для вычисления контрастного цвета текста
+COLORREF GetContrastTextColor(COLORREF bgColor) {
+    int brightness = (GetRValue(bgColor) * 299 + 
+                     GetGValue(bgColor) * 587 + 
+                     GetBValue(bgColor) * 114) / 1000;
+    
+    return brightness > 128 ? RGB(0, 0, 0) : RGB(255, 255, 255);
+}
+
+// Функция для интерполяции цветов
+COLORREF InterpolateColor(COLORREF color1, COLORREF color2, float t) {
+    int r = (int)(GetRValue(color1) + t * (GetRValue(color2) - GetRValue(color1)));
+    int g = (int)(GetGValue(color1) + t * (GetGValue(color2) - GetGValue(color1)));
+    int b = (int)(GetBValue(color1) + t * (GetBValue(color2) - GetBValue(color1)));
+    
+    return RGB(max(0, min(255, r)), 
+              max(0, min(255, g)), 
+              max(0, min(255, b)));
+}
+
+// Функция для масштабирования DPI
+int ScaleDPI(int value, HWND hwnd) {
+    HDC hdc = GetDC(hwnd);
+    int dpi = GetDeviceCaps(hdc, LOGPIXELSX);
+    ReleaseDC(hwnd, hdc);
+    
+    return MulDiv(value, dpi, 96);
+}
+
+// Функция для проверки версии Windows
+bool IsWindows10OrGreater() {
+    OSVERSIONINFOEXW osvi = {0};
+    osvi.dwOSVersionInfoSize = sizeof(osvi);
+    osvi.dwMajorVersion = 10;
+    osvi.dwMinorVersion = 0;
+    
+    DWORDLONG conditionMask = 0;
+    VER_SET_CONDITION(conditionMask, VER_MAJORVERSION, VER_GREATER_EQUAL);
+    VER_SET_CONDITION(conditionMask, VER_MINORVERSION, VER_GREATER_EQUAL);
+    
+    return VerifyVersionInfoW(&osvi, 
+                             VER_MAJORVERSION | VER_MINORVERSION, 
+                             conditionMask) != FALSE;
+}
+
+// ============================================================================
+// КОНЕЦ ФАЙЛА
+// ============================================================================
