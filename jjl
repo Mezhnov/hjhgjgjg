@@ -1,1157 +1,483 @@
-// main.cpp - Enhanced Telegram-like UI with improved quality and features
-// Build (MSVC): cl /EHsc /DUNICODE /D_UNICODE main.cpp user32.lib gdi32.lib gdiplus.lib msimg32.lib
-// Build (MinGW): g++ -municode -O2 main.cpp -lgdi32 -luser32 -lgdiplus -lmsimg32 -o telegram_enhanced.exe
+// main.cpp
+// Dear ImGui + SDL2 + OpenGL3 UI replica (single file UI logic)
+// Build requires linking SDL2 and compiling ImGui sources + backends.
 
-#define UNICODE
-#define _UNICODE
-#include <windows.h>
-#include <windowsx.h>
-#include <gdiplus.h>
+#include <SDL.h>
+#include <SDL_opengl.h>
+
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <cmath>
 
-#pragma comment(lib, "gdiplus.lib")
-#pragma comment(lib, "msimg32.lib")
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_opengl3.h"
 
-using namespace Gdiplus;
+// --------------------------- Data ---------------------------
 
-static const wchar_t* kClassName = L"TelegramEnhancedWindowClass";
-
-static HINSTANCE g_hInst = nullptr;
-static HWND g_hwnd = nullptr;
-static ULONG_PTR g_gdiplusToken = 0;
-
-enum class Screen {
-    Welcome = 0,
-    Phone = 1,
-    Code = 2
-};
-static Screen g_screen = Screen::Welcome;
-
-// Animation state
-struct AnimState {
-    float progress = 0.0f;
-    bool active = false;
-    DWORD startTime = 0;
-    int duration = 300;
+struct Card {
+    int id{};
+    std::string title;
+    std::string when;
+    std::string remind;
+    ImU32 dot;
 };
 
-static AnimState g_screenAnim;
-static AnimState g_buttonAnim;
-
-// ---------------- Color Palette ----------------
-namespace Colors {
-    const Color TelegramBlue(255, 64, 160, 220);
-    const Color TelegramBlueHover(255, 56, 167, 225);
-    const Color TelegramBluePressed(255, 48, 150, 210);
-    const Color White(255, 255, 255, 255);
-    const Color Background(255, 245, 245, 245);
-    const Color TextPrimary(255, 0, 0, 0);
-    const Color TextSecondary(255, 120, 120, 120);
-    const Color TextTertiary(255, 160, 160, 160);
-    const Color LinkBlue(255, 0, 140, 220);
-    const Color LinkBlueHover(255, 0, 120, 200);
-    const Color InputBorder(255, 210, 210, 210);
-    const Color InputBorderActive(255, 64, 160, 220);
-    const Color Shadow(60, 0, 0, 0);
-    const Color ShadowLight(30, 0, 0, 0);
-    const Color GreenOnline(255, 76, 217, 100);
-    const Color RedError(255, 237, 73, 86);
-}
-
-// ---------------- Utilities ----------------
-static int ClampI(int v, int lo, int hi) { return (v < lo) ? lo : (v > hi) ? hi : v; }
-static float ClampF(float v, float lo, float hi) { return (v < lo) ? lo : (v > hi) ? hi : v; }
-static float Lerp(float a, float b, float t) { return a + (b - a) * t; }
-
-static float EaseOutCubic(float t) {
-    float f = t - 1.0f;
-    return f * f * f + 1.0f;
-}
-
-static float EaseInOutCubic(float t) {
-    if (t < 0.5f) return 4.0f * t * t * t;
-    float f = 2.0f * t - 2.0f;
-    return 0.5f * f * f * f + 1.0f;
-}
-
-static Color BlendColor(const Color& a, const Color& b, float t) {
-    return Color(
-        (BYTE)Lerp(a.GetA(), b.GetA(), t),
-        (BYTE)Lerp(a.GetR(), b.GetR(), t),
-        (BYTE)Lerp(a.GetG(), b.GetG(), t),
-        (BYTE)Lerp(a.GetB(), b.GetB(), t)
-    );
-}
-
-static void StartAnimation(AnimState& anim, int duration = 300) {
-    anim.active = true;
-    anim.startTime = GetTickCount();
-    anim.duration = duration;
-    anim.progress = 0.0f;
-}
-
-static bool UpdateAnimation(AnimState& anim) {
-    if (!anim.active) return false;
-    
-    DWORD now = GetTickCount();
-    DWORD elapsed = now - anim.startTime;
-    
-    if (elapsed >= (DWORD)anim.duration) {
-        anim.progress = 1.0f;
-        anim.active = false;
-        return false;
-    }
-    
-    anim.progress = (float)elapsed / (float)anim.duration;
-    return true;
-}
-
-// ---------------- GDI+ Drawing Helpers ----------------
-static void DrawRoundRect(Graphics* g, const RectF& rect, float radius, const Color& color, float penWidth = 1.0f) {
-    GraphicsPath path;
-    path.AddArc(rect.X, rect.Y, radius * 2, radius * 2, 180, 90);
-    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y, radius * 2, radius * 2, 270, 90);
-    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 0, 90);
-    path.AddArc(rect.X, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 90, 90);
-    path.CloseFigure();
-    
-    Pen pen(color, penWidth);
-    g->DrawPath(&pen, &path);
-}
-
-static void FillRoundRect(Graphics* g, const RectF& rect, float radius, const Color& color) {
-    GraphicsPath path;
-    path.AddArc(rect.X, rect.Y, radius * 2, radius * 2, 180, 90);
-    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y, radius * 2, radius * 2, 270, 90);
-    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 0, 90);
-    path.AddArc(rect.X, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 90, 90);
-    path.CloseFigure();
-    
-    SolidBrush brush(color);
-    g->FillPath(&brush, &path);
-}
-
-static void DrawShadow(Graphics* g, const RectF& rect, float radius, float shadowSize = 4.0f) {
-    GraphicsPath path;
-    path.AddArc(rect.X, rect.Y, radius * 2, radius * 2, 180, 90);
-    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y, radius * 2, radius * 2, 270, 90);
-    path.AddArc(rect.X + rect.Width - radius * 2, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 0, 90);
-    path.AddArc(rect.X, rect.Y + rect.Height - radius * 2, radius * 2, radius * 2, 90, 90);
-    path.CloseFigure();
-    
-    PathGradientBrush brush(&path);
-    Color colors[] = { Colors::Shadow, Color(0, 0, 0, 0) };
-    REAL positions[] = { 0.0f, 1.0f };
-    brush.SetInterpolationColors(colors, positions, 2);
-    
-    RectF shadowRect = rect;
-    shadowRect.Inflate(shadowSize, shadowSize);
-    g->FillRectangle(&brush, shadowRect);
-}
-
-static void DrawTextCentered(Graphics* g, const std::wstring& text, const RectF& rect, 
-                             Font* font, const Color& color) {
-    StringFormat format;
-    format.SetAlignment(StringAlignmentCenter);
-    format.SetLineAlignment(StringAlignmentCenter);
-    
-    SolidBrush brush(color);
-    g->DrawString(text.c_str(), -1, font, rect, &format, &brush);
-}
-
-static void DrawTextLeft(Graphics* g, const std::wstring& text, const RectF& rect, 
-                        Font* font, const Color& color) {
-    StringFormat format;
-    format.SetAlignment(StringAlignmentNear);
-    format.SetLineAlignment(StringAlignmentNear);
-    
-    SolidBrush brush(color);
-    g->DrawString(text.c_str(), -1, font, rect, &format, &brush);
-}
-
-static void DrawPaperPlane(Graphics* g, float x, float y, float size, const Color& color) {
-    // Enhanced paper plane icon
-    GraphicsPath path;
-    
-    // Main triangle
-    PointF pts[] = {
-        PointF(x - size * 0.4f, y - size * 0.6f),
-        PointF(x + size * 0.8f, y),
-        PointF(x - size * 0.4f, y + size * 0.6f),
-        PointF(x - size * 0.1f, y)
-    };
-    
-    path.AddPolygon(pts, 4);
-    
-    // Add inner detail
-    path.StartFigure();
-    PointF innerPts[] = {
-        PointF(x - size * 0.1f, y),
-        PointF(x + size * 0.3f, y + size * 0.15f),
-        PointF(x + size * 0.3f, y - size * 0.15f)
-    };
-    path.AddPolygon(innerPts, 3);
-    
-    SolidBrush brush(color);
-    g->FillPath(&brush, &path);
-    
-    // Add highlight
-    Pen pen(Color(100, 255, 255, 255), 2.0f);
-    g->DrawLine(&pen, x - size * 0.3f, y - size * 0.4f, x + size * 0.5f, y - size * 0.1f);
-}
-
-static void DrawBackArrow(Graphics* g, float x, float y, float size, const Color& color) {
-    Pen pen(color, 2.5f);
-    pen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
-    
-    PointF pts[] = {
-        PointF(x + size, y),
-        PointF(x, y + size),
-        PointF(x + size, y + size * 2)
-    };
-    
-    g->DrawLines(&pen, pts, 3);
-}
-
-static void DrawChevronDown(Graphics* g, float x, float y, float size, const Color& color) {
-    Pen pen(color, 2.0f);
-    pen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
-    
-    PointF pts[] = {
-        PointF(x - size, y - size * 0.5f),
-        PointF(x, y + size * 0.5f),
-        PointF(x + size, y - size * 0.5f)
-    };
-    
-    g->DrawLines(&pen, pts, 3);
-}
-
-static void DrawRussianFlag(Graphics* g, float x, float y, float w, float h) {
-    // Russian flag: white, blue, red horizontal stripes
-    SolidBrush whiteBrush(Color(255, 255, 255, 255));
-    SolidBrush blueBrush(Color(255, 0, 57, 166));
-    SolidBrush redBrush(Color(255, 213, 43, 30));
-    
-    float stripe = h / 3.0f;
-    
-    g->FillRectangle(&whiteBrush, x, y, w, stripe);
-    g->FillRectangle(&blueBrush, x, y + stripe, w, stripe);
-    g->FillRectangle(&redBrush, x, y + stripe * 2, w, stripe);
-    
-    // Border
-    Pen borderPen(Color(100, 0, 0, 0), 1.0f);
-    g->DrawRectangle(&borderPen, x, y, w, h);
-}
-
-static void DrawQRIcon(Graphics* g, float x, float y, float size, const Color& color) {
-    // Simple QR code icon representation
-    SolidBrush brush(color);
-    float cellSize = size / 5.0f;
-    
-    // Draw some squares to represent QR pattern
-    int pattern[5][5] = {
-        {1, 1, 1, 0, 1},
-        {1, 0, 1, 0, 1},
-        {1, 1, 1, 1, 0},
-        {0, 0, 1, 1, 1},
-        {1, 0, 0, 1, 1}
-    };
-    
-    for (int i = 0; i < 5; i++) {
-        for (int j = 0; j < 5; j++) {
-            if (pattern[i][j]) {
-                g->FillRectangle(&brush, 
-                    x + j * cellSize, 
-                    y + i * cellSize, 
-                    cellSize * 0.9f, 
-                    cellSize * 0.9f);
-            }
-        }
-    }
-}
-
-// ---------------- UI Elements ----------------
-struct Button {
-    RectF rc;
-    std::wstring text;
-    bool hot = false;
-    bool down = false;
-    bool enabled = true;
-    AnimState hoverAnim;
-    
-    Color GetColor() const {
-        float t = EaseOutCubic(hoverAnim.progress);
-        if (down) return Colors::TelegramBluePressed;
-        if (hot) return BlendColor(Colors::TelegramBlue, Colors::TelegramBlueHover, t);
-        return Colors::TelegramBlue;
-    }
+static std::vector<Card> g_cards = {
+    {1, "Забронировать ресторан", "Сегодня, 12:00", "За час",  IM_COL32(108, 92, 231, 255)},
+    {2, "Разобраться с ремонтом", "Сегодня, 16:00", "За 3 ч",  IM_COL32( 96,165,250, 255)},
+    {3, "Купить подарок жене",    "Сегодня, 21:00", "За 15 мин",IM_COL32(245,158, 11, 255)},
 };
 
-struct Link {
-    RectF rc;
-    std::wstring text;
-    bool hot = false;
-    AnimState hoverAnim;
-    
-    Color GetColor() const {
-        float t = EaseOutCubic(hoverAnim.progress);
-        if (hot) return BlendColor(Colors::LinkBlue, Colors::LinkBlueHover, t);
-        return Colors::LinkBlue;
-    }
-};
+static int g_selected_card = 1;
 
-struct InputField {
-    RectF rc;
-    std::wstring text;
-    std::wstring placeholder;
-    bool focused = false;
-    AnimState focusAnim;
-    int cursorPos = 0;
-    
-    Color GetBorderColor() const {
-        float t = EaseOutCubic(focusAnim.progress);
-        if (focused) return BlendColor(Colors::InputBorder, Colors::InputBorderActive, t);
-        return Colors::InputBorder;
-    }
-};
+static std::vector<std::string> g_user_msgs;
 
-// UI State
-static Button g_btnStart;
-static Button g_btnContinue;
-static Button g_btnVerify;
-static Link g_linkRu;
-static Link g_linkContinueEn;
-static Link g_linkQr;
-static Link g_linkSettings;
-static Link g_linkResend;
-static InputField g_countryField;
-static InputField g_phoneField;
-static InputField g_codeField;
+// --------------------------- Helpers ---------------------------
 
-static std::wstring g_phoneDigits;
-static std::wstring g_codeDigits;
+static float clampf(float v, float a, float b){ return v < a ? a : (v > b ? b : v); }
 
-// Fonts
-static Font* g_fontTitle = nullptr;
-static Font* g_fontHeader = nullptr;
-static Font* g_fontBody = nullptr;
-static Font* g_fontSmall = nullptr;
-static Font* g_fontButton = nullptr;
-static Font* g_fontLink = nullptr;
-static Font* g_fontCode = nullptr;
-
-static void CreateFonts() {
-    FontFamily fontFamily(L"Segoe UI");
-    
-    g_fontTitle = new Font(&fontFamily, 28, FontStyleBold, UnitPixel);
-    g_fontHeader = new Font(&fontFamily, 20, FontStyleBold, UnitPixel);
-    g_fontBody = new Font(&fontFamily, 15, FontStyleRegular, UnitPixel);
-    g_fontSmall = new Font(&fontFamily, 13, FontStyleRegular, UnitPixel);
-    g_fontButton = new Font(&fontFamily, 15, FontStyleBold, UnitPixel);
-    g_fontLink = new Font(&fontFamily, 13, FontStyleRegular, UnitPixel);
-    g_fontCode = new Font(&fontFamily, 24, FontStyleBold, UnitPixel);
-}
-
-static void DestroyFonts() {
-    delete g_fontTitle;
-    delete g_fontHeader;
-    delete g_fontBody;
-    delete g_fontSmall;
-    delete g_fontButton;
-    delete g_fontLink;
-    delete g_fontCode;
-}
-
-static bool PtInRectF(const RectF& rc, POINT pt) {
-    return pt.x >= rc.X && pt.x < rc.X + rc.Width && 
-           pt.y >= rc.Y && pt.y < rc.Y + rc.Height;
-}
-
-static void LayoutUI(int w, int h) {
-    float contentW = min(680.0f, (float)(w - 80));
-    float cx = w / 2.0f;
-    float left = cx - contentW / 2.0f;
-    
-    if (g_screen == Screen::Welcome) {
-        float topBlueH = h * 0.45f;
-        float btnW = 340.0f;
-        float btnH = 48.0f;
-        float btnX = cx - btnW / 2.0f;
-        float btnY = topBlueH + 140.0f;
-        
-        g_btnStart.rc = RectF(btnX, btnY, btnW, btnH);
-        g_btnStart.text = L"Start Messaging";
-        
-        float linkY = btnY + btnH + 24.0f;
-        g_linkRu.text = L"Продолжить на русском";
-        g_linkRu.rc = RectF(cx - 150, linkY, 300, 24);
-        
-    } else if (g_screen == Screen::Phone) {
-        float topMargin = 30.0f;
-        g_linkSettings.text = L"НАСТРОЙКИ";
-        g_linkSettings.rc = RectF(w - 150.0f, topMargin, 130, 24);
-        
-        float blockTop = 140.0f;
-        float fieldW = 400.0f;
-        float fieldX = cx - fieldW / 2.0f;
-        
-        g_countryField.rc = RectF(fieldX, blockTop + 80, fieldW, 52);
-        g_countryField.placeholder = L"Country";
-        
-        float rowY = blockTop + 160;
-        g_phoneField.rc = RectF(fieldX, rowY, fieldW, 52);
-        g_phoneField.placeholder = L"Phone number";
-        
-        float btnW = 400.0f;
-        float btnH = 48.0f;
-        float btnX = cx - btnW / 2.0f;
-        float btnY = rowY + 80;
-        g_btnContinue.rc = RectF(btnX, btnY, btnW, btnH);
-        g_btnContinue.text = L"Продолжить";
-        
-        g_linkContinueEn.text = L"Continue in English";
-        g_linkContinueEn.rc = RectF(cx - 130, btnY + btnH + 24, 260, 24);
-        
-        g_linkQr.text = L"Быстрый вход по QR-коду";
-        g_linkQr.rc = RectF(cx - 160, btnY + btnH + 56, 320, 24);
-        
-    } else if (g_screen == Screen::Code) {
-        float topMargin = 30.0f;
-        
-        float blockTop = 140.0f;
-        float fieldW = 280.0f;
-        float fieldX = cx - fieldW / 2.0f;
-        
-        g_codeField.rc = RectF(fieldX, blockTop + 100, fieldW, 60);
-        g_codeField.placeholder = L"Code";
-        
-        float btnW = 280.0f;
-        float btnH = 48.0f;
-        float btnX = cx - btnW / 2.0f;
-        float btnY = blockTop + 190;
-        g_btnVerify.rc = RectF(btnX, btnY, btnW, btnH);
-        g_btnVerify.text = L"Подтвердить";
-        
-        g_linkResend.text = L"Отправить код повторно";
-        g_linkResend.rc = RectF(cx - 150, btnY + btnH + 24, 300, 24);
+static void AddShadowRect(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float rounding, ImU32 col, float spread=10.0f)
+{
+    // Simple fake shadow: draw multiple expanded rects with fading alpha
+    const int steps = 10;
+    for(int i=0;i<steps;i++){
+        float t = (float)i/(steps-1);
+        float a = (1.0f - t);
+        float expand = t * spread;
+        ImU32 c = (col & 0x00FFFFFF) | (ImU32)( (int)(a * ((col>>24)&0xFF)) << 24 );
+        dl->AddRectFilled(ImVec2(p0.x-expand, p0.y-expand),
+                          ImVec2(p1.x+expand, p1.y+expand),
+                          c, rounding+expand);
     }
 }
 
-static void UpdateHotStates(POINT pt) {
-    auto updateBtn = [&](Button& b) {
-        bool wasHot = b.hot;
-        b.hot = PtInRectF(b.rc, pt);
-        if (b.hot != wasHot) {
-            StartAnimation(b.hoverAnim, 200);
-        }
+static void DrawGradientRect(ImDrawList* dl, ImVec2 p0, ImVec2 p1, ImU32 cTL, ImU32 cTR, ImU32 cBR, ImU32 cBL, float rounding=0.0f)
+{
+    dl->AddRectFilledMultiColor(p0, p1, cTL, cTR, cBR, cBL);
+    if(rounding > 0.0f){
+        // clip with rounded rect by drawing a rounded rect mask-ish:
+        // easiest: draw rounded rect over with same colors isn't possible.
+        // We'll accept square corners for gradients; rounding used where solid fills.
+        (void)rounding;
+    }
+}
+
+static void PushUIStyle()
+{
+    ImGuiStyle& s = ImGui::GetStyle();
+    s.WindowRounding = 22.0f;
+    s.ChildRounding  = 18.0f;
+    s.FrameRounding  = 14.0f;
+    s.PopupRounding  = 14.0f;
+    s.ScrollbarRounding = 999.0f;
+    s.GrabRounding = 999.0f;
+    s.WindowBorderSize = 0.0f;
+    s.FrameBorderSize  = 1.0f;
+    s.ItemSpacing = ImVec2(10, 10);
+    s.WindowPadding = ImVec2(0, 0);
+    s.FramePadding = ImVec2(10, 8);
+    s.ScrollbarSize = 12.0f;
+
+    ImVec4* c = s.Colors;
+    c[ImGuiCol_Text] = ImVec4(0.12f,0.14f,0.19f,1.00f);
+    c[ImGuiCol_WindowBg] = ImVec4(0,0,0,0);
+    c[ImGuiCol_ChildBg]  = ImVec4(1,1,1,1);
+    c[ImGuiCol_Border]   = ImVec4(0.90f,0.91f,0.95f,1.00f);
+    c[ImGuiCol_FrameBg]  = ImVec4(0.95f,0.96f,0.98f,1.00f);
+    c[ImGuiCol_FrameBgHovered] = ImVec4(0.94f,0.95f,0.98f,1.00f);
+    c[ImGuiCol_FrameBgActive]  = ImVec4(0.93f,0.94f,0.97f,1.00f);
+    c[ImGuiCol_Button]   = ImVec4(0.95f,0.96f,0.98f,1.00f);
+    c[ImGuiCol_ButtonHovered] = ImVec4(0.94f,0.95f,0.98f,1.00f);
+    c[ImGuiCol_ButtonActive]  = ImVec4(0.92f,0.93f,0.97f,1.00f);
+    c[ImGuiCol_Header] = ImVec4(0.95f,0.96f,0.98f,1.00f);
+    c[ImGuiCol_HeaderHovered] = ImVec4(0.94f,0.95f,0.98f,1.00f);
+    c[ImGuiCol_HeaderActive]  = ImVec4(0.92f,0.93f,0.97f,1.00f);
+    c[ImGuiCol_ScrollbarBg]   = ImVec4(0,0,0,0);
+    c[ImGuiCol_ScrollbarGrab] = ImVec4(0.62f,0.65f,0.72f,0.35f);
+    c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.62f,0.65f,0.72f,0.45f);
+    c[ImGuiCol_ScrollbarGrabActive]  = ImVec4(0.62f,0.65f,0.72f,0.55f);
+}
+
+static void DrawDecorBlocks(ImDrawList* dl, ImVec2 screen, float t)
+{
+    auto block = [&](ImVec2 pos, ImVec2 size, ImU32 top, ImU32 bot){
+        // gradient rect
+        DrawGradientRect(dl, pos, ImVec2(pos.x+size.x, pos.y+size.y),
+                         top, top, bot, bot);
+        dl->AddRect(pos, ImVec2(pos.x+size.x, pos.y+size.y),
+                    IM_COL32(255,255,255,40), 14.0f, 0, 1.0f);
+        // inner light shapes
+        dl->AddRectFilled(ImVec2(pos.x+size.x-86, pos.y+14),
+                          ImVec2(pos.x+size.x-16, pos.y+54),
+                          IM_COL32(255,255,255,120), 10.0f);
+        dl->AddRectFilled(ImVec2(pos.x+18, pos.y+size.y-46),
+                          ImVec2(pos.x+64, pos.y+size.y-16),
+                          IM_COL32(255,255,255,80), 10.0f);
     };
-    
-    auto updateLink = [&](Link& l) {
-        bool wasHot = l.hot;
-        l.hot = PtInRectF(l.rc, pt);
-        if (l.hot != wasHot) {
-            StartAnimation(l.hoverAnim, 150);
-        }
-    };
-    
-    if (g_screen == Screen::Welcome) {
-        updateBtn(g_btnStart);
-        updateLink(g_linkRu);
-    } else if (g_screen == Screen::Phone) {
-        updateBtn(g_btnContinue);
-        updateLink(g_linkContinueEn);
-        updateLink(g_linkQr);
-        updateLink(g_linkSettings);
-    } else if (g_screen == Screen::Code) {
-        updateBtn(g_btnVerify);
-        updateLink(g_linkResend);
-    }
+
+    float wob = 4.0f * sinf(t*0.7f);
+    block(ImVec2(-60, -40+wob), ImVec2(180,120),
+          IM_COL32(124,58,237,230), IM_COL32(108,92,231,60));
+    block(ImVec2(screen.x-150, -30-wob), ImVec2(210,130),
+          IM_COL32(124,58,237,230), IM_COL32(108,92,231,60));
+    block(ImVec2(-70, screen.y-80+wob), ImVec2(220,140),
+          IM_COL32(96,165,250,230), IM_COL32(108,92,231,60));
+    block(ImVec2(screen.x-140, screen.y-80-wob), ImVec2(200,130),
+          IM_COL32(139,92,246,230), IM_COL32(96,165,250,50));
 }
 
-static void SetScreen(Screen s) {
-    g_screen = s;
-    StartAnimation(g_screenAnim, 400);
-    g_phoneField.focused = false;
-    g_codeField.focused = false;
-    InvalidateRect(g_hwnd, nullptr, TRUE);
-}
+static bool CardWidget(const Card& c, bool selected, float width)
+{
+    ImGui::PushID(c.id);
 
-// ---------------- Drawing Functions ----------------
-static void DrawWelcome(Graphics* g, int w, int h) {
-    // Background
-    SolidBrush bgBrush(Colors::Background);
-    g->FillRectangle(&bgBrush, 0, 0, w, h);
-    
-    float topBlueH = h * 0.45f;
-    
-    // Blue gradient background
-    LinearGradientBrush blueBrush(
-        PointF(0, 0), 
-        PointF(0, topBlueH),
-        Color(255, 74, 170, 230),
-        Color(255, 54, 150, 210)
-    );
-    g->FillRectangle(&blueBrush, 0, 0, (float)w, topBlueH);
-    
-    // White section
-    SolidBrush whiteBrush(Colors::White);
-    g->FillRectangle(&whiteBrush, 0, topBlueH, (float)w, (float)h - topBlueH);
-    
-    // Shadow between sections
-    RectF shadowRect(0, topBlueH - 10, (float)w, 20);
-    LinearGradientBrush shadowBrush(
-        PointF(0, topBlueH - 10),
-        PointF(0, topBlueH + 10),
-        Color(0, 0, 0, 0),
-        Colors::ShadowLight
-    );
-    g->FillRectangle(&shadowBrush, shadowRect);
-    
-    // Paper plane
-    DrawPaperPlane(g, w / 2.0f, topBlueH / 2.0f, 60.0f, Colors::White);
-    
-    // Title
-    RectF titleRect(0, topBlueH + 50, (float)w, 40);
-    DrawTextCentered(g, L"Telegram Desktop", titleRect, g_fontTitle, Colors::TextPrimary);
-    
-    // Subtitle
-    RectF subtitleRect(0, topBlueH + 100, (float)w, 60);
-    std::wstring subtitle = L"Welcome to the official Telegram Desktop app.\nIt's fast and secure.";
-    DrawTextCentered(g, subtitle, subtitleRect, g_fontBody, Colors::TextSecondary);
-    
-    // Button with shadow
-    RectF shadowBtnRect = g_btnStart.rc;
-    shadowBtnRect.Inflate(2, 2);
-    shadowBtnRect.Offset(0, 2);
-    FillRoundRect(g, shadowBtnRect, 12, Colors::ShadowLight);
-    
-    Color btnColor = g_btnStart.GetColor();
-    FillRoundRect(g, g_btnStart.rc, 12, btnColor);
-    DrawTextCentered(g, g_btnStart.text, g_btnStart.rc, g_fontButton, Colors::White);
-    
-    // Link
-    StringFormat format;
-    format.SetAlignment(StringAlignmentCenter);
-    format.SetLineAlignment(StringAlignmentCenter);
-    
-    SolidBrush linkBrush(g_linkRu.GetColor());
-    g->DrawString(g_linkRu.text.c_str(), -1, g_fontLink, g_linkRu.rc, &format, &linkBrush);
-    
-    if (g_linkRu.hot) {
-        Pen underline(g_linkRu.GetColor(), 1.0f);
-        float y = g_linkRu.rc.Y + g_linkRu.rc.Height - 4;
-        g->DrawLine(&underline, 
-            g_linkRu.rc.X + 50, y,
-            g_linkRu.rc.X + g_linkRu.rc.Width - 50, y);
-    }
-}
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    ImVec2 p0 = ImGui::GetCursorScreenPos();
+    ImVec2 size(width, 66);
 
-static std::wstring FormatPhoneMasked(const std::wstring& digits) {
-    std::wstring result;
-    int len = (int)digits.length();
-    
-    for (int i = 0; i < 10; i++) {
-        if (i > 0 && (i == 3 || i == 6)) {
-            result += L" ";
-        }
-        if (i < len) {
-            result += digits[i];
-        } else {
-            result += L"_";
-        }
-    }
-    
-    return result;
-}
+    // shadow
+    AddShadowRect(dl, p0, ImVec2(p0.x+size.x, p0.y+size.y), 14.0f, IM_COL32(25,28,43,20), 10.0f);
 
-static void DrawInputField(Graphics* g, InputField& field, const std::wstring& displayText) {
-    // Background
-    SolidBrush bgBrush(Colors::White);
-    g->FillRectangle(&bgBrush, field.rc);
-    
-    // Border
-    Color borderColor = field.GetBorderColor();
-    Pen borderPen(borderColor, 2.0f);
-    RectF borderRect = field.rc;
-    borderRect.Inflate(-1, -1);
-    g->DrawRectangle(&borderPen, borderRect);
-    
-    // Text or placeholder
-    RectF textRect = field.rc;
-    textRect.X += 16;
-    textRect.Width -= 32;
-    
-    if (displayText.empty() && !field.focused) {
-        SolidBrush phBrush(Colors::TextTertiary);
-        StringFormat format;
-        format.SetAlignment(StringAlignmentNear);
-        format.SetLineAlignment(StringAlignmentCenter);
-        g->DrawString(field.placeholder.c_str(), -1, g_fontBody, textRect, &format, &phBrush);
+    // bg
+    dl->AddRectFilled(p0, ImVec2(p0.x+size.x, p0.y+size.y), IM_COL32(255,255,255,255), 14.0f);
+    dl->AddRect(p0, ImVec2(p0.x+size.x, p0.y+size.y), IM_COL32(231,233,242,230), 14.0f, 0, 1.0f);
+
+    // clickable overlay
+    ImGui::InvisibleButton("card", size);
+    bool clicked = ImGui::IsItemClicked();
+
+    // content layout
+    ImVec2 pad(14, 12);
+    ImVec2 textPos(p0.x+pad.x, p0.y+pad.y);
+
+    dl->AddText(textPos, IM_COL32(31,36,48,255), c.title.c_str());
+    dl->AddText(ImVec2(textPos.x, textPos.y+22), IM_COL32(123,129,148,255), c.when.c_str());
+    dl->AddText(ImVec2(textPos.x+150, textPos.y+22), IM_COL32(123,129,148,255), c.remind.c_str());
+
+    // pill behind date
+    ImVec2 pill0(textPos.x-2, textPos.y+18);
+    ImVec2 pill1(textPos.x+132, textPos.y+40);
+    dl->AddRectFilled(pill0, pill1, IM_COL32(243,244,250,255), 999.0f);
+    dl->AddRect(pill0, pill1, IM_COL32(231,233,242,230), 999.0f);
+
+    // dot
+    dl->AddCircleFilled(ImVec2(pill0.x+12, pill0.y+11), 3.0f, c.dot);
+    dl->AddCircle(ImVec2(pill0.x+12, pill0.y+11), 6.0f, (c.dot & 0x00FFFFFF) | (ImU32)(30<<24), 0, 3.0f);
+
+    // radio right
+    ImVec2 rc(p0.x+size.x-24, p0.y+size.y*0.5f);
+    dl->AddCircle(rc, 8.0f, selected ? IM_COL32(108,92,231,255) : IM_COL32(160,166,184,230), 0, 2.0f);
+    if(selected){
+        dl->AddCircleFilled(rc, 4.0f, IM_COL32(108,92,231,255));
     } else {
-        SolidBrush textBrush(Colors::TextPrimary);
-        StringFormat format;
-        format.SetAlignment(StringAlignmentNear);
-        format.SetLineAlignment(StringAlignmentCenter);
-        g->DrawString(displayText.c_str(), -1, g_fontBody, textRect, &format, &textBrush);
-        
-        // Cursor
-        if (field.focused && ((GetTickCount() / 500) % 2 == 0)) {
-            RectF cursorRect;
-            g->MeasureString(displayText.c_str(), (int)displayText.length(), 
-                           g_fontBody, textRect, &format, &cursorRect);
-            
-            Pen cursorPen(Colors::TelegramBlue, 2.0f);
-            float cursorX = textRect.X + cursorRect.Width + 2;
-            g->DrawLine(&cursorPen, 
-                cursorX, field.rc.Y + 14,
-                cursorX, field.rc.Y + field.rc.Height - 14);
-        }
+        dl->AddCircleFilled(rc, 7.0f, IM_COL32(255,255,255,255));
     }
+
+    ImGui::Dummy(ImVec2(0, 10));
+    ImGui::PopID();
+    return clicked;
 }
 
-static void DrawPhone(Graphics* g, int w, int h) {
-    // Background
-    SolidBrush bgBrush(Colors::White);
-    g->FillRectangle(&bgBrush, 0, 0, w, h);
-    
-    // Back arrow
-    DrawBackArrow(g, 26, 26, 10, Colors::TextSecondary);
-    
-    // Settings link
-    StringFormat rightFormat;
-    rightFormat.SetAlignment(StringAlignmentFar);
-    rightFormat.SetLineAlignment(StringAlignmentCenter);
-    
-    SolidBrush linkBrush(g_linkSettings.GetColor());
-    g->DrawString(g_linkSettings.text.c_str(), -1, g_fontLink, 
-                 g_linkSettings.rc, &rightFormat, &linkBrush);
-    
-    if (g_linkSettings.hot) {
-        Pen underline(g_linkSettings.GetColor(), 1.0f);
-        RectF measureRect;
-        g->MeasureString(g_linkSettings.text.c_str(), -1, g_fontLink, 
-                        PointF(0, 0), &measureRect);
-        float y = g_linkSettings.rc.Y + g_linkSettings.rc.Height - 4;
-        float x2 = g_linkSettings.rc.X + g_linkSettings.rc.Width;
-        g->DrawLine(&underline, x2 - measureRect.Width, y, x2, y);
-    }
-    
-    // Header
-    RectF headerRect(0, 120, (float)w, 32);
-    DrawTextCentered(g, L"Ваш номер телефона", headerRect, g_fontHeader, Colors::TextPrimary);
-    
-    RectF subheaderRect(0, 158, (float)w, 50);
-    std::wstring subtext = L"Проверьте код страны и введите\nсвой номер телефона.";
-    DrawTextCentered(g, subtext, subheaderRect, g_fontSmall, Colors::TextSecondary);
-    
-    // Country field with flag
-    DrawInputField(g, g_countryField, L"");
-    
-    // Draw flag and country name
-    RectF countryContent = g_countryField.rc;
-    countryContent.X += 16;
-    countryContent.Y += 14;
-    
-    DrawRussianFlag(g, countryContent.X, countryContent.Y, 32, 24);
-    
-    RectF countryTextRect = countryContent;
-    countryTextRect.X += 44;
-    countryTextRect.Width -= 44;
-    
-    StringFormat leftFormat;
-    leftFormat.SetAlignment(StringAlignmentNear);
-    leftFormat.SetLineAlignment(StringAlignmentCenter);
-    
-    SolidBrush textBrush(Colors::TextPrimary);
-    g->DrawString(L"Russian Federation", -1, g_fontBody, countryTextRect, &leftFormat, &textBrush);
-    
-    // Chevron
-    DrawChevronDown(g, 
-        g_countryField.rc.X + g_countryField.rc.Width - 24,
-        g_countryField.rc.Y + g_countryField.rc.Height / 2,
-        6, Colors::TextTertiary);
-    
-    // Phone field
-    std::wstring phoneDisplay = L"+7 ";
-    if (!g_phoneDigits.empty()) {
-        phoneDisplay += FormatPhoneMasked(g_phoneDigits);
-    } else if (!g_phoneField.focused) {
-        phoneDisplay += L"___ ___ ____";
-    }
-    
-    DrawInputField(g, g_phoneField, phoneDisplay);
-    
-    // Continue button
-    RectF shadowBtnRect = g_btnContinue.rc;
-    shadowBtnRect.Inflate(2, 2);
-    shadowBtnRect.Offset(0, 2);
-    FillRoundRect(g, shadowBtnRect, 12, Colors::ShadowLight);
-    
-    Color btnColor = g_btnContinue.GetColor();
-    FillRoundRect(g, g_btnContinue.rc, 12, btnColor);
-    DrawTextCentered(g, g_btnContinue.text, g_btnContinue.rc, g_fontButton, Colors::White);
-    
-    // Links
-    auto drawCenteredLink = [&](Link& link) {
-        StringFormat format;
-        format.SetAlignment(StringAlignmentCenter);
-        format.SetLineAlignment(StringAlignmentCenter);
-        
-        SolidBrush brush(link.GetColor());
-        g->DrawString(link.text.c_str(), -1, g_fontLink, link.rc, &format, &brush);
-        
-        if (link.hot) {
-            RectF measureRect;
-            g->MeasureString(link.text.c_str(), -1, g_fontLink, PointF(0, 0), &measureRect);
-            
-            Pen underline(link.GetColor(), 1.0f);
-            float cx = link.rc.X + link.rc.Width / 2;
-            float y = link.rc.Y + link.rc.Height - 4;
-            g->DrawLine(&underline, 
-                cx - measureRect.Width / 2, y,
-                cx + measureRect.Width / 2, y);
+// --------------------------- Main UI ---------------------------
+
+static void RenderUI(ImVec2 screen, float time_sec)
+{
+    ImDrawList* bg = ImGui::GetBackgroundDrawList();
+
+    // Background gradients (approx)
+    bg->AddRectFilled(ImVec2(0,0), screen, IM_COL32(239,238,254,255));
+    // subtle overlay
+    bg->AddRectFilled(ImVec2(0,0), screen, IM_COL32(233,231,246,140));
+
+    DrawDecorBlocks(bg, screen, time_sec);
+
+    // Center "window"
+    ImVec2 winSize(std::min(1120.0f, screen.x*0.92f), std::min(610.0f, screen.y*0.86f));
+    ImVec2 winPos((screen.x-winSize.x)*0.5f, (screen.y-winSize.y)*0.5f);
+
+    // outer glass
+    AddShadowRect(bg, winPos, ImVec2(winPos.x+winSize.x, winPos.y+winSize.y), 26.0f, IM_COL32(25,28,43,30), 26.0f);
+    bg->AddRectFilled(winPos, ImVec2(winPos.x+winSize.x, winPos.y+winSize.y), IM_COL32(255,255,255,190), 26.0f);
+    bg->AddRect(winPos, ImVec2(winPos.x+winSize.x, winPos.y+winSize.y), IM_COL32(255,255,255,120), 26.0f, 0, 1.0f);
+
+    // inner panel
+    ImVec2 innerPos(winPos.x+10, winPos.y+10);
+    ImVec2 innerSize(winSize.x-20, winSize.y-20);
+
+    ImGui::SetNextWindowPos(innerPos);
+    ImGui::SetNextWindowSize(innerSize);
+    ImGui::Begin("root", nullptr,
+                 ImGuiWindowFlags_NoDecoration|
+                 ImGuiWindowFlags_NoMove|
+                 ImGuiWindowFlags_NoSavedSettings|
+                 ImGuiWindowFlags_NoBringToFrontOnFocus);
+
+    // Layout: sidebar + main
+    float sidebarW = (screen.x < 720.0f) ? 0.0f : 260.0f;
+
+    if(sidebarW > 0.0f){
+        ImGui::BeginChild("sidebar", ImVec2(sidebarW, 0), true);
+
+        // brand
+        {
+            ImGui::Dummy(ImVec2(0, 6));
+            ImGui::BeginGroup();
+            ImGui::TextUnformatted("Алиса AI");
+            ImGui::TextColored(ImVec4(0.48f,0.51f,0.58f,1.0f), "ассистент");
+            ImGui::EndGroup();
+            ImGui::Separator();
         }
-    };
-    
-    drawCenteredLink(g_linkContinueEn);
-    
-    // QR link with icon
-    float qrIconX = g_linkQr.rc.X + g_linkQr.rc.Width / 2 - 100;
-    DrawQRIcon(g, qrIconX, g_linkQr.rc.Y + 2, 20, g_linkQr.GetColor());
-    
-    RectF qrTextRect = g_linkQr.rc;
-    qrTextRect.X += 30;
-    drawCenteredLink(g_linkQr);
+
+        // nav
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+        if(ImGui::Selectable("Новый чат", false, 0, ImVec2(0, 34))) {}
+        ImGui::Selectable("Мои планы   3", false, 0, ImVec2(0, 34));
+        ImGui::PopStyleVar();
+
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.63f,0.65f,0.72f,1.0f), "Сегодня");
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+        ImGui::Selectable("Планы на сегодня", true, 0, ImVec2(0, 34));
+        ImGui::PopStyleVar();
+
+        ImGui::Dummy(ImVec2(0, 0));
+        ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 70);
+        ImGui::Separator();
+        ImGui::TextUnformatted("Иванов Е.");
+        ImGui::TextColored(ImVec4(0.42f,0.36f,0.91f,1.0f), "Открыть профиль");
+
+        ImGui::EndChild();
+        ImGui::SameLine();
+    }
+
+    // Main
+    ImGui::BeginChild("main", ImVec2(0,0), true);
+
+    // top bar
+    {
+        ImGui::BeginChild("top", ImVec2(0,58), false);
+        ImGui::SetCursorPosY(18);
+        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 330);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(243,244,250,255));
+        ImGui::PushStyleColor(ImGuiCol_Border,  IM_COL32(231,233,242,230));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 999.0f);
+        ImGui::SetNextItemWidth(320);
+        ImGui::InputText("##title", (char*)"Какие у меня планы на сегодня?", 1,
+                         ImGuiInputTextFlags_ReadOnly);
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(2);
+        ImGui::EndChild();
+        ImGui::Separator();
+    }
+
+    // chat area
+    static float chatScrollToBottom = 1.0f;
+
+    ImGui::BeginChild("chat", ImVec2(0, -84), false, ImGuiWindowFlags_AlwaysUseWindowPadding);
+
+    ImGui::TextWrapped("Сегодня нужно забронировать ресторан для встречи с родителями, разобраться с ремонтом и купить подарок жене.");
+    ImGui::Dummy(ImVec2(0, 6));
+
+    float cardsW = std::min(520.0f, ImGui::GetContentRegionAvail().x);
+    for(const auto& c : g_cards){
+        bool sel = (g_selected_card == c.id);
+        if(CardWidget(c, sel, cardsW)) g_selected_card = c.id;
+    }
+
+    // actions row (icons simplified as buttons)
+    ImGui::Dummy(ImVec2(0, 4));
+    ImGui::BeginGroup();
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0,0,0,0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(244,245,251,255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(241,242,248,255));
+    ImGui::Button("Like", ImVec2(54,26)); ImGui::SameLine();
+    ImGui::Button("Dislike", ImVec2(70,26)); ImGui::SameLine();
+    ImGui::Button("Copy", ImVec2(54,26)); ImGui::SameLine();
+    ImGui::Button("Share", ImVec2(60,26));
+    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar();
+    ImGui::EndGroup();
+
+    // user messages
+    ImGui::Dummy(ImVec2(0, 10));
+    for(const auto& m : g_user_msgs){
+        // right aligned bubble
+        float bw = std::min(520.0f, ImGui::GetContentRegionAvail().x);
+        float x = ImGui::GetCursorPosX() + (ImGui::GetContentRegionAvail().x - bw);
+        ImGui::SetCursorPosX(x);
+
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(245,246,251,255));
+        ImGui::PushStyleColor(ImGuiCol_Border,  IM_COL32(231,233,242,230));
+        ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 16.0f);
+        ImGui::BeginChild(ImGui::GetID(m.c_str()), ImVec2(bw, 0), true);
+        ImGui::TextWrapped("%s", m.c_str());
+        ImGui::EndChild();
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(2);
+
+        ImGui::Dummy(ImVec2(0, 10));
+    }
+
+    if(chatScrollToBottom > 0.5f){
+        ImGui::SetScrollHereY(1.0f);
+        chatScrollToBottom = 0.0f;
+    }
+
+    ImGui::EndChild();
+
+    // composer
+    ImGui::Separator();
+    ImGui::BeginChild("composer", ImVec2(0, 84), false);
+
+    static std::string input;
+    static bool focusText = false;
+
+    ImGui::SetCursorPos(ImVec2(18, 16));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 16.0f);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(243,244,250,255));
+    ImGui::PushStyleColor(ImGuiCol_Border,  IM_COL32(231,233,242,240));
+
+    ImGui::BeginChild("composer_box", ImVec2(ImGui::GetWindowWidth()-36, 52), true);
+
+    // plus
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(255,255,255,255));
+    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(231,233,242,240));
+    if(ImGui::Button("+", ImVec2(34,34))){
+        if(!input.empty()) input += "\n";
+        input += "Напомни мне...";
+        focusText = true;
+    }
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar();
+    ImGui::SameLine();
+
+    // multiline input
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 44);
+    ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue;
+    if(ImGui::InputTextMultiline("##ta", &input, ImVec2(-44, 34), flags)){
+        // Enter pressed (without needing Shift logic here); we'll send if not empty
+        // Note: ImGui doesn't provide Shift+Enter default; simplest: allow newline by button or Ctrl+Enter.
+    }
+    if(focusText){
+        ImGui::SetKeyboardFocusHere(-1);
+        focusText = false;
+    }
+
+    ImGui::SameLine();
+
+    // send
+    bool canSend = !input.empty() && std::any_of(input.begin(), input.end(), [](char ch){ return !isspace((unsigned char)ch); });
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+    if(!canSend) ImGui::BeginDisabled();
+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(108,92,231,255));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(124,58,237,255));
+    if(ImGui::Button(">", ImVec2(34,34))){
+        std::string trimmed = input;
+        // trim
+        while(!trimmed.empty() && isspace((unsigned char)trimmed.back())) trimmed.pop_back();
+        size_t i=0; while(i<trimmed.size() && isspace((unsigned char)trimmed[i])) i++;
+        trimmed = trimmed.substr(i);
+
+        if(!trimmed.empty()){
+            g_user_msgs.push_back(trimmed);
+            input.clear();
+            chatScrollToBottom = 1.0f;
+            focusText = true;
+        }
+    }
+    ImGui::PopStyleColor(2);
+    if(!canSend) ImGui::EndDisabled();
+    ImGui::PopStyleVar();
+
+    ImGui::EndChild(); // composer_box
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar();
+
+    ImGui::EndChild(); // composer
+
+    ImGui::EndChild(); // main
+    ImGui::End(); // root
 }
 
-static void DrawCode(Graphics* g, int w, int h) {
-    // Background
-    SolidBrush bgBrush(Colors::White);
-    g->FillRectangle(&bgBrush, 0, 0, w, h);
-    
-    // Back arrow
-    DrawBackArrow(g, 26, 26, 10, Colors::TextSecondary);
-    
-    // Header
-    RectF headerRect(0, 120, (float)w, 32);
-    DrawTextCentered(g, L"Введите код", headerRect, g_fontHeader, Colors::TextPrimary);
-    
-    RectF subheaderRect(0, 158, (float)w, 50);
-    std::wstring phoneFormatted = L"+7 " + FormatPhoneMasked(g_phoneDigits);
-    std::wstring subtext = L"Мы отправили код на номер\n" + phoneFormatted;
-    DrawTextCentered(g, subtext, subheaderRect, g_fontSmall, Colors::TextSecondary);
-    
-    // Code input
-    RectF codeRect = g_codeField.rc;
-    
-    // Background
-    SolidBrush codeBgBrush(Colors::White);
-    g->FillRectangle(&codeBgBrush, codeRect);
-    
-    // Border
-    Color borderColor = g_codeField.GetBorderColor();
-    Pen borderPen(borderColor, 2.0f);
-    RectF borderRect = codeRect;
-    borderRect.Inflate(-1, -1);
-    g->DrawRectangle(&borderPen, borderRect);
-    
-    // Code digits
-    if (g_codeDigits.empty() && !g_codeField.focused) {
-        SolidBrush phBrush(Colors::TextTertiary);
-        DrawTextCentered(g, L"— — — — —", codeRect, g_fontCode, Colors::TextTertiary);
-    } else {
-        std::wstring codeDisplay;
-        for (size_t i = 0; i < 5; i++) {
-            if (i < g_codeDigits.length()) {
-                codeDisplay += g_codeDigits[i];
-            } else {
-                codeDisplay += L"—";
-            }
-            if (i < 4) codeDisplay += L" ";
-        }
-        
-        DrawTextCentered(g, codeDisplay, codeRect, g_fontCode, Colors::TextPrimary);
-    }
-    
-    // Verify button
-    RectF shadowBtnRect = g_btnVerify.rc;
-    shadowBtnRect.Inflate(2, 2);
-    shadowBtnRect.Offset(0, 2);
-    FillRoundRect(g, shadowBtnRect, 12, Colors::ShadowLight);
-    
-    Color btnColor = g_btnVerify.GetColor();
-    FillRoundRect(g, g_btnVerify.rc, 12, btnColor);
-    DrawTextCentered(g, g_btnVerify.text, g_btnVerify.rc, g_fontButton, Colors::White);
-    
-    // Resend link
-    StringFormat format;
-    format.SetAlignment(StringAlignmentCenter);
-    format.SetLineAlignment(StringAlignmentCenter);
-    
-    SolidBrush linkBrush(g_linkResend.GetColor());
-    g->DrawString(g_linkResend.text.c_str(), -1, g_fontLink, g_linkResend.rc, &format, &linkBrush);
-    
-    if (g_linkResend.hot) {
-        RectF measureRect;
-        g->MeasureString(g_linkResend.text.c_str(), -1, g_fontLink, PointF(0, 0), &measureRect);
-        
-        Pen underline(g_linkResend.GetColor(), 1.0f);
-        float cx = g_linkResend.rc.X + g_linkResend.rc.Width / 2;
-        float y = g_linkResend.rc.Y + g_linkResend.rc.Height - 4;
-        g->DrawLine(&underline, 
-            cx - measureRect.Width / 2, y,
-            cx + measureRect.Width / 2, y);
-    }
-}
+// --------------------------- Entry ---------------------------
 
-static void Paint(HWND hwnd) {
-    RECT rc;
-    GetClientRect(hwnd, &rc);
-    int w = rc.right - rc.left;
-    int h = rc.bottom - rc.top;
-    
-    PAINTSTRUCT ps;
-    HDC hdc = BeginPaint(hwnd, &ps);
-    
-    // Double buffering
-    HDC memDC = CreateCompatibleDC(hdc);
-    HBITMAP memBitmap = CreateCompatibleBitmap(hdc, w, h);
-    HGDIOBJ oldBitmap = SelectObject(memDC, memBitmap);
-    
-    Graphics graphics(memDC);
-    graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-    graphics.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
-    
-    if (g_screen == Screen::Welcome) {
-        DrawWelcome(&graphics, w, h);
-    } else if (g_screen == Screen::Phone) {
-        DrawPhone(&graphics, w, h);
-    } else if (g_screen == Screen::Code) {
-        DrawCode(&graphics, w, h);
-    }
-    
-    BitBlt(hdc, 0, 0, w, h, memDC, 0, 0, SRCCOPY);
-    
-    SelectObject(memDC, oldBitmap);
-    DeleteObject(memBitmap);
-    DeleteDC(memDC);
-    
-    EndPaint(hwnd, &ps);
-}
+int main(int, char**)
+{
+    if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
+        return 1;
 
-// ---------------- Input Handling ----------------
-static void ClickWelcome(POINT pt) {
-    if (PtInRectF(g_btnStart.rc, pt)) {
-        SetScreen(Screen::Phone);
-    } else if (PtInRectF(g_linkRu.rc, pt)) {
-        SetScreen(Screen::Phone);
-    }
-}
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#if __APPLE__
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+#else
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
-static void ClickPhone(POINT pt) {
-    RECT backArea = { 10, 10, 60, 60 };
-    if (PtInRect(&backArea, pt)) {
-        SetScreen(Screen::Welcome);
-        return;
-    }
-    
-    if (PtInRectF(g_phoneField.rc, pt)) {
-        g_phoneField.focused = true;
-        StartAnimation(g_phoneField.focusAnim);
-        InvalidateRect(g_hwnd, nullptr, FALSE);
-        return;
-    } else {
-        if (g_phoneField.focused) {
-            g_phoneField.focused = false;
-            StartAnimation(g_phoneField.focusAnim);
-        }
-    }
-    
-    if (PtInRectF(g_btnContinue.rc, pt)) {
-        if (g_phoneDigits.length() >= 10) {
-            SetScreen(Screen::Code);
-        } else {
-            MessageBoxW(g_hwnd, L"Пожалуйста, введите полный номер телефона.", L"Ошибка", MB_OK | MB_ICONWARNING);
-        }
-        return;
-    }
-    
-    if (PtInRectF(g_linkSettings.rc, pt)) {
-        MessageBoxW(g_hwnd, L"Настройки (демо)", L"Settings", MB_OK | MB_ICONINFORMATION);
-    } else if (PtInRectF(g_linkContinueEn.rc, pt)) {
-        MessageBoxW(g_hwnd, L"Смена языка (демо)", L"Language", MB_OK | MB_ICONINFORMATION);
-    } else if (PtInRectF(g_linkQr.rc, pt)) {
-        MessageBoxW(g_hwnd, L"QR-вход (демо)", L"QR Login", MB_OK | MB_ICONINFORMATION);
-    }
-}
+    SDL_Window* window = SDL_CreateWindow("UI Replica (C++/ImGui)",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1200, 720,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 
-static void ClickCode(POINT pt) {
-    RECT backArea = { 10, 10, 60, 60 };
-    if (PtInRect(&backArea, pt)) {
-        SetScreen(Screen::Phone);
-        return;
-    }
-    
-    if (PtInRectF(g_codeField.rc, pt)) {
-        g_codeField.focused = true;
-        StartAnimation(g_codeField.focusAnim);
-        InvalidateRect(g_hwnd, nullptr, FALSE);
-        return;
-    } else {
-        if (g_codeField.focused) {
-            g_codeField.focused = false;
-            StartAnimation(g_codeField.focusAnim);
-        }
-    }
-    
-    if (PtInRectF(g_btnVerify.rc, pt)) {
-        if (g_codeDigits.length() == 5) {
-            MessageBoxW(g_hwnd, L"Код подтвержден! (демо)", L"Success", MB_OK | MB_ICONINFORMATION);
-        } else {
-            MessageBoxW(g_hwnd, L"Пожалуйста, введите 5-значный код.", L"Ошибка", MB_OK | MB_ICONWARNING);
-        }
-        return;
-    }
-    
-    if (PtInRectF(g_linkResend.rc, pt)) {
-        MessageBoxW(g_hwnd, L"Код отправлен повторно (демо)", L"Resend", MB_OK | MB_ICONINFORMATION);
-    }
-}
+    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
+    SDL_GL_MakeCurrent(window, gl_context);
+    SDL_GL_SetSwapInterval(1);
 
-static void OnChar(wchar_t ch) {
-    if (g_screen == Screen::Phone && g_phoneField.focused) {
-        if (ch >= L'0' && ch <= L'9') {
-            if (g_phoneDigits.length() < 10) {
-                g_phoneDigits.push_back(ch);
-                InvalidateRect(g_hwnd, nullptr, FALSE);
-            }
-        } else if (ch == 8) { // Backspace
-            if (!g_phoneDigits.empty()) {
-                g_phoneDigits.pop_back();
-                InvalidateRect(g_hwnd, nullptr, FALSE);
-            }
-        }
-    } else if (g_screen == Screen::Code && g_codeField.focused) {
-        if (ch >= L'0' && ch <= L'9') {
-            if (g_codeDigits.length() < 5) {
-                g_codeDigits.push_back(ch);
-                InvalidateRect(g_hwnd, nullptr, FALSE);
-                
-                if (g_codeDigits.length() == 5) {
-                    // Auto-verify when 5 digits entered
-                    PostMessage(g_hwnd, WM_COMMAND, 1001, 0);
-                }
-            }
-        } else if (ch == 8) { // Backspace
-            if (!g_codeDigits.empty()) {
-                g_codeDigits.pop_back();
-                InvalidateRect(g_hwnd, nullptr, FALSE);
-            }
-        }
-    }
-}
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-// ---------------- Window Procedure ----------------
-static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
-    case WM_CREATE:
-        g_hwnd = hwnd;
-        CreateFonts();
-        SetTimer(hwnd, 1, 16, nullptr); // ~60 FPS for animations
-        return 0;
-        
-    case WM_TIMER:
-        if (wParam == 1) {
-            bool needRedraw = false;
-            
-            needRedraw |= UpdateAnimation(g_screenAnim);
-            needRedraw |= UpdateAnimation(g_btnStart.hoverAnim);
-            needRedraw |= UpdateAnimation(g_btnContinue.hoverAnim);
-            needRedraw |= UpdateAnimation(g_btnVerify.hoverAnim);
-            needRedraw |= UpdateAnimation(g_linkRu.hoverAnim);
-            needRedraw |= UpdateAnimation(g_linkContinueEn.hoverAnim);
-            needRedraw |= UpdateAnimation(g_linkQr.hoverAnim);
-            needRedraw |= UpdateAnimation(g_linkSettings.hoverAnim);
-            needRedraw |= UpdateAnimation(g_linkResend.hoverAnim);
-            needRedraw |= UpdateAnimation(g_phoneField.focusAnim);
-            needRedraw |= UpdateAnimation(g_codeField.focusAnim);
-            
-            if (needRedraw) {
-                InvalidateRect(hwnd, nullptr, FALSE);
-            }
-        }
-        return 0;
-        
-    case WM_SIZE: {
-        RECT rc;
-        GetClientRect(hwnd, &rc);
-        LayoutUI(rc.right - rc.left, rc.bottom - rc.top);
-        InvalidateRect(hwnd, nullptr, TRUE);
-        return 0;
-    }
-    
-    case WM_MOUSEMOVE: {
-        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-        UpdateHotStates(pt);
-        
-        static TRACKMOUSEEVENT tme = { sizeof(tme), TME_LEAVE, hwnd, 0 };
-        TrackMouseEvent(&tme);
-        
-        return 0;
-    }
-    
-    case WM_MOUSELEAVE:
-        // Reset all hot states
-        g_btnStart.hot = false;
-        g_btnContinue.hot = false;
-        g_btnVerify.hot = false;
-        g_linkRu.hot = false;
-        g_linkContinueEn.hot = false;
-        g_linkQr.hot = false;
-        g_linkSettings.hot = false;
-        g_linkResend.hot = false;
-        InvalidateRect(hwnd, nullptr, FALSE);
-        return 0;
-    
-    case WM_LBUTTONDOWN: {
-        SetCapture(hwnd);
-        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-        
-        if (g_screen == Screen::Welcome) {
-            g_btnStart.down = PtInRectF(g_btnStart.rc, pt);
-        } else if (g_screen == Screen::Phone) {
-            g_btnContinue.down = PtInRectF(g_btnContinue.rc, pt);
-        } else if (g_screen == Screen::Code) {
-            g_btnVerify.down = PtInRectF(g_btnVerify.rc, pt);
-        }
-        
-        InvalidateRect(hwnd, nullptr, FALSE);
-        return 0;
-    }
-    
-    case WM_LBUTTONUP: {
-        ReleaseCapture();
-        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-        
-        bool wasDown = false;
-        if (g_screen == Screen::Welcome) {
-            wasDown = g_btnStart.down;
-            g_btnStart.down = false;
-            if (wasDown) ClickWelcome(pt);
-        } else if (g_screen == Screen::Phone) {
-            wasDown = g_btnContinue.down;
-            g_btnContinue.down = false;
-            ClickPhone(pt);
-        } else if (g_screen == Screen::Code) {
-            wasDown = g_btnVerify.down;
-            g_btnVerify.down = false;
-            ClickCode(pt);
-        }
-        
-        InvalidateRect(hwnd, nullptr, FALSE);
-        return 0;
-    }
-    
-    case WM_CHAR:
-        OnChar((wchar_t)wParam);
-        return 0;
-    
-    case WM_COMMAND:
-        if (wParam == 1001) { // Auto-verify code
-            Sleep(100);
-            MessageBoxW(hwnd, L"Код подтвержден! Добро пожаловать в Telegram!", L"Success", MB_OK | MB_ICONINFORMATION);
-        }
-        return 0;
-    
-    case WM_SETFOCUS:
-        InvalidateRect(hwnd, nullptr, FALSE);
-        return 0;
-    
-    case WM_KILLFOCUS:
-        g_phoneField.focused = false;
-        g_codeField.focused = false;
-        InvalidateRect(hwnd, nullptr, FALSE);
-        return 0;
-    
-    case WM_PAINT:
-        Paint(hwnd);
-        return 0;
-    
-    case WM_ERASEBKGND:
-        return 1; // Prevent flickering
-    
-    case WM_DESTROY:
-        KillTimer(hwnd, 1);
-        DestroyFonts();
-        PostQuitMessage(0);
-        return 0;
-    }
-    
-    return DefWindowProcW(hwnd, msg, wParam, lParam);
-}
+    PushUIStyle();
 
-// ---------------- Entry Point ----------------
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
-    g_hInst = hInstance;
-    
-    // Initialize GDI+
-    GdiplusStartupInput gdiplusStartupInput;
-    GdiplusStartup(&g_gdiplusToken, &gdiplusStartupInput, nullptr);
-    
-    // Register window class
-    WNDCLASSEXW wc = {};
-    wc.cbSize = sizeof(wc);
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = WndProc;
-    wc.hInstance = hInstance;
-    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
-    wc.lpszClassName = kClassName;
-    
-    if (!RegisterClassExW(&wc)) {
-        MessageBoxW(nullptr, L"Failed to register window class", L"Error", MB_OK | MB_ICONERROR);
-        return 0;
+    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+    ImGui_ImplOpenGL3_Init("#version 130");
+
+    bool done = false;
+    Uint64 start = SDL_GetPerformanceCounter();
+
+    while(!done){
+        SDL_Event event;
+        while(SDL_PollEvent(&event)){
+            ImGui_ImplSDL2_ProcessEvent(&event);
+            if(event.type == SDL_QUIT) done = true;
+            if(event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE
+               && event.window.windowID == SDL_GetWindowID(window)) done = true;
+        }
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+
+        int w,h;
+        SDL_GetWindowSize(window, &w, &h);
+
+        Uint64 now = SDL_GetPerformanceCounter();
+        float t = (float)((double)(now - start) / (double)SDL_GetPerformanceFrequency());
+
+        RenderUI(ImVec2((float)w,(float)h), t);
+
+        ImGui::Render();
+        glViewport(0,0,w,h);
+        glClearColor(0,0,0,1);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        SDL_GL_SwapWindow(window);
     }
-    
-    // Create window
-    int winW = 900;
-    int winH = 640;
-    
-    HWND hwnd = CreateWindowExW(
-        0,
-        kClassName,
-        L"Telegram Desktop Enhanced",
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        winW, winH,
-        nullptr, nullptr, hInstance, nullptr
-    );
-    
-    if (!hwnd) {
-        MessageBoxW(nullptr, L"Failed to create window", L"Error", MB_OK | MB_ICONERROR);
-        return 0;
-    }
-    
-    ShowWindow(hwnd, nCmdShow);
-    UpdateWindow(hwnd);
-    
-    // Initial layout
-    RECT rc;
-    GetClientRect(hwnd, &rc);
-    LayoutUI(rc.right - rc.left, rc.bottom - rc.top);
-    
-    // Message loop
-    MSG msg = {};
-    while (GetMessageW(&msg, nullptr, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
-    }
-    
-    // Cleanup GDI+
-    GdiplusShutdown(g_gdiplusToken);
-    
-    return (int)msg.wParam;
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
+    SDL_GL_DeleteContext(gl_context);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
 }
