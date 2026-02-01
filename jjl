@@ -2,449 +2,287 @@
 #define _UNICODE
 #include <windows.h>
 #include <commctrl.h>
+#include <gdiplus.h>
+#include <wininet.h>
 #include <string>
+#include <vector>
+#include <memory>
+#include <shlwapi.h>
+#include <commdlg.h>
+#include <shlobj.h>
 
 #pragma comment(lib, "comctl32.lib")
-#pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "wininet.lib")
+#pragma comment(lib, "shlwapi.lib")
+#pragma comment(linker, " /manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+using namespace Gdiplus;
 
-// Цвета
-#define COLOR_BG_GRAY RGB(229, 229, 229)
-#define COLOR_WHITE RGB(255, 255, 255)
-#define COLOR_RED RGB(200, 50, 50)
-#define COLOR_DARK_GRAY RGB(100, 100, 100)
-#define COLOR_STATUS_BAR RGB(240, 240, 240)
-#define COLOR_BORDER_LIGHT RGB(200, 200, 200)
+// ==================== Цвета и стили ====================
+// Для более современного вида используем яркий, плавный стиль
+#define COLOR_BG_DARK       RGB(25, 25, 25)
+#define COLOR_ACCENT        RGB(100, 200, 255)
+#define COLOR_PRIMARY       RGB(0, 255, 136)
+#define COLOR_PRIMARY_DARK  RGB(0, 180, 100)
+#define COLOR_TEXT_LIGHT    RGB(255, 255, 255)
+#define COLOR_TEXT_MEDIUM   RGB(200, 200, 200)
+#define COLOR_BTN_BG        RGB(50, 50, 50)
+#define COLOR_BTN_HOVER     RGB(70, 70, 70)
+#define COLOR_BTN_ACTIVE    RGB(0, 255, 136)
+#define COLOR_BORDER        RGB(40, 40, 40)
 
-// Глобальные переменные
+// ==================== Идентификаторы элементов ====================
+#define ID_TOOLBAR           1001
+
+// ==================== Глобальные переменные ====================
 HINSTANCE g_hInst;
-HWND g_hWnd;
-HWND g_hStatusBar;
-HWND g_hZoomSlider;
+HWND g_hWnd, g_hMainWnd;
+HDC g_hDcBuffer;
+ULONGLONG g_gdiplusToken;
 
-// Размеры
-int g_thumbnailWidth = 180;
-int g_slideMargin = 50;
-int g_statusBarHeight = 28;
+HFONT g_hFontLogo, g_hFontMenu, g_hFontIcons, g_hFontTitle;
+HCURSOR g_hCursorArrow, g_hCursorHand, g_hCursorResize;
 
-// Прототипы функций
-LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
-void DrawThumbnailPanel(HDC hdc, RECT* rect);
-void DrawSlideArea(HDC hdc, RECT* rect);
-void DrawStatusBar(HDC hdc, RECT* rect);
-void DrawDashedRect(HDC hdc, int x, int y, int width, int height);
+int g_ribbonHeight = 70;
+int g_logoWidth = 250;
+int g_margin = 10;
+int g_iconSize = 24;
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    g_hInst = hInstance;
-    
-    // Инициализация Common Controls
-    INITCOMMONCONTROLSEX icex;
-    icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-    icex.dwICC = ICC_BAR_CLASSES;
-    InitCommonControlsEx(&icex);
-    
-    // Регистрация класса окна
-    WNDCLASSEX wcex = {0};
-    wcex.cbSize = sizeof(WNDCLASSEX);
-    wcex.style = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc = WndProc;
-    wcex.hInstance = hInstance;
-    wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wcex.hbrBackground = CreateSolidBrush(COLOR_BG_GRAY);
-    wcex.lpszClassName = L"PowerPointClone";
-    wcex.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-    
-    if (!RegisterClassEx(&wcex)) {
-        MessageBox(NULL, L"Ошибка регистрации класса окна!", L"Ошибка", MB_ICONERROR);
-        return 1;
-    }
-    
-    // Создание главного окна
-    g_hWnd = CreateWindowEx(
-        0,
-        L"PowerPointClone",
-        L"PowerPoint Clone - Презентация",
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        1200, 750,
-        NULL, NULL, hInstance, NULL
-    );
-    
-    if (!g_hWnd) {
-        MessageBox(NULL, L"Ошибка создания окна!", L"Ошибка", MB_ICONERROR);
-        return 1;
-    }
-    
-    ShowWindow(g_hWnd, nCmdShow);
-    UpdateWindow(g_hWnd);
-    
-    // Цикл сообщений
+int g_activeTabIndex = 0;
+struct RibbonTab {
+    std::wstring name;
+    RECT rect;
+    bool active;
+};
+std::vector<RibbonTab> g_ribbonTabs;
+
+int g_width, g_height;
+
+// ==================== ПРОТОТИПЫ функций ====================
+LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+void InitApp(HINSTANCE hInst);
+void Cleanup();
+void LoadFonts();
+void DrawHeader(HDC hdc, RECT& clientRect);
+void DrawRibbon(HDC hdc);
+void DrawRibbonTab(HDC hdc, const RibbonTab& tab, int index);
+int HitTestRibbonTabs(int x, int y);
+void SetActiveTab(int index);
+void ResizeWindow(int width, int height);
+void OnPaint();
+void InitCursors();
+
+int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow) {
+    g_hInst = hInst;
+    LoadFonts();
+    InitCursors();
+
+    WNDCLASSEX wc = { sizeof(WNDCLASSEX) };
+    wc.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+    wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+    wc.hInstance = hInst;
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW+1);
+    wc.lpszClassName = L"ModernHeaderApp";
+    wc.lpfnWndProc = WndProc;
+    wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    RegisterClassEx(&wc);
+
+    g_hMainWnd = CreateWindow(wc.lpszClassName, L"Современная шапка и интерфейс",
+        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720,
+        NULL, NULL, hInst, NULL);
+
+    ShowWindow(g_hMainWnd, nCmdShow);
+
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-    
     return (int)msg.wParam;
 }
 
-void DrawDashedRect(HDC hdc, int x, int y, int width, int height) {
-    HPEN hPen = CreatePen(PS_DASH, 1, RGB(180, 180, 180));
-    HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
-    HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-    
-    Rectangle(hdc, x, y, x + width, y + height);
-    
-    SelectObject(hdc, hOldPen);
-    SelectObject(hdc, hOldBrush);
-    DeleteObject(hPen);
+// ==================== Инициализация ====================
+void LoadFonts() {
+    g_hFontLogo = CreateFont(30, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Segoe UI");
+
+    g_hFontMenu = CreateFont(16, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Segoe UI");
+
+    g_hFontIcons = CreateFont(24, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI Symbol");
 }
 
-void DrawThumbnailPanel(HDC hdc, RECT* clientRect) {
-    // Фон панели миниатюр
-    RECT thumbPanel;
-    thumbPanel.left = 0;
-    thumbPanel.top = 0;
-    thumbPanel.right = g_thumbnailWidth;
-    thumbPanel.bottom = clientRect->bottom - g_statusBarHeight;
-    
-    HBRUSH hBrushBg = CreateSolidBrush(COLOR_BG_GRAY);
-    FillRect(hdc, &thumbPanel, hBrushBg);
-    DeleteObject(hBrushBg);
-    
-    // Разделительная линия
-    HPEN hPenBorder = CreatePen(PS_SOLID, 1, COLOR_BORDER_LIGHT);
-    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
-    MoveToEx(hdc, g_thumbnailWidth, 0, NULL);
-    LineTo(hdc, g_thumbnailWidth, clientRect->bottom - g_statusBarHeight);
-    SelectObject(hdc, hOldPen);
-    DeleteObject(hPenBorder);
-    
-    // Миниатюра слайда
-    int thumbMargin = 15;
-    int thumbSlideWidth = g_thumbnailWidth - thumbMargin * 2;
-    int thumbSlideHeight = (int)(thumbSlideWidth * 0.5625); // 16:9 ratio
-    int thumbX = thumbMargin;
-    int thumbY = thumbMargin + 20;
-    
-    // Номер слайда
-    HFONT hFontNum = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
-    HFONT hOldFont = (HFONT)SelectObject(hdc, hFontNum);
-    SetTextColor(hdc, COLOR_RED);
-    SetBkMode(hdc, TRANSPARENT);
-    TextOut(hdc, thumbX - 2, thumbY - 18, L"1", 1);
-    
-    // Белый фон миниатюры
-    RECT thumbRect;
-    thumbRect.left = thumbX;
-    thumbRect.top = thumbY;
-    thumbRect.right = thumbX + thumbSlideWidth;
-    thumbRect.bottom = thumbY + thumbSlideHeight;
-    
-    HBRUSH hBrushWhite = CreateSolidBrush(COLOR_WHITE);
-    FillRect(hdc, &thumbRect, hBrushWhite);
-    DeleteObject(hBrushWhite);
-    
-    // Красная рамка выделения
-    HPEN hPenRed = CreatePen(PS_SOLID, 3, COLOR_RED);
-    SelectObject(hdc, hPenRed);
-    SelectObject(hdc, GetStockObject(NULL_BRUSH));
-    Rectangle(hdc, thumbX - 2, thumbY - 2, thumbX + thumbSlideWidth + 2, thumbY + thumbSlideHeight + 2);
-    DeleteObject(hPenRed);
-    
-    // Мини-текст на миниатюре
-    HFONT hFontMini = CreateFont(9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
-    SelectObject(hdc, hFontMini);
-    SetTextColor(hdc, RGB(100, 100, 100));
-    
-    RECT miniTitleRect;
-    miniTitleRect.left = thumbX + 5;
-    miniTitleRect.top = thumbY + thumbSlideHeight / 3;
-    miniTitleRect.right = thumbX + thumbSlideWidth - 5;
-    miniTitleRect.bottom = thumbY + thumbSlideHeight / 2;
-    DrawText(hdc, L"Заголовок слайда", -1, &miniTitleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    
-    SelectObject(hdc, hOldFont);
-    DeleteObject(hFontNum);
-    DeleteObject(hFontMini);
+void InitCursors() {
+    g_hCursorArrow = LoadCursor(NULL, IDC_ARROW);
+    g_hCursorHand = LoadCursor(NULL, IDC_HAND);
+    g_hCursorResize = LoadCursor(NULL, IDC_SIZEALL);
 }
 
-void DrawSlideArea(HDC hdc, RECT* clientRect) {
-    // Область слайда
-    int slideAreaLeft = g_thumbnailWidth + 1;
-    int slideAreaTop = 0;
-    int slideAreaWidth = clientRect->right - g_thumbnailWidth - 1;
-    int slideAreaHeight = clientRect->bottom - g_statusBarHeight;
-    
-    // Серый фон области редактирования
-    RECT slideAreaRect;
-    slideAreaRect.left = slideAreaLeft;
-    slideAreaRect.top = slideAreaTop;
-    slideAreaRect.right = clientRect->right;
-    slideAreaRect.bottom = slideAreaHeight;
-    
-    HBRUSH hBrushArea = CreateSolidBrush(RGB(218, 218, 218));
-    FillRect(hdc, &slideAreaRect, hBrushArea);
-    DeleteObject(hBrushArea);
-    
-    // Размеры слайда (16:9)
-    int maxSlideWidth = slideAreaWidth - g_slideMargin * 2;
-    int maxSlideHeight = slideAreaHeight - g_slideMargin * 2;
-    
-    int slideWidth, slideHeight;
-    if (maxSlideWidth * 9 / 16 < maxSlideHeight) {
-        slideWidth = maxSlideWidth;
-        slideHeight = slideWidth * 9 / 16;
-    } else {
-        slideHeight = maxSlideHeight;
-        slideWidth = slideHeight * 16 / 9;
-    }
-    
-    int slideX = slideAreaLeft + (slideAreaWidth - slideWidth) / 2;
-    int slideY = slideAreaTop + (slideAreaHeight - slideHeight) / 2;
-    
-    // Тень слайда
-    RECT shadowRect;
-    shadowRect.left = slideX + 4;
-    shadowRect.top = slideY + 4;
-    shadowRect.right = slideX + slideWidth + 4;
-    shadowRect.bottom = slideY + slideHeight + 4;
-    HBRUSH hBrushShadow = CreateSolidBrush(RGB(180, 180, 180));
-    FillRect(hdc, &shadowRect, hBrushShadow);
-    DeleteObject(hBrushShadow);
-    
-    // Белый слайд
-    RECT slideRect;
-    slideRect.left = slideX;
-    slideRect.top = slideY;
-    slideRect.right = slideX + slideWidth;
-    slideRect.bottom = slideY + slideHeight;
-    
-    HBRUSH hBrushWhite = CreateSolidBrush(COLOR_WHITE);
-    FillRect(hdc, &slideRect, hBrushWhite);
-    DeleteObject(hBrushWhite);
-    
-    // Граница слайда
-    HPEN hPenBorder = CreatePen(PS_SOLID, 1, RGB(200, 200, 200));
-    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
-    SelectObject(hdc, GetStockObject(NULL_BRUSH));
-    Rectangle(hdc, slideX, slideY, slideX + slideWidth, slideY + slideHeight);
-    SelectObject(hdc, hOldPen);
-    DeleteObject(hPenBorder);
-    
-    // Пунктирный прямоугольник для заголовка
-    int titleBoxWidth = (int)(slideWidth * 0.8);
-    int titleBoxHeight = (int)(slideHeight * 0.15);
-    int titleBoxX = slideX + (slideWidth - titleBoxWidth) / 2;
-    int titleBoxY = slideY + (int)(slideHeight * 0.25);
-    
-    DrawDashedRect(hdc, titleBoxX, titleBoxY, titleBoxWidth, titleBoxHeight);
-    
-    // Пунктирный прямоугольник для подзаголовка
-    int subtitleBoxWidth = (int)(slideWidth * 0.6);
-    int subtitleBoxHeight = (int)(slideHeight * 0.1);
-    int subtitleBoxX = slideX + (slideWidth - subtitleBoxWidth) / 2;
-    int subtitleBoxY = slideY + (int)(slideHeight * 0.50);
-    
-    DrawDashedRect(hdc, subtitleBoxX, subtitleBoxY, subtitleBoxWidth, subtitleBoxHeight);
-    
-    // Текст "Заголовок слайда"
-    HFONT hFontTitle = CreateFont(
-        max(slideHeight / 10, 28), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI Light"
-    );
-    HFONT hOldFont = (HFONT)SelectObject(hdc, hFontTitle);
-    SetTextColor(hdc, RGB(80, 80, 80));
-    SetBkMode(hdc, TRANSPARENT);
-    
-    RECT titleTextRect;
-    titleTextRect.left = titleBoxX;
-    titleTextRect.top = titleBoxY;
-    titleTextRect.right = titleBoxX + titleBoxWidth;
-    titleTextRect.bottom = titleBoxY + titleBoxHeight;
-    DrawText(hdc, L"Заголовок слайда", -1, &titleTextRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    
-    // Текст "Подзаголовок слайда"
-    HFONT hFontSubtitle = CreateFont(
-        max(slideHeight / 18, 16), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
-    );
-    SelectObject(hdc, hFontSubtitle);
-    SetTextColor(hdc, RGB(120, 120, 120));
-    
-    RECT subtitleTextRect;
-    subtitleTextRect.left = subtitleBoxX;
-    subtitleTextRect.top = subtitleBoxY;
-    subtitleTextRect.right = subtitleBoxX + subtitleBoxWidth;
-    subtitleTextRect.bottom = subtitleBoxY + subtitleBoxHeight;
-    DrawText(hdc, L"Подзаголовок слайда", -1, &subtitleTextRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    
-    SelectObject(hdc, hOldFont);
-    DeleteObject(hFontTitle);
-    DeleteObject(hFontSubtitle);
+// ==================== Очистка ресурсов ====================
+void Cleanup() {
+    if (g_hFontLogo) DeleteObject(g_hFontLogo);
+    if (g_hFontMenu) DeleteObject(g_hFontMenu);
+    if (g_hFontIcons) DeleteObject(g_hFontIcons);
+    GdiplusShutdown((ULONG_PTR*)&g_gdiplusToken);
 }
 
-void DrawStatusBar(HDC hdc, RECT* clientRect) {
-    // Фон статус-бара
-    RECT statusRect;
-    statusRect.left = 0;
-    statusRect.top = clientRect->bottom - g_statusBarHeight;
-    statusRect.right = clientRect->right;
-    statusRect.bottom = clientRect->bottom;
-    
-    HBRUSH hBrushStatus = CreateSolidBrush(COLOR_STATUS_BAR);
-    FillRect(hdc, &statusRect, hBrushStatus);
-    DeleteObject(hBrushStatus);
-    
-    // Верхняя линия статус-бара
-    HPEN hPenBorder = CreatePen(PS_SOLID, 1, RGB(210, 210, 210));
-    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
-    MoveToEx(hdc, 0, clientRect->bottom - g_statusBarHeight, NULL);
-    LineTo(hdc, clientRect->right, clientRect->bottom - g_statusBarHeight);
-    SelectObject(hdc, hOldPen);
-    DeleteObject(hPenBorder);
-    
-    // Шрифт для статус-бара
-    HFONT hFontStatus = CreateFont(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
-    HFONT hOldFont = (HFONT)SelectObject(hdc, hFontStatus);
-    SetTextColor(hdc, RGB(80, 80, 80));
-    SetBkMode(hdc, TRANSPARENT);
-    
-    int yText = clientRect->bottom - g_statusBarHeight + 6;
-    int xPos = 10;
-    
-    // "Слайд 1 из 1"
-    TextOut(hdc, xPos, yText, L"Слайд 1 из 1", 12);
-    xPos += 90;
-    
-    // Разделитель
-    HPEN hPenSep = CreatePen(PS_SOLID, 1, RGB(200, 200, 200));
-    SelectObject(hdc, hPenSep);
-    MoveToEx(hdc, xPos, clientRect->bottom - g_statusBarHeight + 4, NULL);
-    LineTo(hdc, xPos, clientRect->bottom - 4);
-    xPos += 10;
-    
-    // "русский"
-    TextOut(hdc, xPos, yText, L"русский", 7);
-    xPos += 60;
-    
-    // Разделитель
-    MoveToEx(hdc, xPos, clientRect->bottom - g_statusBarHeight + 4, NULL);
-    LineTo(hdc, xPos, clientRect->bottom - 4);
-    xPos += 10;
-    
-    // "Специальные возможности: не поддерживаются"
-    TextOut(hdc, xPos, yText, L"Специальные возможности: не поддерживаются", 42);
-    xPos += 280;
-    
-    // Разделитель
-    MoveToEx(hdc, xPos, clientRect->bottom - g_statusBarHeight + 4, NULL);
-    LineTo(hdc, xPos, clientRect->bottom - 4);
-    xPos += 10;
-    
-    // "Щёлкните, чтобы добавить заметки"
-    TextOut(hdc, xPos, yText, L"Щёлкните, чтобы добавить заметки", 32);
-    
-    // Правая часть - масштаб
-    int rightX = clientRect->right - 150;
-    
-    // Разделитель перед масштабом
-    MoveToEx(hdc, rightX - 10, clientRect->bottom - g_statusBarHeight + 4, NULL);
-    LineTo(hdc, rightX - 10, clientRect->bottom - 4);
-    
-    // Иконки просмотра (простые прямоугольники)
-    HBRUSH hBrushIcon = CreateSolidBrush(RGB(150, 150, 150));
-    
-    // Иконка обычного вида
-    RECT iconRect1 = {rightX, yText + 1, rightX + 14, yText + 11};
-    FrameRect(hdc, &iconRect1, hBrushIcon);
-    
-    // Иконка сортировщика
-    RECT iconRect2 = {rightX + 20, yText + 1, rightX + 34, yText + 11};
-    FrameRect(hdc, &iconRect2, hBrushIcon);
-    
-    // Иконка чтения
-    RECT iconRect3 = {rightX + 40, yText + 1, rightX + 54, yText + 11};
-    FrameRect(hdc, &iconRect3, hBrushIcon);
-    
-    DeleteObject(hBrushIcon);
-    
-    // Масштаб "68%"
-    TextOut(hdc, rightX + 70, yText, L"68%", 3);
-    
-    // Ползунок масштаба (упрощённый)
-    HPEN hPenSlider = CreatePen(PS_SOLID, 2, RGB(180, 180, 180));
-    SelectObject(hdc, hPenSlider);
-    int sliderX = rightX + 100;
-    int sliderY = yText + 5;
-    MoveToEx(hdc, sliderX, sliderY, NULL);
-    LineTo(hdc, sliderX + 40, sliderY);
-    
-    // Индикатор ползунка
-    Ellipse(hdc, sliderX + 15, sliderY - 4, sliderX + 23, sliderY + 4);
-    
-    SelectObject(hdc, hOldPen);
-    DeleteObject(hPenSep);
-    DeleteObject(hPenSlider);
-    SelectObject(hdc, hOldFont);
-    DeleteObject(hFontStatus);
-}
-
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    switch (message) {
-        case WM_PAINT: {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            
-            RECT clientRect;
-            GetClientRect(hWnd, &clientRect);
-            
-            // Двойная буферизация для устранения мерцания
-            HDC hdcMem = CreateCompatibleDC(hdc);
-            HBITMAP hbmMem = CreateCompatibleBitmap(hdc, clientRect.right, clientRect.bottom);
-            HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
-            
-            // Очистка фона
-            HBRUSH hBrushBg = CreateSolidBrush(COLOR_BG_GRAY);
-            FillRect(hdcMem, &clientRect, hBrushBg);
-            DeleteObject(hBrushBg);
-            
-            // Отрисовка всех элементов
-            DrawThumbnailPanel(hdcMem, &clientRect);
-            DrawSlideArea(hdcMem, &clientRect);
-            DrawStatusBar(hdcMem, &clientRect);
-            
-            // Копирование буфера на экран
-            BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, hdcMem, 0, 0, SRCCOPY);
-            
-            // Освобождение ресурсов
-            SelectObject(hdcMem, hbmOld);
-            DeleteObject(hbmMem);
-            DeleteDC(hdcMem);
-            
-            EndPaint(hWnd, &ps);
+// ==================== Обработка сообщений ====================
+LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+        case WM_CREATE:
+            // Инициализация GDI+
+            {
+                GdiplusStartupInput si;
+                GdiplusStartup(&g_gdiplusToken, &si, NULL);
+            }
             return 0;
-        }
-        
         case WM_SIZE:
+            g_width = LOWORD(lParam);
+            g_height = HIWORD(lParam);
+            ResizeWindow(g_width, g_height);
             InvalidateRect(hWnd, NULL, TRUE);
             return 0;
-            
-        case WM_ERASEBKGND:
-            return 1; // Предотвращаем мерцание
-            
+        case WM_PAINT:
+            OnPaint();
+            return 0;
         case WM_DESTROY:
+            Cleanup();
             PostQuitMessage(0);
             return 0;
-            
+        case WM_MOUSEMOVE:
+        {
+            int x = LOWORD(lParam);
+            int y = HIWORD(lParam);
+            bool needRedraw = false;
+            for (size_t i = 0; i < g_ribbonTabs.size(); ++i) {
+                if (PtInRect(&g_ribbonTabs[i].rect, {x,y})) {
+                    // Наведение на вкладку
+                    // Можно добавить эффекты
+                }
+            }
+            if (needRedraw) InvalidateRect(hWnd, NULL, FALSE);
+            return 0;
+        }
+        case WM_LBUTTONDOWN:
+        {
+            int x = LOWORD(lParam);
+            int y = HIWORD(lParam);
+            int tabIndex = HitTestRibbonTabs(x,y);
+            if (tabIndex >=0) {
+                SetActiveTab(tabIndex);
+            }
+            break;
+        }
         default:
-            return DefWindowProc(hWnd, message, wParam, lParam);
+            return DefWindowProc(hWnd, msg, wParam, lParam);
+    }
+    return 0;
+}
+
+// ==================== функция отрисовки ====================
+void OnPaint() {
+    PAINTSTRUCT ps;
+    HDC hdc = BeginPaint(g_hMainWnd, &ps);
+    RECT r;
+    GetClientRect(g_hMainWnd, &r);
+
+    // Создаем буфер для плавной отрисовки
+    g_hDcBuffer = CreateCompatibleDC(hdc);
+    HBITMAP hBmpBuffer = CreateCompatibleBitmap(hdc, r.right, r.bottom);
+    HBITMAP hOldBmp = (HBITMAP)SelectObject(g_hDcBuffer, hBmpBuffer);
+
+    // Отрисовка фона и шапки
+    FillRect(g_hDcBuffer, &r, (HBRUSH)CreateSolidBrush(COLOR_BG_DARK));
+    DrawHeader(g_hDcBuffer, r);
+
+    // Можно добавить остальные компоненты — слайды, миниатюры, содержимое
+
+    // Копируем буфер на экран
+    BitBlt(hdc, 0, 0, r.right, r.bottom, g_hDcBuffer, 0, 0, SRCCOPY);
+
+    // Освобождение
+    SelectObject(g_hDcBuffer, hOldBmp);
+    DeleteObject(hBmpBuffer);
+    DeleteDC(g_hDcBuffer);
+    EndPaint(g_hMainWnd, &ps);
+}
+
+// ==================== функция отрисовки шапки ====================
+void DrawHeader(HDC hdc, RECT& clientRect) {
+    // Фон шапки
+    RECT headerRect = {0, 0, clientRect.right, g_ribbonHeight};
+    FillRect(hdc, &headerRect, (HBRUSH)CreateSolidBrush(COLOR_BG_DARK));
+
+    // Логотип слева
+    HFONT oldFont = (HFONT)SelectObject(hdc, g_hFontLogo);
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, COLOR_TEXT_LIGHT);
+    RECT logoRect = {g_margin, 0, g_logoWidth, g_ribbonHeight};
+    DrawText(hdc, L"PowerPoint +", -1, &logoRect, DT_VCENTER | DT_LEFT | DT_SINGLELINE);
+    SelectObject(hdc, oldFont);
+
+    // Иконки и кнопки справа (новый, сохранить, настройки)
+    int btnSize = 40;
+    int x = clientRect.right - g_margin - btnSize;
+    int y = (g_ribbonHeight - btnSize) / 2;
+
+    //Создаем временные кисти и рамки для эффектов
+    // Кнопки справа
+    auto DrawIconButton = [&](const std::wstring& iconSymbol, const std::wstring& tooltip) {
+        RECT rectBtn = {x, y, x + btnSize, y + btnSize};
+        // Фон
+        HBRUSH brush = (HBRUSH)CreateSolidBrush(COLOR_BTN_BG);
+        FillRect(hdc, &rectBtn, brush);
+        DeleteObject(brush);
+        // Иконка
+        HFONT hIconFont = CreateFont(btnSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Segoe UI Symbol");
+        HFONT oldFnt = (HFONT)SelectObject(hdc, hIconFont);
+        SetTextColor(hdc, COLOR_ACCENT);
+        SetBkMode(hdc, TRANSPARENT);
+        DrawText(hdc, iconSymbol.c_str(), -1, &rectBtn, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, oldFnt);
+        DeleteObject(hIconFont);
+        // Можно добавить эффект hover/pressed, если нужно
+        x -= btnSize + g_margin;
+    };
+
+    // Иконки справа
+    DrawIconButton(L"🔔", L"Уведомления");
+    DrawIconButton(L"💬", L"Сообщения");
+    DrawIconButton(L"➕", L"Создать");
+}
+
+// ==================== функция определения вкладок ====================
+int HitTestRibbonTabs(int x, int y) {
+    for (size_t i=0; i<g_ribbonTabs.size(); ++i) {
+        if (PtInRect(&g_ribbonTabs[i].rect, {x,y})) return (int)i;
+    }
+    return -1;
+}
+
+// ==================== установка активной вкладки ====================
+void SetActiveTab(int index) {
+    if (index >=0 && index<(int)g_ribbonTabs.size()) {
+        g_activeTabIndex = index;
+        for (size_t i=0; i<g_ribbonTabs.size(); ++i) g_ribbonTabs[i].active = (i==index);
+        InvalidateRect(g_hMainWnd, NULL, TRUE);
     }
 }
+
+// ==================== окно resize ====================
+void ResizeWindow(int width, int height) {
+    g_width = width;
+    g_height = height;
+}
+
+// ==================== остальное - Вы можете добавлять свои компоненты, миниатюры, содержимое/
+// базовая структура — центр работы, иконки, формы, анимации — все в стиле современного интерфейса +
+// Используйте градиенты, полупрозрачные слои, затемнение и прозрачность.
