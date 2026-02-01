@@ -1,560 +1,3595 @@
-#include <QApplication>
-#include <QMainWindow>
-#include <QWidget>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QGridLayout>
-#include <QPushButton>
-#include <QLabel>
-#include <QTextEdit>
-#include <QListWidget>
-#include <QSplitter>
-#include <QToolBar>
-#include <QMenuBar>
-#include <QMenu>
-#include <QAction>
-#include <QTabWidget>
-#include <QFontComboBox>
-#include <QSpinBox>
-#include <QComboBox>
-#include <QColorDialog>
-#include <QFileDialog>
-#include <QMessageBox>
-#include <QScrollArea>
-#include <QGroupBox>
-#include <QToolButton>
-#include <QFrame>
+#define UNICODE
+#define _UNICODE
+#include <windows.h>
+#include <commctrl.h>
+#include <gdiplus.h>
+#include <wininet.h>
+#include <string>
+#include <vector>
+#include <memory>
+#include <shlwapi.h>
+#include <commdlg.h>
+#include <shlobj.h>
+#include <cmath>
 
-// Класс для Ribbon панели
-class RibbonTab : public QWidget {
-    Q_OBJECT
-public:
-    RibbonTab(const QString& title, QWidget* parent = nullptr) : QWidget(parent) {
-        mainLayout = new QHBoxLayout(this);
-        mainLayout->setSpacing(5);
-        mainLayout->setContentsMargins(5, 5, 5, 5);
-    }
+#pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "wininet.lib")
+#pragma comment(lib, "shlwapi.lib")
+#pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
-    void addGroup(const QString& groupName, QWidget* groupWidget) {
-        QGroupBox* group = new QGroupBox(groupName, this);
-        QVBoxLayout* groupLayout = new QVBoxLayout(group);
-        groupLayout->addWidget(groupWidget);
-        groupLayout->addStretch();
-        mainLayout->addWidget(group);
-    }
+using namespace Gdiplus;
 
-private:
-    QHBoxLayout* mainLayout;
+// ============================================================================
+// КОНСТАНТЫ И ОПРЕДЕЛЕНИЯ
+// ============================================================================
+
+// Цвета интерфейса PowerPoint
+#define COLOR_PP_RED            RGB(185, 74, 72)     // Основной красный цвет PowerPoint
+#define COLOR_PP_RED_DARK       RGB(165, 54, 52)     // Темнее для hover
+#define COLOR_PP_RED_LIGHT      RGB(200, 90, 88)     // Светлее
+#define COLOR_PP_ORANGE         RGB(217, 83, 30)     // Оранжевый для активной вкладки
+#define COLOR_PP_ORANGE_LIGHT   RGB(237, 103, 50)    // Светлый оранжевый
+#define COLOR_FILE_RED          RGB(185, 74, 72)     // Цвет кнопки Файл
+#define COLOR_FILE_RED_HOVER    RGB(165, 54, 52)     // Hover для кнопки Файл
+
+#define COLOR_BG_DARK           RGB(43, 43, 43)
+#define COLOR_BG_GRAY           RGB(240, 240, 240)
+#define COLOR_BG_LIGHT          RGB(250, 250, 250)
+#define COLOR_WHITE             RGB(255, 255, 255)
+#define COLOR_BLUE              RGB(68, 114, 196)
+#define COLOR_BLUE_HOVER        RGB(88, 134, 216)
+#define COLOR_BLUE_DARK         RGB(48, 94, 176)
+#define COLOR_GREEN             RGB(84, 172, 84)
+#define COLOR_GREEN_HOVER       RGB(104, 192, 104)
+#define COLOR_ORANGE            RGB(237, 125, 49)
+#define COLOR_ORANGE_HOVER      RGB(255, 145, 69)
+#define COLOR_PURPLE            RGB(112, 48, 160)
+#define COLOR_DARK_GRAY         RGB(100, 100, 100)
+#define COLOR_MEDIUM_GRAY       RGB(150, 150, 150)
+#define COLOR_LIGHT_GRAY        RGB(200, 200, 200)
+#define COLOR_STATUS_BAR        RGB(248, 248, 248)
+#define COLOR_BORDER_LIGHT      RGB(220, 220, 220)
+#define COLOR_BORDER_DARK       RGB(180, 180, 180)
+#define COLOR_TOOLBAR_BG        RGB(245, 245, 245)
+#define COLOR_TOOLBAR_HOVER     RGB(230, 230, 230)
+#define COLOR_TOOLBAR_PRESSED   RGB(210, 210, 210)
+#define COLOR_RIBBON_BG         RGB(245, 246, 247)
+#define COLOR_PANEL_BG          RGB(251, 251, 251)
+#define COLOR_SELECTION         RGB(0, 120, 215)
+#define COLOR_SELECTION_LIGHT   RGB(204, 232, 255)
+#define COLOR_TEXT_DARK         RGB(50, 50, 50)
+#define COLOR_TEXT_MEDIUM       RGB(100, 100, 100)
+#define COLOR_TEXT_LIGHT        RGB(150, 150, 150)
+#define COLOR_PLACEHOLDER       RGB(180, 180, 180)
+#define COLOR_TAB_TEXT          RGB(255, 255, 255)
+#define COLOR_TAB_TEXT_INACTIVE RGB(255, 220, 220)
+
+// Идентификаторы элементов управления
+#define ID_TOOLBAR              1001
+#define ID_STATUS_BAR           1002
+#define ID_ZOOM_SLIDER          1003
+#define ID_SLIDE_LIST           1004
+#define ID_TIMER                1005
+
+// Идентификаторы команд меню и кнопок
+#define IDM_FILE_NEW            2001
+#define IDM_FILE_OPEN           2002
+#define IDM_FILE_SAVE           2003
+#define IDM_FILE_SAVE_AS        2004
+#define IDM_FILE_EXPORT         2005
+#define IDM_FILE_PRINT          2006
+#define IDM_FILE_EXIT           2007
+#define IDM_EDIT_UNDO           2010
+#define IDM_EDIT_REDO           2011
+#define IDM_EDIT_CUT            2012
+#define IDM_EDIT_COPY           2013
+#define IDM_EDIT_PASTE          2014
+#define IDM_EDIT_DELETE         2015
+#define IDM_EDIT_SELECT_ALL     2016
+#define IDM_EDIT_DUPLICATE      2017
+#define IDM_SLIDE_NEW           2020
+#define IDM_SLIDE_DUPLICATE     2021
+#define IDM_SLIDE_DELETE        2022
+#define IDM_SLIDE_MOVE_UP       2023
+#define IDM_SLIDE_MOVE_DOWN     2024
+#define IDM_SLIDE_LAYOUT        2025
+#define IDM_SLIDE_TRANSITION    2026
+#define IDM_INSERT_TEXT         2030
+#define IDM_INSERT_IMAGE        2031
+#define IDM_INSERT_IMAGE_URL    2032
+#define IDM_INSERT_SHAPE        2033
+#define IDM_INSERT_CHART        2034
+#define IDM_INSERT_TABLE        2035
+#define IDM_INSERT_VIDEO        2036
+#define IDM_INSERT_AUDIO        2037
+#define IDM_INSERT_LINK         2038
+#define IDM_FORMAT_FONT         2040
+#define IDM_FORMAT_PARAGRAPH    2041
+#define IDM_FORMAT_SHAPE        2042
+#define IDM_FORMAT_ARRANGE      2043
+#define IDM_FORMAT_ALIGN        2044
+#define IDM_VIEW_NORMAL         2050
+#define IDM_VIEW_SORTER         2051
+#define IDM_VIEW_READING        2052
+#define IDM_VIEW_SLIDESHOW      2053
+#define IDM_VIEW_ZOOM_IN        2054
+#define IDM_VIEW_ZOOM_OUT       2055
+#define IDM_VIEW_FIT_WINDOW     2056
+#define IDM_VIEW_NOTES          2057
+#define IDM_VIEW_RULER          2058
+#define IDM_VIEW_GRID           2059
+#define IDM_VIEW_GUIDES         2060
+#define IDM_DESIGN_THEME        2070
+#define IDM_DESIGN_VARIANT      2071
+#define IDM_DESIGN_SLIDE_SIZE   2072
+#define IDM_DESIGN_BACKGROUND   2073
+#define IDM_ANIMATION_ADD       2080
+#define IDM_ANIMATION_PREVIEW   2081
+#define IDM_ANIMATION_PANE      2082
+#define IDM_TRANSITION_ADD      2090
+#define IDM_TRANSITION_TIMING   2091
+#define IDM_HELP_ABOUT          2100
+#define IDM_HELP_DOCS           2101
+
+// Идентификаторы кнопок Ribbon
+#define IDB_NEW_SLIDE           3001
+#define IDB_DELETE_SLIDE        3002
+#define IDB_COPY_SLIDE          3003
+#define IDB_PASTE_SLIDE         3004
+#define IDB_CUT                 3005
+#define IDB_COPY                3006
+#define IDB_PASTE               3007
+#define IDB_UNDO                3008
+#define IDB_REDO                3009
+#define IDB_INSERT_TEXT         3010
+#define IDB_INSERT_IMAGE        3011
+#define IDB_INSERT_SHAPE        3012
+#define IDB_INSERT_TABLE        3013
+#define IDB_INSERT_CHART        3014
+#define IDB_BOLD                3015
+#define IDB_ITALIC              3016
+#define IDB_UNDERLINE           3017
+#define IDB_STRIKETHROUGH       3018
+#define IDB_ALIGN_LEFT          3019
+#define IDB_ALIGN_CENTER        3020
+#define IDB_ALIGN_RIGHT         3021
+#define IDB_FONT_COLOR          3022
+#define IDB_FILL_COLOR          3023
+#define IDB_SLIDESHOW           3024
+#define IDB_SLIDESHOW_BEGIN     3025
+#define IDB_SLIDESHOW_CURRENT   3026
+#define IDB_ZOOM_IN             3027
+#define IDB_ZOOM_OUT            3028
+#define IDB_FIT_SLIDE           3029
+#define IDB_SAVE                3030
+#define IDB_OPEN                3031
+#define IDB_PRINT               3032
+#define IDB_FORMAT_PAINTER      3033
+#define IDB_LAYOUT              3034
+#define IDB_RESET               3035
+#define IDB_SECTION             3036
+#define IDB_FONT_INCREASE       3037
+#define IDB_FONT_DECREASE       3038
+#define IDB_CLEAR_FORMAT        3039
+#define IDB_BULLETS             3040
+#define IDB_NUMBERING           3041
+#define IDB_LINE_SPACING        3042
+#define IDB_SHAPE_FILL          3043
+#define IDB_SHAPE_OUTLINE       3044
+#define IDB_SHAPE_EFFECTS       3045
+#define IDB_FIND                3046
+#define IDB_REPLACE             3047
+#define IDB_SELECT              3048
+
+// Типы элементов на слайде
+enum class SlideElementType {
+    None,
+    TextBox,
+    Image,
+    Shape,
+    Table,
+    Chart,
+    Video,
+    Audio
 };
 
-// Класс для кнопки Ribbon с иконкой и текстом
-class RibbonButton : public QToolButton {
-public:
-    RibbonButton(const QString& text, QWidget* parent = nullptr) : QToolButton(parent) {
-        setText(text);
-        setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-        setMinimumSize(60, 60);
-    }
+// Типы фигур
+enum class ShapeType {
+    Rectangle,
+    RoundedRect,
+    Ellipse,
+    Triangle,
+    Diamond,
+    Pentagon,
+    Hexagon,
+    Star,
+    Arrow,
+    Line,
+    Callout
 };
 
-// Главное окно приложения
-class PowerPointClone : public QMainWindow {
-    Q_OBJECT
-
-public:
-    PowerPointClone(QWidget *parent = nullptr) : QMainWindow(parent) {
-        setupUI();
-        setWindowTitle("PowerPoint Clone");
-        resize(1400, 800);
-    }
-
-private slots:
-    void addNewSlide() {
-        QListWidgetItem* item = new QListWidgetItem("Слайд " + QString::number(slideList->count() + 1));
-        slideList->addItem(item);
-        slideList->setCurrentItem(item);
-    }
-
-    void deleteSlide() {
-        if (slideList->currentRow() >= 0) {
-            delete slideList->takeItem(slideList->currentRow());
-        }
-    }
-
-    void changeFont() {
-        QFont font = fontComboBox->currentFont();
-        font.setPointSize(fontSizeSpinBox->value());
-        slideEditor->setCurrentFont(font);
-    }
-
-    void setBold(bool checked) {
-        QTextCharFormat format;
-        format.setFontWeight(checked ? QFont::Bold : QFont::Normal);
-        mergeFormatOnWordOrSelection(format);
-    }
-
-    void setItalic(bool checked) {
-        QTextCharFormat format;
-        format.setFontItalic(checked);
-        mergeFormatOnWordOrSelection(format);
-    }
-
-    void setUnderline(bool checked) {
-        QTextCharFormat format;
-        format.setFontUnderline(checked);
-        mergeFormatOnWordOrSelection(format);
-    }
-
-    void setTextColor() {
-        QColor color = QColorDialog::getColor(Qt::black, this, "Выбрать цвет текста");
-        if (color.isValid()) {
-            QTextCharFormat format;
-            format.setForeground(color);
-            mergeFormatOnWordOrSelection(format);
-        }
-    }
-
-    void mergeFormatOnWordOrSelection(const QTextCharFormat &format) {
-        QTextCursor cursor = slideEditor->textCursor();
-        if (!cursor.hasSelection())
-            cursor.select(QTextCursor::WordUnderCursor);
-        cursor.mergeCharFormat(format);
-        slideEditor->mergeCurrentCharFormat(format);
-    }
-
-    void alignLeft() {
-        slideEditor->setAlignment(Qt::AlignLeft);
-    }
-
-    void alignCenter() {
-        slideEditor->setAlignment(Qt::AlignCenter);
-    }
-
-    void alignRight() {
-        slideEditor->setAlignment(Qt::AlignRight);
-    }
-
-    void newPresentation() {
-        slideList->clear();
-        slideEditor->clear();
-        addNewSlide();
-    }
-
-    void openPresentation() {
-        QString fileName = QFileDialog::getOpenFileName(this, "Открыть презентацию", "", "Text Files (*.txt)");
-        if (!fileName.isEmpty()) {
-            QMessageBox::information(this, "Открыть", "Открытие файла: " + fileName);
-        }
-    }
-
-    void savePresentation() {
-        QString fileName = QFileDialog::getSaveFileName(this, "Сохранить презентацию", "", "Text Files (*.txt)");
-        if (!fileName.isEmpty()) {
-            QMessageBox::information(this, "Сохранить", "Сохранение файла: " + fileName);
-        }
-    }
-
-private:
-    void setupUI() {
-        // Центральный виджет
-        QWidget* centralWidget = new QWidget(this);
-        QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
-        mainLayout->setSpacing(0);
-        mainLayout->setContentsMargins(0, 0, 0, 0);
-
-        // Создание Ribbon интерфейса
-        createRibbon();
-        mainLayout->addWidget(ribbonWidget);
-
-        // Создание рабочей области
-        createWorkArea();
-        mainLayout->addWidget(workArea, 1);
-
-        setCentralWidget(centralWidget);
-    }
-
-    void createRibbon() {
-        ribbonWidget = new QWidget(this);
-        QVBoxLayout* ribbonLayout = new QVBoxLayout(ribbonWidget);
-        ribbonLayout->setSpacing(0);
-        ribbonLayout->setContentsMargins(0, 0, 0, 0);
-
-        // Вкладки Ribbon
-        ribbonTabs = new QTabWidget(this);
-        ribbonTabs->setMaximumHeight(120);
-
-        // Вкладка "Главная"
-        createHomeTab();
-
-        // Вкладка "Вставка"
-        createInsertTab();
-
-        // Вкладка "Конструктор"
-        createDesignTab();
-
-        // Вкладка "Переходы"
-        createTransitionsTab();
-
-        // Вкладка "Анимация"
-        createAnimationTab();
-
-        // Вкладка "Слайд-шоу"
-        createSlideshowTab();
-
-        // Вкладка "Рецензирование"
-        createReviewTab();
-
-        // Вкладка "Вид"
-        createViewTab();
-
-        ribbonLayout->addWidget(ribbonTabs);
-    }
-
-    void createHomeTab() {
-        QWidget* homeTab = new QWidget();
-        QHBoxLayout* homeLayout = new QHBoxLayout(homeTab);
-        homeLayout->setSpacing(5);
-        homeLayout->setContentsMargins(5, 5, 5, 5);
-
-        // Группа "Буфер обмена"
-        QGroupBox* clipboardGroup = new QGroupBox("Буфер обмена");
-        QGridLayout* clipboardLayout = new QGridLayout();
-        
-        RibbonButton* pasteBtn = new RibbonButton("Вставить");
-        RibbonButton* copyBtn = new RibbonButton("Копировать");
-        RibbonButton* cutBtn = new RibbonButton("Вырезать");
-        RibbonButton* formatBtn = new RibbonButton("Формат");
-        
-        clipboardLayout->addWidget(pasteBtn, 0, 0, 2, 1);
-        clipboardLayout->addWidget(cutBtn, 0, 1);
-        clipboardLayout->addWidget(copyBtn, 1, 1);
-        clipboardLayout->addWidget(formatBtn, 0, 2, 2, 1);
-        clipboardGroup->setLayout(clipboardLayout);
-        homeLayout->addWidget(clipboardGroup);
-
-        // Группа "Слайды"
-        QGroupBox* slidesGroup = new QGroupBox("Слайды");
-        QGridLayout* slidesLayout = new QGridLayout();
-        
-        RibbonButton* newSlideBtn = new RibbonButton("Создать
-слайд");
-        connect(newSlideBtn, &QPushButton::clicked, this, &PowerPointClone::addNewSlide);
-        RibbonButton* layoutBtn = new RibbonButton("Макет");
-        RibbonButton* resetBtn = new RibbonButton("Восста-
-новить");
-        RibbonButton* sectionBtn = new RibbonButton("Раздел");
-        
-        slidesLayout->addWidget(newSlideBtn, 0, 0, 2, 1);
-        slidesLayout->addWidget(layoutBtn, 0, 1, 2, 1);
-        slidesLayout->addWidget(resetBtn, 0, 2);
-        slidesLayout->addWidget(sectionBtn, 1, 2);
-        slidesGroup->setLayout(slidesLayout);
-        homeLayout->addWidget(slidesGroup);
-
-        // Группа "Шрифт"
-        QGroupBox* fontGroup = new QGroupBox("Шрифт");
-        QGridLayout* fontLayout = new QGridLayout();
-        
-        fontComboBox = new QFontComboBox();
-        fontComboBox->setMaximumWidth(150);
-        connect(fontComboBox, QOverload<int>::of(&QFontComboBox::currentIndexChanged), 
-                this, &PowerPointClone::changeFont);
-        
-        fontSizeSpinBox = new QSpinBox();
-        fontSizeSpinBox->setRange(8, 72);
-        fontSizeSpinBox->setValue(12);
-        fontSizeSpinBox->setMaximumWidth(60);
-        connect(fontSizeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                this, &PowerPointClone::changeFont);
-        
-        QPushButton* boldBtn = new QPushButton("Ж");
-        boldBtn->setCheckable(true);
-        boldBtn->setMaximumSize(30, 25);
-        boldBtn->setFont(QFont("Arial", 10, QFont::Bold));
-        connect(boldBtn, &QPushButton::toggled, this, &PowerPointClone::setBold);
-        
-        QPushButton* italicBtn = new QPushButton("К");
-        italicBtn->setCheckable(true);
-        italicBtn->setMaximumSize(30, 25);
-        italicBtn->setFont(QFont("Arial", 10, QFont::Normal, true));
-        connect(italicBtn, &QPushButton::toggled, this, &PowerPointClone::setItalic);
-        
-        QPushButton* underlineBtn = new QPushButton("Ч");
-        underlineBtn->setCheckable(true);
-        underlineBtn->setMaximumSize(30, 25);
-        QFont underlineFont("Arial", 10);
-        underlineFont.setUnderline(true);
-        underlineBtn->setFont(underlineFont);
-        connect(underlineBtn, &QPushButton::toggled, this, &PowerPointClone::setUnderline);
-        
-        QPushButton* colorBtn = new QPushButton("A");
-        colorBtn->setMaximumSize(30, 25);
-        connect(colorBtn, &QPushButton::clicked, this, &PowerPointClone::setTextColor);
-        
-        fontLayout->addWidget(fontComboBox, 0, 0, 1, 6);
-        fontLayout->addWidget(fontSizeSpinBox, 1, 0);
-        fontLayout->addWidget(boldBtn, 1, 1);
-        fontLayout->addWidget(italicBtn, 1, 2);
-        fontLayout->addWidget(underlineBtn, 1, 3);
-        fontLayout->addWidget(colorBtn, 1, 4);
-        
-        fontGroup->setLayout(fontLayout);
-        homeLayout->addWidget(fontGroup);
-
-        // Группа "Абзац"
-        QGroupBox* paragraphGroup = new QGroupBox("Абзац");
-        QGridLayout* paragraphLayout = new QGridLayout();
-        
-        QPushButton* alignLeftBtn = new QPushButton("≡");
-        alignLeftBtn->setMaximumSize(30, 25);
-        connect(alignLeftBtn, &QPushButton::clicked, this, &PowerPointClone::alignLeft);
-        
-        QPushButton* alignCenterBtn = new QPushButton("≡");
-        alignCenterBtn->setMaximumSize(30, 25);
-        connect(alignCenterBtn, &QPushButton::clicked, this, &PowerPointClone::alignCenter);
-        
-        QPushButton* alignRightBtn = new QPushButton("≡");
-        alignRightBtn->setMaximumSize(30, 25);
-        connect(alignRightBtn, &QPushButton::clicked, this, &PowerPointClone::alignRight);
-        
-        QPushButton* bulletBtn = new QPushButton("•");
-        bulletBtn->setMaximumSize(30, 25);
-        
-        QPushButton* numberBtn = new QPushButton("1.");
-        numberBtn->setMaximumSize(30, 25);
-        
-        paragraphLayout->addWidget(bulletBtn, 0, 0);
-        paragraphLayout->addWidget(numberBtn, 0, 1);
-        paragraphLayout->addWidget(alignLeftBtn, 1, 0);
-        paragraphLayout->addWidget(alignCenterBtn, 1, 1);
-        paragraphLayout->addWidget(alignRightBtn, 1, 2);
-        
-        paragraphGroup->setLayout(paragraphLayout);
-        homeLayout->addWidget(paragraphGroup);
-
-        // Группа "Рисование"
-        QGroupBox* drawingGroup = new QGroupBox("Рисование");
-        QGridLayout* drawingLayout = new QGridLayout();
-        
-        RibbonButton* shapesBtn = new RibbonButton("Фигуры");
-        RibbonButton* arrangeBtn = new RibbonButton("Упоря-
-дочить");
-        RibbonButton* stylesBtn = new RibbonButton("Экспресс-
-стили");
-        
-        drawingLayout->addWidget(shapesBtn, 0, 0);
-        drawingLayout->addWidget(arrangeBtn, 0, 1);
-        drawingLayout->addWidget(stylesBtn, 0, 2);
-        
-        drawingGroup->setLayout(drawingLayout);
-        homeLayout->addWidget(drawingGroup);
-
-        // Группа "Редактирование"
-        QGroupBox* editingGroup = new QGroupBox("Редактирование");
-        QVBoxLayout* editingLayout = new QVBoxLayout();
-        
-        QPushButton* findBtn = new QPushButton("Найти");
-        QPushButton* replaceBtn = new QPushButton("Заменить");
-        QPushButton* selectBtn = new QPushButton("Выделить");
-        
-        editingLayout->addWidget(findBtn);
-        editingLayout->addWidget(replaceBtn);
-        editingLayout->addWidget(selectBtn);
-        
-        editingGroup->setLayout(editingLayout);
-        homeLayout->addWidget(editingGroup);
-
-        homeLayout->addStretch();
-        ribbonTabs->addTab(homeTab, "Главная");
-    }
-
-    void createInsertTab() {
-        QWidget* insertTab = new QWidget();
-        QHBoxLayout* insertLayout = new QHBoxLayout(insertTab);
-        
-        QGroupBox* tablesGroup = new QGroupBox("Таблицы");
-        RibbonButton* tableBtn = new RibbonButton("Таблица");
-        QVBoxLayout* tablesLayout = new QVBoxLayout();
-        tablesLayout->addWidget(tableBtn);
-        tablesGroup->setLayout(tablesLayout);
-        insertLayout->addWidget(tablesGroup);
-
-        QGroupBox* imagesGroup = new QGroupBox("Изображения");
-        QHBoxLayout* imagesLayout = new QHBoxLayout();
-        RibbonButton* pictureBtn = new RibbonButton("Рисунки");
-        RibbonButton* onlineBtn = new RibbonButton("Изобра-
-жения из
-Интернета");
-        imagesLayout->addWidget(pictureBtn);
-        imagesLayout->addWidget(onlineBtn);
-        imagesGroup->setLayout(imagesLayout);
-        insertLayout->addWidget(imagesGroup);
-
-        QGroupBox* illustrationsGroup = new QGroupBox("Иллюстрации");
-        QHBoxLayout* illustrationsLayout = new QHBoxLayout();
-        RibbonButton* shapesBtn = new RibbonButton("Фигуры");
-        RibbonButton* iconsBtn = new RibbonButton("Значки");
-        RibbonButton* chartBtn = new RibbonButton("Диаграмма");
-        illustrationsLayout->addWidget(shapesBtn);
-        illustrationsLayout->addWidget(iconsBtn);
-        illustrationsLayout->addWidget(chartBtn);
-        illustrationsGroup->setLayout(illustrationsLayout);
-        insertLayout->addWidget(illustrationsGroup);
-
-        insertLayout->addStretch();
-        ribbonTabs->addTab(insertTab, "Вставка");
-    }
-
-    void createDesignTab() {
-        QWidget* designTab = new QWidget();
-        QHBoxLayout* designLayout = new QHBoxLayout(designTab);
-        
-        QGroupBox* themesGroup = new QGroupBox("Темы");
-        RibbonButton* themesBtn = new RibbonButton("Темы");
-        QVBoxLayout* themesLayout = new QVBoxLayout();
-        themesLayout->addWidget(themesBtn);
-        themesGroup->setLayout(themesLayout);
-        designLayout->addWidget(themesGroup);
-
-        designLayout->addStretch();
-        ribbonTabs->addTab(designTab, "Конструктор");
-    }
-
-    void createTransitionsTab() {
-        QWidget* transitionsTab = new QWidget();
-        QHBoxLayout* transitionsLayout = new QHBoxLayout(transitionsTab);
-        
-        QGroupBox* transitionGroup = new QGroupBox("Переход к этому слайду");
-        RibbonButton* effectBtn = new RibbonButton("Эффект");
-        QVBoxLayout* transitionLayout = new QVBoxLayout();
-        transitionLayout->addWidget(effectBtn);
-        transitionGroup->setLayout(transitionLayout);
-        transitionsLayout->addWidget(transitionGroup);
-
-        transitionsLayout->addStretch();
-        ribbonTabs->addTab(transitionsTab, "Переходы");
-    }
-
-    void createAnimationTab() {
-        QWidget* animationTab = new QWidget();
-        QHBoxLayout* animationLayout = new QHBoxLayout(animationTab);
-        
-        QGroupBox* animationGroup = new QGroupBox("Анимация");
-        RibbonButton* animateBtn = new RibbonButton("Добавить
-анимацию");
-        QVBoxLayout* animLayout = new QVBoxLayout();
-        animLayout->addWidget(animateBtn);
-        animationGroup->setLayout(animLayout);
-        animationLayout->addWidget(animationGroup);
-
-        animationLayout->addStretch();
-        ribbonTabs->addTab(animationTab, "Анимация");
-    }
-
-    void createSlideshowTab() {
-        QWidget* slideshowTab = new QWidget();
-        QHBoxLayout* slideshowLayout = new QHBoxLayout(slideshowTab);
-        
-        QGroupBox* startGroup = new QGroupBox("Начать показ слайдов");
-        QHBoxLayout* startLayout = new QHBoxLayout();
-        RibbonButton* fromBeginBtn = new RibbonButton("С начала");
-        RibbonButton* fromCurrentBtn = new RibbonButton("С текущего
-слайда");
-        startLayout->addWidget(fromBeginBtn);
-        startLayout->addWidget(fromCurrentBtn);
-        startGroup->setLayout(startLayout);
-        slideshowLayout->addWidget(startGroup);
-
-        slideshowLayout->addStretch();
-        ribbonTabs->addTab(slideshowTab, "Слайд-шоу");
-    }
-
-    void createReviewTab() {
-        QWidget* reviewTab = new QWidget();
-        QHBoxLayout* reviewLayout = new QHBoxLayout(reviewTab);
-        
-        QGroupBox* proofingGroup = new QGroupBox("Правописание");
-        RibbonButton* spellingBtn = new RibbonButton("Орфография");
-        QVBoxLayout* proofingLayout = new QVBoxLayout();
-        proofingLayout->addWidget(spellingBtn);
-        proofingGroup->setLayout(proofingLayout);
-        reviewLayout->addWidget(proofingGroup);
-
-        reviewLayout->addStretch();
-        ribbonTabs->addTab(reviewTab, "Рецензирование");
-    }
-
-    void createViewTab() {
-        QWidget* viewTab = new QWidget();
-        QHBoxLayout* viewLayout = new QHBoxLayout(viewTab);
-        
-        QGroupBox* viewsGroup = new QGroupBox("Режимы просмотра");
-        QHBoxLayout* viewsLayout = new QHBoxLayout();
-        RibbonButton* normalBtn = new RibbonButton("Обычный");
-        RibbonButton* sorterBtn = new RibbonButton("Сортиров-
-щик слайдов");
-        viewsLayout->addWidget(normalBtn);
-        viewsLayout->addWidget(sorterBtn);
-        viewsGroup->setLayout(viewsLayout);
-        viewLayout->addWidget(viewsGroup);
-
-        viewLayout->addStretch();
-        ribbonTabs->addTab(viewTab, "Вид");
-    }
-
-    void createWorkArea() {
-        workArea = new QWidget(this);
-        QHBoxLayout* workLayout = new QHBoxLayout(workArea);
-        workLayout->setContentsMargins(0, 0, 0, 0);
-
-        // Левая панель - список слайдов
-        slideList = new QListWidget();
-        slideList->setMaximumWidth(200);
-        slideList->setMinimumWidth(150);
-        addNewSlide(); // Добавляем первый слайд
-
-        // Правая панель - редактор слайда
-        QWidget* editorWidget = new QWidget();
-        QVBoxLayout* editorLayout = new QVBoxLayout(editorWidget);
-
-        // Панель инструментов над редактором
-        QToolBar* editorToolbar = new QToolBar();
-        QPushButton* deleteSlideBtn = new QPushButton("Удалить слайд");
-        connect(deleteSlideBtn, &QPushButton::clicked, this, &PowerPointClone::deleteSlide);
-        editorToolbar->addWidget(deleteSlideBtn);
-        editorLayout->addWidget(editorToolbar);
-
-        // Редактор текста
-        slideEditor = new QTextEdit();
-        slideEditor->setPlaceholderText("Введите текст слайда...");
-        editorLayout->addWidget(slideEditor);
-
-        // Разделитель
-        QSplitter* splitter = new QSplitter(Qt::Horizontal);
-        splitter->addWidget(slideList);
-        splitter->addWidget(editorWidget);
-        splitter->setStretchFactor(1, 3);
-
-        workLayout->addWidget(splitter);
-    }
-
-    // Виджеты
-    QWidget* ribbonWidget;
-    QTabWidget* ribbonTabs;
-    QWidget* workArea;
-    QListWidget* slideList;
-    QTextEdit* slideEditor;
-    QFontComboBox* fontComboBox;
-    QSpinBox* fontSizeSpinBox;
+// Режимы редактирования
+enum class EditMode {
+    Select,
+    InsertText,
+    InsertImage,
+    InsertShape,
+    DrawFreehand,
+    Pan
 };
 
-int main(int argc, char *argv[]) {
-    QApplication app(argc, argv);
+// Типы макетов слайдов
+enum class SlideLayout {
+    TitleSlide,
+    TitleAndContent,
+    SectionHeader,
+    TwoContent,
+    Comparison,
+    TitleOnly,
+    Blank,
+    ContentWithCaption,
+    PictureWithCaption
+};
+
+// Состояния анимации
+enum class AnimationType {
+    None,
+    FadeIn,
+    FadeOut,
+    SlideIn,
+    SlideOut,
+    ZoomIn,
+    ZoomOut,
+    Bounce,
+    Spin
+};
+
+// Типы переходов между слайдами
+enum class TransitionType {
+    None,
+    Fade,
+    Push,
+    Wipe,
+    Split,
+    Reveal,
+    Cut,
+    RandomBars,
+    Shape,
+    Uncover,
+    Cover,
+    Flash
+};
+
+// Типы кнопок Ribbon
+enum class RibbonButtonType {
+    Large,          // Большая кнопка с иконкой сверху и текстом снизу
+    Small,          // Маленькая кнопка с иконкой слева и текстом справа
+    SmallIconOnly,  // Маленькая кнопка только с иконкой
+    SplitLarge,     // Большая кнопка с выпадающим меню
+    SplitSmall      // Маленькая кнопка с выпадающим меню
+};
+
+// ============================================================================
+// СТРУКТУРЫ ДАННЫХ
+// ============================================================================
+
+// Структура для элемента на слайде
+struct SlideElement {
+    SlideElementType type;
+    int x, y;
+    int width, height;
+    std::wstring text;
+    std::wstring fontName;
+    int fontSize;
+    bool bold, italic, underline;
+    COLORREF textColor;
+    COLORREF fillColor;
+    COLORREF borderColor;
+    int borderWidth;
+    float rotation;
+    float opacity;
+    ShapeType shapeType;
+    std::wstring imagePath;
+    std::wstring imageUrl;
+    HBITMAP hBitmap;
+    bool selected;
+    bool locked;
+    bool visible;
+    int zOrder;
+    AnimationType animation;
+    int animationDuration;
+    int animationDelay;
     
-    PowerPointClone window;
-    window.show();
+    SlideElement() {
+        type = SlideElementType::None;
+        x = y = 0;
+        width = height = 1000;
+        text = L"";
+        fontName = L"Segoe UI";
+        fontSize = 24;
+        bold = italic = underline = false;
+        textColor = COLOR_TEXT_DARK;
+        fillColor = COLOR_WHITE;
+        borderColor = COLOR_BORDER_DARK;
+        borderWidth = 1;
+        rotation = 0.0f;
+        opacity = 1.0f;
+        shapeType = ShapeType::Rectangle;
+        imagePath = L"";
+        imageUrl = L"";
+        hBitmap = NULL;
+        selected = false;
+        locked = false;
+        visible = true;
+        zOrder = 0;
+        animation = AnimationType::None;
+        animationDuration = 500;
+        animationDelay = 0;
+    }
     
-    return app.exec();
+    ~SlideElement() {
+        if (hBitmap) {
+            DeleteObject(hBitmap);
+            hBitmap = NULL;
+        }
+    }
+};
+
+// Структура для слайда
+struct Slide {
+    std::vector<std::shared_ptr<SlideElement>> elements;
+    COLORREF backgroundColor;
+    std::wstring backgroundImage;
+    HBITMAP hBackgroundBitmap;
+    SlideLayout layout;
+    std::wstring notes;
+    TransitionType transition;
+    int transitionDuration;
+    bool hidden;
+    std::wstring title;
+    
+    Slide() {
+        backgroundColor = COLOR_WHITE;
+        backgroundImage = L"";
+        hBackgroundBitmap = NULL;
+        layout = SlideLayout::TitleSlide;
+        notes = L"";
+        transition = TransitionType::None;
+        transitionDuration = 500;
+        hidden = false;
+        title = L"Слайд";
+    }
+    
+    ~Slide() {
+        if (hBackgroundBitmap) {
+            DeleteObject(hBackgroundBitmap);
+            hBackgroundBitmap = NULL;
+        }
+    }
+};
+
+// Структура для презентации
+struct Presentation {
+    std::vector<std::shared_ptr<Slide>> slides;
+    std::wstring title;
+    std::wstring author;
+    std::wstring filePath;
+    int slideWidth;
+    int slideHeight;
+    bool modified;
+    
+    Presentation() {
+        title = L"Новая презентация";
+        author = L"";
+        filePath = L"";
+        slideWidth = 1920;
+        slideHeight = 1080;
+        modified = false;
+    }
+};
+
+// Структура для кнопки Ribbon
+struct RibbonButton {
+    int id;
+    std::wstring text;
+    std::wstring tooltip;
+    RECT rect;
+    bool enabled;
+    bool pressed;
+    bool hovered;
+    bool hasDropdown;
+    bool isToggled;
+    RibbonButtonType buttonType;
+    COLORREF iconColor;
+    std::wstring iconSymbol;
+    
+    RibbonButton() {
+        id = 0;
+        enabled = true;
+        pressed = false;
+        hovered = false;
+        hasDropdown = false;
+        isToggled = false;
+        buttonType = RibbonButtonType::Large;
+        iconColor = COLOR_BLUE;
+        iconSymbol = L"";
+    }
+};
+
+// Структура для группы Ribbon
+struct RibbonGroup {
+    std::wstring name;
+    std::vector<RibbonButton> buttons;
+    RECT rect;
+    bool hasDialogLauncher;
+    
+    RibbonGroup() {
+        hasDialogLauncher = false;
+    }
+};
+
+// Структура для вкладки Ribbon
+struct RibbonTab {
+    std::wstring name;
+    std::vector<RibbonGroup> groups;
+    bool active;
+    bool hovered;
+    RECT tabRect;
+    
+    RibbonTab() {
+        active = false;
+        hovered = false;
+    }
+};
+
+// Структура для команды отмены/повтора
+struct UndoAction {
+    enum class Type {
+        AddElement,
+        DeleteElement,
+        ModifyElement,
+        AddSlide,
+        DeleteSlide,
+        ModifySlide,
+        MoveElement,
+        ResizeElement
+    };
+    
+    Type type;
+    int slideIndex;
+    int elementIndex;
+    std::shared_ptr<Slide> slideCopy;
+    std::shared_ptr<SlideElement> elementCopy;
+};
+
+// ============================================================================
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+// ============================================================================
+
+HINSTANCE g_hInst;
+HWND g_hWnd;
+HWND g_hToolbar;
+HWND g_hStatusBar;
+HWND g_hZoomSlider;
+ULONG_PTR g_gdiplusToken;
+
+Presentation g_presentation;
+int g_currentSlideIndex = 0;
+int g_selectedElementIndex = -1;
+
+std::vector<RibbonTab> g_ribbonTabs;
+int g_activeTabIndex = 0;
+int g_ribbonHeight = 125;
+int g_tabBarHeight = 30;
+int g_titleBarHeight = 30;
+int g_qatHeight = 0;  // Quick Access Toolbar
+
+int g_thumbnailWidth = 200;
+int g_slideMargin = 40;
+int g_statusBarHeight = 26;
+int g_notesHeight = 0;
+
+EditMode g_editMode = EditMode::Select;
+ShapeType g_currentShapeType = ShapeType::Rectangle;
+
+int g_zoomLevel = 100;
+int g_minZoom = 25;
+int g_maxZoom = 400;
+
+bool g_isDragging = false;
+bool g_isResizing = false;
+POINT g_dragStart;
+POINT g_lastMousePos;
+int g_resizeHandle = -1;
+
+std::vector<UndoAction> g_undoStack;
+std::vector<UndoAction> g_redoStack;
+int g_maxUndoLevels = 50;
+
+bool g_showRuler = false;
+bool g_showGrid = false;
+bool g_showGuides = false;
+bool g_showNotes = false;
+
+// Hover states
+bool g_fileButtonHovered = false;
+int g_hoveredTabIndex = -1;
+bool g_shareButtonHovered = false;
+bool g_helpButtonHovered = false;
+
+// Шрифты
+HFONT g_hFontRibbon;
+HFONT g_hFontRibbonSmall;
+HFONT g_hFontRibbonTab;
+HFONT g_hFontRibbonGroupLabel;
+HFONT g_hFontStatus;
+HFONT g_hFontSlideNum;
+HFONT g_hFontTitle;
+HFONT g_hFontSubtitle;
+HFONT g_hFontSmall;
+HFONT g_hFontIcon;
+HFONT g_hFontIconSmall;
+
+// Курсоры
+HCURSOR g_hCursorArrow;
+HCURSOR g_hCursorHand;
+HCURSOR g_hCursorCross;
+HCURSOR g_hCursorSizeNS;
+HCURSOR g_hCursorSizeWE;
+HCURSOR g_hCursorSizeNWSE;
+HCURSOR g_hCursorSizeNESW;
+HCURSOR g_hCursorMove;
+HCURSOR g_hCursorIBeam;
+
+std::shared_ptr<SlideElement> g_clipboardElement;
+std::shared_ptr<Slide> g_clipboardSlide;
+
+bool g_animationActive = false;
+int g_animationFrame = 0;
+
+// Размеры кнопки Файл
+RECT g_fileButtonRect = {0, 0, 50, 30};
+
+// ============================================================================
+// ПРОТОТИПЫ ФУНКЦИЙ
+// ============================================================================
+
+BOOL InitApplication(HINSTANCE hInstance);
+BOOL InitInstance(HINSTANCE hInstance, int nCmdShow);
+void Cleanup();
+void InitFonts();
+void InitCursors();
+void InitRibbon();
+
+LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+
+void DrawAll(HDC hdc, RECT* clientRect);
+void DrawRibbon(HDC hdc, RECT* rect);
+void DrawRibbonTabBar(HDC hdc, RECT* rect);
+void DrawRibbonContent(HDC hdc, RECT* rect);
+void DrawRibbonGroup(HDC hdc, RibbonGroup* group, int x, int y, int height);
+void DrawRibbonButton(HDC hdc, RibbonButton* btn);
+void DrawThumbnailPanel(HDC hdc, RECT* clientRect);
+void DrawThumbnail(HDC hdc, Slide* slide, int index, int x, int y, int width, int height, bool selected);
+void DrawSlideArea(HDC hdc, RECT* clientRect);
+void DrawSlide(HDC hdc, Slide* slide, int x, int y, int width, int height, bool isMainView);
+void DrawSlideElement(HDC hdc, SlideElement* element, int slideX, int slideY, int slideWidth, int slideHeight);
+void DrawTextElement(HDC hdc, SlideElement* element, RECT* rect);
+void DrawImageElement(HDC hdc, SlideElement* element, RECT* rect);
+void DrawShapeElement(HDC hdc, SlideElement* element, RECT* rect);
+void DrawSelectionHandles(HDC hdc, RECT* rect);
+void DrawStatusBar(HDC hdc, RECT* clientRect);
+void DrawNotesPanel(HDC hdc, RECT* clientRect);
+
+void NewPresentation();
+void OpenPresentation();
+void SavePresentation();
+void SavePresentationAs();
+void ExportPresentation();
+void PrintPresentation();
+void AddSlide(SlideLayout layout = SlideLayout::TitleAndContent);
+void DuplicateSlide(int index);
+void DeleteSlide(int index);
+void MoveSlideUp(int index);
+void MoveSlideDown(int index);
+void SelectSlide(int index);
+void ChangeSlideLayout(int index, SlideLayout layout);
+void CreateDefaultSlideContent(Slide* slide);
+
+void AddElement(SlideElementType type);
+void AddTextBox();
+void AddImage();
+void AddImageFromUrl();
+void AddShape(ShapeType type);
+void DeleteSelectedElement();
+void DuplicateSelectedElement();
+void CopySelectedElement();
+void PasteElement();
+void CutSelectedElement();
+void SelectElement(int index);
+void DeselectAllElements();
+void MoveElement(int dx, int dy);
+void ResizeElement(int newWidth, int newHeight);
+void BringToFront();
+void SendToBack();
+void BringForward();
+void SendBackward();
+void AlignElements(int alignment);
+
+void FormatTextBold();
+void FormatTextItalic();
+void FormatTextUnderline();
+void SetTextAlignment(int alignment);
+void SetFontSize(int size);
+void SetFontName(const std::wstring& name);
+void SetTextColor(COLORREF color);
+void SetFillColor(COLORREF color);
+
+void Undo();
+void Redo();
+void SaveUndoState(UndoAction::Type type);
+void ClearUndoHistory();
+
+void ZoomIn();
+void ZoomOut();
+void SetZoom(int percent);
+void FitToWindow();
+
+void SetViewMode(int mode);
+void StartSlideshow(bool fromBeginning);
+void ToggleNotesPanel();
+void ToggleRuler();
+void ToggleGrid();
+void ToggleGuides();
+
+HBITMAP LoadImageFromFile(const std::wstring& path);
+HBITMAP LoadImageFromUrl(const std::wstring& url);
+HBITMAP DownloadImage(const std::wstring& url);
+
+int HitTest(int x, int y);
+int HitTestElement(int x, int y, int slideX, int slideY, int slideWidth, int slideHeight);
+int HitTestResizeHandle(int x, int y, RECT* elementRect);
+RECT GetSlideRect(RECT* clientRect);
+RECT GetElementRect(SlideElement* element, int slideX, int slideY, int slideWidth, int slideHeight);
+void UpdateWindowTitle();
+void UpdateStatusBar();
+void ShowContextMenu(HWND hWnd, int x, int y);
+std::wstring GetLayoutName(SlideLayout layout);
+std::wstring FormatNumber(int num);
+void SetModified(bool modified);
+
+void ShowNewSlideDialog();
+void ShowInsertImageUrlDialog();
+void ShowFontDialog();
+void ShowColorDialog(COLORREF* color);
+void ShowAboutDialog();
+
+// ============================================================================
+// РЕАЛИЗАЦИЯ ФУНКЦИЙ - ИНИЦИАЛИЗАЦИЯ
+// ============================================================================
+
+BOOL InitApplication(HINSTANCE hInstance) {
+    WNDCLASSEX wcex = {0};
+    wcex.cbSize = sizeof(WNDCLASSEX);
+    wcex.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+    wcex.lpfnWndProc = WndProc;
+    wcex.cbClsExtra = 0;
+    wcex.cbWndExtra = 0;
+    wcex.hInstance = hInstance;
+    wcex.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wcex.lpszMenuName = NULL;
+    wcex.lpszClassName = L"PowerPointClonePro";
+    wcex.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
+    
+    return RegisterClassEx(&wcex);
 }
 
-#include "main.moc"
+BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
+    g_hInst = hInstance;
+    
+    g_hWnd = CreateWindowEx(
+        WS_EX_APPWINDOW,
+        L"PowerPointClonePro",
+        L"Презентация1 - PowerPoint",
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        1400, 900,
+        NULL, NULL, hInstance, NULL
+    );
+    
+    if (!g_hWnd) {
+        return FALSE;
+    }
+    
+    InitFonts();
+    InitCursors();
+    InitRibbon();
+    NewPresentation();
+    
+    ShowWindow(g_hWnd, nCmdShow);
+    UpdateWindow(g_hWnd);
+    
+    return TRUE;
+}
+
+void Cleanup() {
+    if (g_hFontRibbon) DeleteObject(g_hFontRibbon);
+    if (g_hFontRibbonSmall) DeleteObject(g_hFontRibbonSmall);
+    if (g_hFontRibbonTab) DeleteObject(g_hFontRibbonTab);
+    if (g_hFontRibbonGroupLabel) DeleteObject(g_hFontRibbonGroupLabel);
+    if (g_hFontStatus) DeleteObject(g_hFontStatus);
+    if (g_hFontSlideNum) DeleteObject(g_hFontSlideNum);
+    if (g_hFontTitle) DeleteObject(g_hFontTitle);
+    if (g_hFontSubtitle) DeleteObject(g_hFontSubtitle);
+    if (g_hFontSmall) DeleteObject(g_hFontSmall);
+    if (g_hFontIcon) DeleteObject(g_hFontIcon);
+    if (g_hFontIconSmall) DeleteObject(g_hFontIconSmall);
+    
+    GdiplusShutdown(g_gdiplusToken);
+}
+
+void InitFonts() {
+    g_hFontRibbon = CreateFont(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+        
+    g_hFontRibbonSmall = CreateFont(11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+        
+    g_hFontRibbonTab = CreateFont(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+        
+    g_hFontRibbonGroupLabel = CreateFont(11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+        
+    g_hFontStatus = CreateFont(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+        
+    g_hFontSlideNum = CreateFont(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+        
+    g_hFontTitle = CreateFont(48, 0, 0, 0, FW_LIGHT, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI Light");
+        
+    g_hFontSubtitle = CreateFont(24, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+        
+    g_hFontSmall = CreateFont(10, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+        
+    g_hFontIcon = CreateFont(20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
+        
+    g_hFontIconSmall = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
+}
+
+void InitCursors() {
+    g_hCursorArrow = LoadCursor(NULL, IDC_ARROW);
+    g_hCursorHand = LoadCursor(NULL, IDC_HAND);
+    g_hCursorCross = LoadCursor(NULL, IDC_CROSS);
+    g_hCursorSizeNS = LoadCursor(NULL, IDC_SIZENS);
+    g_hCursorSizeWE = LoadCursor(NULL, IDC_SIZEWE);
+    g_hCursorSizeNWSE = LoadCursor(NULL, IDC_SIZENWSE);
+    g_hCursorSizeNESW = LoadCursor(NULL, IDC_SIZENESW);
+    g_hCursorMove = LoadCursor(NULL, IDC_SIZEALL);
+    g_hCursorIBeam = LoadCursor(NULL, IDC_IBEAM);
+}
+
+void InitRibbon() {
+    g_ribbonTabs.clear();
+    
+    // ========== Вкладка "Главная" ==========
+    RibbonTab homeTab;
+    homeTab.name = L"Главная";
+    homeTab.active = true;
+    
+    // Группа "Буфер обмена"
+    RibbonGroup clipboardGroup;
+    clipboardGroup.name = L"Буфер обмена";
+    clipboardGroup.hasDialogLauncher = true;
+    
+    RibbonButton btnPaste;
+    btnPaste.id = IDB_PASTE;
+    btnPaste.text = L"Вставить";
+    btnPaste.buttonType = RibbonButtonType::SplitLarge;
+    btnPaste.iconSymbol = L"📋";
+    btnPaste.iconColor = COLOR_ORANGE;
+    btnPaste.hasDropdown = true;
+    clipboardGroup.buttons.push_back(btnPaste);
+    
+    RibbonButton btnCut;
+    btnCut.id = IDB_CUT;
+    btnCut.text = L"Вырезать";
+    btnCut.buttonType = RibbonButtonType::Small;
+    btnCut.iconSymbol = L"✂";
+    btnCut.iconColor = COLOR_DARK_GRAY;
+    clipboardGroup.buttons.push_back(btnCut);
+    
+    RibbonButton btnCopy;
+    btnCopy.id = IDB_COPY;
+    btnCopy.text = L"Копировать";
+    btnCopy.buttonType = RibbonButtonType::Small;
+    btnCopy.iconSymbol = L"📄";
+    btnCopy.iconColor = COLOR_DARK_GRAY;
+    clipboardGroup.buttons.push_back(btnCopy);
+    
+    RibbonButton btnFormatPainter;
+    btnFormatPainter.id = IDB_FORMAT_PAINTER;
+    btnFormatPainter.text = L"Формат";
+    btnFormatPainter.buttonType = RibbonButtonType::Small;
+    btnFormatPainter.iconSymbol = L"🖌";
+    btnFormatPainter.iconColor = COLOR_ORANGE;
+    clipboardGroup.buttons.push_back(btnFormatPainter);
+    
+    homeTab.groups.push_back(clipboardGroup);
+    
+    // Группа "Слайды"
+    RibbonGroup slidesGroup;
+    slidesGroup.name = L"Слайды";
+    
+    RibbonButton btnNewSlide;
+    btnNewSlide.id = IDB_NEW_SLIDE;
+    btnNewSlide.text = L"Создать
+слайд";
+    btnNewSlide.buttonType = RibbonButtonType::SplitLarge;
+    btnNewSlide.iconSymbol = L"📑";
+    btnNewSlide.iconColor = COLOR_ORANGE;
+    btnNewSlide.hasDropdown = true;
+    slidesGroup.buttons.push_back(btnNewSlide);
+    
+    RibbonButton btnLayout;
+    btnLayout.id = IDB_LAYOUT;
+    btnLayout.text = L"Макет";
+    btnLayout.buttonType = RibbonButtonType::Small;
+    btnLayout.iconSymbol = L"☰";
+    btnLayout.iconColor = COLOR_DARK_GRAY;
+    btnLayout.hasDropdown = true;
+    slidesGroup.buttons.push_back(btnLayout);
+    
+    RibbonButton btnReset;
+    btnReset.id = IDB_RESET;
+    btnReset.text = L"Сброс";
+    btnReset.buttonType = RibbonButtonType::Small;
+    btnReset.iconSymbol = L"↺";
+    btnReset.iconColor = COLOR_DARK_GRAY;
+    slidesGroup.buttons.push_back(btnReset);
+    
+    RibbonButton btnSection;
+    btnSection.id = IDB_SECTION;
+    btnSection.text = L"Раздел";
+    btnSection.buttonType = RibbonButtonType::Small;
+    btnSection.iconSymbol = L"▤";
+    btnSection.iconColor = COLOR_DARK_GRAY;
+    btnSection.hasDropdown = true;
+    slidesGroup.buttons.push_back(btnSection);
+    
+    homeTab.groups.push_back(slidesGroup);
+    
+    // Группа "Шрифт"
+    RibbonGroup fontGroup;
+    fontGroup.name = L"Шрифт";
+    fontGroup.hasDialogLauncher = true;
+    
+    RibbonButton btnBold;
+    btnBold.id = IDB_BOLD;
+    btnBold.text = L"Ж";
+    btnBold.buttonType = RibbonButtonType::SmallIconOnly;
+    btnBold.iconSymbol = L"B";
+    btnBold.iconColor = COLOR_TEXT_DARK;
+    fontGroup.buttons.push_back(btnBold);
+    
+    RibbonButton btnItalic;
+    btnItalic.id = IDB_ITALIC;
+    btnItalic.text = L"К";
+    btnItalic.buttonType = RibbonButtonType::SmallIconOnly;
+    btnItalic.iconSymbol = L"I";
+    btnItalic.iconColor = COLOR_TEXT_DARK;
+    fontGroup.buttons.push_back(btnItalic);
+    
+    RibbonButton btnUnderline;
+    btnUnderline.id = IDB_UNDERLINE;
+    btnUnderline.text = L"Ч";
+    btnUnderline.buttonType = RibbonButtonType::SmallIconOnly;
+    btnUnderline.iconSymbol = L"U";
+    btnUnderline.iconColor = COLOR_TEXT_DARK;
+    btnUnderline.hasDropdown = true;
+    fontGroup.buttons.push_back(btnUnderline);
+    
+    RibbonButton btnStrikethrough;
+    btnStrikethrough.id = IDB_STRIKETHROUGH;
+    btnStrikethrough.text = L"S";
+    btnStrikethrough.buttonType = RibbonButtonType::SmallIconOnly;
+    btnStrikethrough.iconSymbol = L"S";
+    btnStrikethrough.iconColor = COLOR_TEXT_DARK;
+    fontGroup.buttons.push_back(btnStrikethrough);
+    
+    RibbonButton btnFontColor;
+    btnFontColor.id = IDB_FONT_COLOR;
+    btnFontColor.text = L"A";
+    btnFontColor.buttonType = RibbonButtonType::SmallIconOnly;
+    btnFontColor.iconSymbol = L"A";
+    btnFontColor.iconColor = RGB(255, 0, 0);
+    btnFontColor.hasDropdown = true;
+    fontGroup.buttons.push_back(btnFontColor);
+    
+    homeTab.groups.push_back(fontGroup);
+    
+    // Группа "Абзац"
+    RibbonGroup paragraphGroup;
+    paragraphGroup.name = L"Абзац";
+    paragraphGroup.hasDialogLauncher = true;
+    
+    RibbonButton btnBullets;
+    btnBullets.id = IDB_BULLETS;
+    btnBullets.text = L"Маркеры";
+    btnBullets.buttonType = RibbonButtonType::SmallIconOnly;
+    btnBullets.iconSymbol = L"≡";
+    btnBullets.iconColor = COLOR_TEXT_DARK;
+    btnBullets.hasDropdown = true;
+    paragraphGroup.buttons.push_back(btnBullets);
+    
+    RibbonButton btnNumbering;
+    btnNumbering.id = IDB_NUMBERING;
+    btnNumbering.text = L"Нумерация";
+    btnNumbering.buttonType = RibbonButtonType::SmallIconOnly;
+    btnNumbering.iconSymbol = L"1.";
+    btnNumbering.iconColor = COLOR_TEXT_DARK;
+    btnNumbering.hasDropdown = true;
+    paragraphGroup.buttons.push_back(btnNumbering);
+    
+    RibbonButton btnAlignLeft;
+    btnAlignLeft.id = IDB_ALIGN_LEFT;
+    btnAlignLeft.text = L"По левому";
+    btnAlignLeft.buttonType = RibbonButtonType::SmallIconOnly;
+    btnAlignLeft.iconSymbol = L"☰";
+    btnAlignLeft.iconColor = COLOR_TEXT_DARK;
+    paragraphGroup.buttons.push_back(btnAlignLeft);
+    
+    RibbonButton btnAlignCenter;
+    btnAlignCenter.id = IDB_ALIGN_CENTER;
+    btnAlignCenter.text = L"По центру";
+    btnAlignCenter.buttonType = RibbonButtonType::SmallIconOnly;
+    btnAlignCenter.iconSymbol = L"≡";
+    btnAlignCenter.iconColor = COLOR_TEXT_DARK;
+    paragraphGroup.buttons.push_back(btnAlignCenter);
+    
+    RibbonButton btnAlignRight;
+    btnAlignRight.id = IDB_ALIGN_RIGHT;
+    btnAlignRight.text = L"По правому";
+    btnAlignRight.buttonType = RibbonButtonType::SmallIconOnly;
+    btnAlignRight.iconSymbol = L"☰";
+    btnAlignRight.iconColor = COLOR_TEXT_DARK;
+    paragraphGroup.buttons.push_back(btnAlignRight);
+    
+    homeTab.groups.push_back(paragraphGroup);
+    
+    // Группа "Рисование"
+    RibbonGroup drawingGroup;
+    drawingGroup.name = L"Рисование";
+    drawingGroup.hasDialogLauncher = true;
+    
+    RibbonButton btnShapeFill;
+    btnShapeFill.id = IDB_SHAPE_FILL;
+    btnShapeFill.text = L"Заливка";
+    btnShapeFill.buttonType = RibbonButtonType::Small;
+    btnShapeFill.iconSymbol = L"▨";
+    btnShapeFill.iconColor = COLOR_BLUE;
+    btnShapeFill.hasDropdown = true;
+    drawingGroup.buttons.push_back(btnShapeFill);
+    
+    RibbonButton btnShapeOutline;
+    btnShapeOutline.id = IDB_SHAPE_OUTLINE;
+    btnShapeOutline.text = L"Контур";
+    btnShapeOutline.buttonType = RibbonButtonType::Small;
+    btnShapeOutline.iconSymbol = L"▢";
+    btnShapeOutline.iconColor = COLOR_BLUE;
+    btnShapeOutline.hasDropdown = true;
+    drawingGroup.buttons.push_back(btnShapeOutline);
+    
+    RibbonButton btnShapeEffects;
+    btnShapeEffects.id = IDB_SHAPE_EFFECTS;
+    btnShapeEffects.text = L"Эффекты";
+    btnShapeEffects.buttonType = RibbonButtonType::Small;
+    btnShapeEffects.iconSymbol = L"★";
+    btnShapeEffects.iconColor = COLOR_PURPLE;
+    btnShapeEffects.hasDropdown = true;
+    drawingGroup.buttons.push_back(btnShapeEffects);
+    
+    homeTab.groups.push_back(drawingGroup);
+    
+    // Группа "Редактирование"
+    RibbonGroup editingGroup;
+    editingGroup.name = L"Редактирование";
+    
+    RibbonButton btnFind;
+    btnFind.id = IDB_FIND;
+    btnFind.text = L"Найти";
+    btnFind.buttonType = RibbonButtonType::Small;
+    btnFind.iconSymbol = L"🔍";
+    btnFind.iconColor = COLOR_DARK_GRAY;
+    editingGroup.buttons.push_back(btnFind);
+    
+    RibbonButton btnReplace;
+    btnReplace.id = IDB_REPLACE;
+    btnReplace.text = L"Заменить";
+    btnReplace.buttonType = RibbonButtonType::Small;
+    btnReplace.iconSymbol = L"⇄";
+    btnReplace.iconColor = COLOR_DARK_GRAY;
+    editingGroup.buttons.push_back(btnReplace);
+    
+    RibbonButton btnSelect;
+    btnSelect.id = IDB_SELECT;
+    btnSelect.text = L"Выделить";
+    btnSelect.buttonType = RibbonButtonType::Small;
+    btnSelect.iconSymbol = L"▭";
+    btnSelect.iconColor = COLOR_DARK_GRAY;
+    btnSelect.hasDropdown = true;
+    editingGroup.buttons.push_back(btnSelect);
+    
+    homeTab.groups.push_back(editingGroup);
+    
+    g_ribbonTabs.push_back(homeTab);
+    
+    // ========== Вкладка "Вставка" ==========
+    RibbonTab insertTab;
+    insertTab.name = L"Вставка";
+    insertTab.active = false;
+    
+    RibbonGroup imagesGroup;
+    imagesGroup.name = L"Изображения";
+    
+    RibbonButton btnInsertImage;
+    btnInsertImage.id = IDB_INSERT_IMAGE;
+    btnInsertImage.text = L"Рисунки";
+    btnInsertImage.buttonType = RibbonButtonType::Large;
+    btnInsertImage.iconSymbol = L"🖼";
+    btnInsertImage.iconColor = COLOR_GREEN;
+    btnInsertImage.hasDropdown = true;
+    imagesGroup.buttons.push_back(btnInsertImage);
+    
+    insertTab.groups.push_back(imagesGroup);
+    
+    RibbonGroup illustrationsGroup;
+    illustrationsGroup.name = L"Иллюстрации";
+    
+    RibbonButton btnInsertShape;
+    btnInsertShape.id = IDB_INSERT_SHAPE;
+    btnInsertShape.text = L"Фигуры";
+    btnInsertShape.buttonType = RibbonButtonType::Large;
+    btnInsertShape.iconSymbol = L"⬜";
+    btnInsertShape.iconColor = COLOR_BLUE;
+    btnInsertShape.hasDropdown = true;
+    illustrationsGroup.buttons.push_back(btnInsertShape);
+    
+    RibbonButton btnInsertChart;
+    btnInsertChart.id = IDB_INSERT_CHART;
+    btnInsertChart.text = L"Диаграмма";
+    btnInsertChart.buttonType = RibbonButtonType::Large;
+    btnInsertChart.iconSymbol = L"📊";
+    btnInsertChart.iconColor = COLOR_ORANGE;
+    illustrationsGroup.buttons.push_back(btnInsertChart);
+    
+    insertTab.groups.push_back(illustrationsGroup);
+    
+    RibbonGroup textGroup;
+    textGroup.name = L"Текст";
+    
+    RibbonButton btnInsertText;
+    btnInsertText.id = IDB_INSERT_TEXT;
+    btnInsertText.text = L"Надпись";
+    btnInsertText.buttonType = RibbonButtonType::Large;
+    btnInsertText.iconSymbol = L"T";
+    btnInsertText.iconColor = COLOR_BLUE;
+    textGroup.buttons.push_back(btnInsertText);
+    
+    insertTab.groups.push_back(textGroup);
+    
+    g_ribbonTabs.push_back(insertTab);
+    
+    // ========== Вкладка "Конструктор" ==========
+    RibbonTab designTab;
+    designTab.name = L"Конструктор";
+    designTab.active = false;
+    
+    RibbonGroup themesGroup;
+    themesGroup.name = L"Темы";
+    
+    RibbonButton btnThemes;
+    btnThemes.id = IDM_DESIGN_THEME;
+    btnThemes.text = L"Темы";
+    btnThemes.buttonType = RibbonButtonType::Large;
+    btnThemes.iconSymbol = L"🎨";
+    btnThemes.iconColor = COLOR_PURPLE;
+    btnThemes.hasDropdown = true;
+    themesGroup.buttons.push_back(btnThemes);
+    
+    designTab.groups.push_back(themesGroup);
+    
+    RibbonGroup customizeGroup;
+    customizeGroup.name = L"Настройка";
+    
+    RibbonButton btnSlideSize;
+    btnSlideSize.id = IDM_DESIGN_SLIDE_SIZE;
+    btnSlideSize.text = L"Размер
+слайда";
+    btnSlideSize.buttonType = RibbonButtonType::Large;
+    btnSlideSize.iconSymbol = L"📐";
+    btnSlideSize.iconColor = COLOR_ORANGE;
+    btnSlideSize.hasDropdown = true;
+    customizeGroup.buttons.push_back(btnSlideSize);
+    
+    RibbonButton btnBackground;
+    btnBackground.id = IDM_DESIGN_BACKGROUND;
+    btnBackground.text = L"Формат
+фона";
+    btnBackground.buttonType = RibbonButtonType::Large;
+    btnBackground.iconSymbol = L"🖌";
+    btnBackground.iconColor = COLOR_GREEN;
+    customizeGroup.buttons.push_back(btnBackground);
+    
+    designTab.groups.push_back(customizeGroup);
+    
+    g_ribbonTabs.push_back(designTab);
+    
+    // ========== Вкладка "Переходы" ==========
+    RibbonTab transitionsTab;
+    transitionsTab.name = L"Переходы";
+    transitionsTab.active = false;
+    
+    RibbonGroup transitionGroup;
+    transitionGroup.name = L"Переход к этому слайду";
+    
+    RibbonButton btnTransition;
+    btnTransition.id = IDM_TRANSITION_ADD;
+    btnTransition.text = L"Нет";
+    btnTransition.buttonType = RibbonButtonType::Large;
+    btnTransition.iconSymbol = L"↔";
+    btnTransition.iconColor = COLOR_BLUE;
+    btnTransition.hasDropdown = true;
+    transitionGroup.buttons.push_back(btnTransition);
+    
+    transitionsTab.groups.push_back(transitionGroup);
+    
+    g_ribbonTabs.push_back(transitionsTab);
+    
+    // ========== Вкладка "Анимация" ==========
+    RibbonTab animationTab;
+    animationTab.name = L"Анимация";
+    animationTab.active = false;
+    
+    RibbonGroup animGroup;
+    animGroup.name = L"Анимация";
+    
+    RibbonButton btnAddAnim;
+    btnAddAnim.id = IDM_ANIMATION_ADD;
+    btnAddAnim.text = L"Добавить
+анимацию";
+    btnAddAnim.buttonType = RibbonButtonType::Large;
+    btnAddAnim.iconSymbol = L"✨";
+    btnAddAnim.iconColor = COLOR_ORANGE;
+    btnAddAnim.hasDropdown = true;
+    animGroup.buttons.push_back(btnAddAnim);
+    
+    RibbonButton btnAnimPreview;
+    btnAnimPreview.id = IDM_ANIMATION_PREVIEW;
+    btnAnimPreview.text = L"Просмотр";
+    btnAnimPreview.buttonType = RibbonButtonType::Large;
+    btnAnimPreview.iconSymbol = L"▶";
+    btnAnimPreview.iconColor = COLOR_GREEN;
+    animGroup.buttons.push_back(btnAnimPreview);
+    
+    animationTab.groups.push_back(animGroup);
+    
+    g_ribbonTabs.push_back(animationTab);
+    
+    // ========== Вкладка "Слайд-шоу" ==========
+    RibbonTab slideshowTab;
+    slideshowTab.name = L"Слайд-шоу";
+    slideshowTab.active = false;
+    
+    RibbonGroup startShowGroup;
+    startShowGroup.name = L"Начать показ слайдов";
+    
+    RibbonButton btnFromBeginning;
+    btnFromBeginning.id = IDB_SLIDESHOW_BEGIN;
+    btnFromBeginning.text = L"С начала";
+    btnFromBeginning.buttonType = RibbonButtonType::Large;
+    btnFromBeginning.iconSymbol = L"▶";
+    btnFromBeginning.iconColor = COLOR_GREEN;
+    startShowGroup.buttons.push_back(btnFromBeginning);
+    
+    RibbonButton btnFromCurrent;
+    btnFromCurrent.id = IDB_SLIDESHOW_CURRENT;
+    btnFromCurrent.text = L"С текущего
+слайда";
+    btnFromCurrent.buttonType = RibbonButtonType::Large;
+    btnFromCurrent.iconSymbol = L"▶";
+    btnFromCurrent.iconColor = COLOR_ORANGE;
+    startShowGroup.buttons.push_back(btnFromCurrent);
+    
+    slideshowTab.groups.push_back(startShowGroup);
+    
+    g_ribbonTabs.push_back(slideshowTab);
+    
+    // ========== Вкладка "Рецензирование" ==========
+    RibbonTab reviewTab;
+    reviewTab.name = L"Рецензирование";
+    reviewTab.active = false;
+    
+    RibbonGroup proofingGroup;
+    proofingGroup.name = L"Правописание";
+    
+    RibbonButton btnSpelling;
+    btnSpelling.id = 0;
+    btnSpelling.text = L"Орфография";
+    btnSpelling.buttonType = RibbonButtonType::Large;
+    btnSpelling.iconSymbol = L"✓";
+    btnSpelling.iconColor = COLOR_GREEN;
+    proofingGroup.buttons.push_back(btnSpelling);
+    
+    reviewTab.groups.push_back(proofingGroup);
+    
+    g_ribbonTabs.push_back(reviewTab);
+    
+    // ========== Вкладка "Вид" ==========
+    RibbonTab viewTab;
+    viewTab.name = L"Вид";
+    viewTab.active = false;
+    
+    RibbonGroup presentationViewsGroup;
+    presentationViewsGroup.name = L"Режимы просмотра презентации";
+    
+    RibbonButton btnNormalView;
+    btnNormalView.id = IDM_VIEW_NORMAL;
+    btnNormalView.text = L"Обычный";
+    btnNormalView.buttonType = RibbonButtonType::Large;
+    btnNormalView.iconSymbol = L"📄";
+    btnNormalView.iconColor = COLOR_BLUE;
+    presentationViewsGroup.buttons.push_back(btnNormalView);
+    
+    RibbonButton btnSorterView;
+    btnSorterView.id = IDM_VIEW_SORTER;
+    btnSorterView.text = L"Сортировщик
+слайдов";
+    btnSorterView.buttonType = RibbonButtonType::Large;
+    btnSorterView.iconSymbol = L"⊞";
+    btnSorterView.iconColor = COLOR_BLUE;
+    presentationViewsGroup.buttons.push_back(btnSorterView);
+    
+    viewTab.groups.push_back(presentationViewsGroup);
+    
+    RibbonGroup showGroup;
+    showGroup.name = L"Показать";
+    
+    RibbonButton btnRuler;
+    btnRuler.id = IDM_VIEW_RULER;
+    btnRuler.text = L"Линейка";
+    btnRuler.buttonType = RibbonButtonType::Small;
+    btnRuler.iconSymbol = L"📏";
+    btnRuler.iconColor = COLOR_TEXT_MEDIUM;
+    showGroup.buttons.push_back(btnRuler);
+    
+    RibbonButton btnGridlines;
+    btnGridlines.id = IDM_VIEW_GRID;
+    btnGridlines.text = L"Сетка";
+    btnGridlines.buttonType = RibbonButtonType::Small;
+    btnGridlines.iconSymbol = L"#";
+    btnGridlines.iconColor = COLOR_TEXT_MEDIUM;
+    showGroup.buttons.push_back(btnGridlines);
+    
+    RibbonButton btnGuidesBtn;
+    btnGuidesBtn.id = IDM_VIEW_GUIDES;
+    btnGuidesBtn.text = L"Направляющие";
+    btnGuidesBtn.buttonType = RibbonButtonType::Small;
+    btnGuidesBtn.iconSymbol = L"+";
+    btnGuidesBtn.iconColor = COLOR_TEXT_MEDIUM;
+    showGroup.buttons.push_back(btnGuidesBtn);
+    
+    viewTab.groups.push_back(showGroup);
+    
+    RibbonGroup zoomGroup;
+    zoomGroup.name = L"Масштаб";
+    
+    RibbonButton btnZoom;
+    btnZoom.id = IDB_FIT_SLIDE;
+    btnZoom.text = L"Вписать в
+окно";
+    btnZoom.buttonType = RibbonButtonType::Large;
+    btnZoom.iconSymbol = L"⊡";
+    btnZoom.iconColor = COLOR_BLUE;
+    zoomGroup.buttons.push_back(btnZoom);
+    
+    viewTab.groups.push_back(zoomGroup);
+    
+    g_ribbonTabs.push_back(viewTab);
+    
+    // ========== Вкладка "Справка" ==========
+    RibbonTab helpTab;
+    helpTab.name = L"Справка";
+    helpTab.active = false;
+    
+    RibbonGroup helpGroup;
+    helpGroup.name = L"Справка";
+    
+    RibbonButton btnHelp;
+    btnHelp.id = IDM_HELP_ABOUT;
+    btnHelp.text = L"О программе";
+    btnHelp.buttonType = RibbonButtonType::Large;
+    btnHelp.iconSymbol = L"?";
+    btnHelp.iconColor = COLOR_BLUE;
+    helpGroup.buttons.push_back(btnHelp);
+    
+    helpTab.groups.push_back(helpGroup);
+    
+    g_ribbonTabs.push_back(helpTab);
+}
+
+// ============================================================================
+// РЕАЛИЗАЦИЯ ФУНКЦИЙ - ОТРИСОВКА RIBBON
+// ============================================================================
+
+void DrawRibbon(HDC hdc, RECT* rect) {
+    // Фон панели вкладок (красно-коричневый)
+    RECT tabBarRect = {0, 0, rect->right, g_tabBarHeight};
+    HBRUSH hBrushTabBar = CreateSolidBrush(COLOR_PP_RED);
+    FillRect(hdc, &tabBarRect, hBrushTabBar);
+    DeleteObject(hBrushTabBar);
+    
+    // Фон области содержимого Ribbon (светло-серый)
+    RECT contentRect = {0, g_tabBarHeight, rect->right, g_ribbonHeight};
+    HBRUSH hBrushContent = CreateSolidBrush(COLOR_RIBBON_BG);
+    FillRect(hdc, &contentRect, hBrushContent);
+    DeleteObject(hBrushContent);
+    
+    // Нижняя граница Ribbon
+    HPEN hPenBorder = CreatePen(PS_SOLID, 1, COLOR_BORDER_LIGHT);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+    MoveToEx(hdc, 0, g_ribbonHeight - 1, NULL);
+    LineTo(hdc, rect->right, g_ribbonHeight - 1);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPenBorder);
+    
+    // Отрисовка панели вкладок
+    DrawRibbonTabBar(hdc, rect);
+    
+    // Отрисовка содержимого активной вкладки
+    DrawRibbonContent(hdc, rect);
+}
+
+void DrawRibbonTabBar(HDC hdc, RECT* rect) {
+    SetBkMode(hdc, TRANSPARENT);
+    
+    // Кнопка "Файл"
+    g_fileButtonRect = {0, 0, 55, g_tabBarHeight};
+    
+    COLORREF fileColor = g_fileButtonHovered ? COLOR_FILE_RED_HOVER : COLOR_FILE_RED;
+    HBRUSH hBrushFile = CreateSolidBrush(fileColor);
+    FillRect(hdc, &g_fileButtonRect, hBrushFile);
+    DeleteObject(hBrushFile);
+    
+    HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontRibbonTab);
+    SetTextColor(hdc, COLOR_WHITE);
+    DrawText(hdc, L"Файл", -1, &g_fileButtonRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    
+    // Отрисовка вкладок
+    int tabX = 60;
+    for (int i = 0; i < (int)g_ribbonTabs.size(); i++) {
+        SIZE textSize;
+        GetTextExtentPoint32(hdc, g_ribbonTabs[i].name.c_str(), (int)g_ribbonTabs[i].name.length(), &textSize);
+        
+        int tabWidth = textSize.cx + 20;
+        g_ribbonTabs[i].tabRect = {tabX, 0, tabX + tabWidth, g_tabBarHeight};
+        
+        // Подсветка активной вкладки
+        if (i == g_activeTabIndex) {
+            // Активная вкладка - оранжевый фон
+            RECT activeRect = {tabX, 0, tabX + tabWidth, g_tabBarHeight};
+            HBRUSH hBrushActive = CreateSolidBrush(COLOR_PP_ORANGE);
+            FillRect(hdc, &activeRect, hBrushActive);
+            DeleteObject(hBrushActive);
+            SetTextColor(hdc, COLOR_WHITE);
+        } else if (i == g_hoveredTabIndex) {
+            // Hover - немного светлее
+            RECT hoverRect = {tabX, 0, tabX + tabWidth, g_tabBarHeight};
+            HBRUSH hBrushHover = CreateSolidBrush(COLOR_PP_RED_LIGHT);
+            FillRect(hdc, &hoverRect, hBrushHover);
+            DeleteObject(hBrushHover);
+            SetTextColor(hdc, COLOR_WHITE);
+        } else {
+            SetTextColor(hdc, COLOR_TAB_TEXT_INACTIVE);
+        }
+        
+        RECT tabTextRect = {tabX, 0, tabX + tabWidth, g_tabBarHeight};
+        DrawText(hdc, g_ribbonTabs[i].name.c_str(), -1, &tabTextRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        
+        tabX += tabWidth;
+    }
+    
+    // Правая часть панели вкладок
+    
+    // Поле поиска "Что вы хотите сделать?"
+    int searchX = tabX + 30;
+    int searchWidth = 200;
+    int searchHeight = 22;
+    int searchY = (g_tabBarHeight - searchHeight) / 2;
+    
+    // Фон поля поиска
+    RECT searchRect = {searchX, searchY, searchX + searchWidth, searchY + searchHeight};
+    HBRUSH hBrushSearch = CreateSolidBrush(RGB(150, 60, 58));
+    FillRect(hdc, &searchRect, hBrushSearch);
+    DeleteObject(hBrushSearch);
+    
+    // Иконка лампочки
+    SetTextColor(hdc, RGB(255, 200, 0));
+    SelectObject(hdc, g_hFontIconSmall);
+    TextOut(hdc, searchX + 5, searchY + 3, L"💡", 1);
+    
+    // Текст placeholder
+    SelectObject(hdc, g_hFontRibbonSmall);
+    SetTextColor(hdc, RGB(200, 180, 180));
+    TextOut(hdc, searchX + 25, searchY + 4, L"Что вы хотите сделать?", 21);
+    
+    // Кнопка "Общий доступ" справа
+    int shareWidth = 110;
+    int shareX = rect->right - shareWidth - 10;
+    RECT shareRect = {shareX, 2, shareX + shareWidth, g_tabBarHeight - 2};
+    
+    COLORREF shareColor = g_shareButtonHovered ? RGB(150, 60, 58) : COLOR_PP_RED;
+    HBRUSH hBrushShare = CreateSolidBrush(shareColor);
+    FillRect(hdc, &shareRect, hBrushShare);
+    DeleteObject(hBrushShare);
+    
+    // Рамка кнопки
+    HPEN hPenShare = CreatePen(PS_SOLID, 1, RGB(255, 200, 200));
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenShare);
+    SelectObject(hdc, GetStockObject(NULL_BRUSH));
+    Rectangle(hdc, shareRect.left, shareRect.top, shareRect.right, shareRect.bottom);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPenShare);
+    
+    // Текст кнопки
+    SelectObject(hdc, g_hFontRibbonTab);
+    SetTextColor(hdc, COLOR_WHITE);
+    DrawText(hdc, L"Общий доступ", -1, &shareRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    
+    SelectObject(hdc, hOldFont);
+}
+
+void DrawRibbonContent(HDC hdc, RECT* rect) {
+    if (g_activeTabIndex < 0 || g_activeTabIndex >= (int)g_ribbonTabs.size()) return;
+    
+    auto& tab = g_ribbonTabs[g_activeTabIndex];
+    
+    int groupX = 5;
+    int groupY = g_tabBarHeight + 3;
+    int groupHeight = g_ribbonHeight - g_tabBarHeight - 22;
+    
+    HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontRibbon);
+    SetBkMode(hdc, TRANSPARENT);
+    
+    for (auto& group : tab.groups) {
+        DrawRibbonGroup(hdc, &group, groupX, groupY, groupHeight);
+        groupX = group.rect.right + 8;
+    }
+    
+    SelectObject(hdc, hOldFont);
+}
+
+void DrawRibbonGroup(HDC hdc, RibbonGroup* group, int x, int y, int height) {
+    // Вычисляем ширину группы на основе кнопок
+    int groupWidth = 10;
+    int btnX = x + 5;
+    int btnY = y + 3;
+    
+    int largeButtonWidth = 50;
+    int smallButtonWidth = 22;
+    int smallButtonHeight = 20;
+    int largeButtonHeight = height - 20;
+    
+    // Первый проход - вычисление ширины и установка позиций кнопок
+    int currentX = btnX;
+    int smallButtonRow = 0;
+    int smallButtonStartX = currentX;
+    
+    for (size_t i = 0; i < group->buttons.size(); i++) {
+        auto& btn = group->buttons[i];
+        
+        if (btn.buttonType == RibbonButtonType::Large || 
+            btn.buttonType == RibbonButtonType::SplitLarge) {
+            // Большая кнопка
+            btn.rect = {currentX, btnY, currentX + largeButtonWidth, btnY + largeButtonHeight};
+            currentX += largeButtonWidth + 3;
+            smallButtonRow = 0;
+            smallButtonStartX = currentX;
+        } else {
+            // Маленькая кнопка
+            int btnWidth = (btn.buttonType == RibbonButtonType::SmallIconOnly) ? smallButtonWidth : 70;
+            
+            if (smallButtonRow == 0) {
+                btn.rect = {currentX, btnY, currentX + btnWidth, btnY + smallButtonHeight};
+                smallButtonRow = 1;
+            } else if (smallButtonRow == 1) {
+                btn.rect = {smallButtonStartX, btnY + smallButtonHeight + 2, 
+                           smallButtonStartX + btnWidth, btnY + smallButtonHeight * 2 + 2};
+                smallButtonRow = 2;
+            } else {
+                btn.rect = {smallButtonStartX, btnY + (smallButtonHeight + 2) * 2, 
+                           smallButtonStartX + btnWidth, btnY + smallButtonHeight * 3 + 4};
+                smallButtonRow = 0;
+                currentX = smallButtonStartX + btnWidth + 3;
+                smallButtonStartX = currentX;
+            }
+        }
+        
+        // Рисуем кнопку
+        DrawRibbonButton(hdc, &btn);
+    }
+    
+    groupWidth = currentX - x + 10;
+    
+    // Сохраняем rect группы
+    group->rect = {x, y, x + groupWidth, y + height + 15};
+    
+    // Разделитель справа
+    HPEN hPenSep = CreatePen(PS_SOLID, 1, COLOR_BORDER_LIGHT);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenSep);
+    MoveToEx(hdc, x + groupWidth + 3, y, NULL);
+    LineTo(hdc, x + groupWidth + 3, y + height);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPenSep);
+    
+    // Название группы внизу
+    RECT labelRect = {x, y + height, x + groupWidth, y + height + 15};
+    SetTextColor(hdc, COLOR_TEXT_MEDIUM);
+    SelectObject(hdc, g_hFontRibbonGroupLabel);
+    DrawText(hdc, group->name.c_str(), -1, &labelRect, DT_CENTER | DT_TOP | DT_SINGLELINE);
+    
+    // Маленькая стрелка для вызова диалога (если есть)
+    if (group->hasDialogLauncher) {
+        int arrowX = x + groupWidth - 12;
+        int arrowY = y + height + 2;
+        SetTextColor(hdc, COLOR_TEXT_LIGHT);
+        TextOut(hdc, arrowX, arrowY, L"↘", 1);
+    }
+}
+
+void DrawRibbonButton(HDC hdc, RibbonButton* btn) {
+    if (!btn) return;
+    
+    bool isLarge = (btn->buttonType == RibbonButtonType::Large || 
+                    btn->buttonType == RibbonButtonType::SplitLarge);
+    
+    // Фон кнопки при наведении
+    if (btn->hovered) {
+        HBRUSH hBrushHover = CreateSolidBrush(COLOR_TOOLBAR_HOVER);
+        FillRect(hdc, &btn->rect, hBrushHover);
+        DeleteObject(hBrushHover);
+        
+        HPEN hPenBorder = CreatePen(PS_SOLID, 1, COLOR_BORDER_LIGHT);
+        HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+        SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        Rectangle(hdc, btn->rect.left, btn->rect.top, btn->rect.right, btn->rect.bottom);
+        SelectObject(hdc, hOldPen);
+        DeleteObject(hPenBorder);
+    }
+    
+    if (btn->pressed || btn->isToggled) {
+        HBRUSH hBrushPressed = CreateSolidBrush(COLOR_TOOLBAR_PRESSED);
+        FillRect(hdc, &btn->rect, hBrushPressed);
+        DeleteObject(hBrushPressed);
+    }
+    
+    SetTextColor(hdc, btn->enabled ? btn->iconColor : COLOR_TEXT_LIGHT);
+    
+    if (isLarge) {
+        // Большая кнопка
+        HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontIcon);
+        
+        // Иконка сверху
+        RECT iconRect = btn->rect;
+        iconRect.bottom = iconRect.top + 32;
+        DrawText(hdc, btn->iconSymbol.c_str(), -1, &iconRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        
+        // Текст снизу
+        SelectObject(hdc, g_hFontRibbonSmall);
+        SetTextColor(hdc, btn->enabled ? COLOR_TEXT_DARK : COLOR_TEXT_LIGHT);
+        RECT textRect = btn->rect;
+        textRect.top = iconRect.bottom - 5;
+        textRect.bottom = btn->rect.bottom - 2;
+        DrawText(hdc, btn->text.c_str(), -1, &textRect, DT_CENTER | DT_TOP | DT_WORDBREAK);
+        
+        // Стрелка выпадающего меню
+        if (btn->hasDropdown) {
+            SetTextColor(hdc, COLOR_TEXT_MEDIUM);
+            RECT arrowRect = {btn->rect.right - 12, btn->rect.bottom - 12, btn->rect.right, btn->rect.bottom};
+            DrawText(hdc, L"▼", -1, &arrowRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+        
+        SelectObject(hdc, hOldFont);
+    } else {
+        // Маленькая кнопка
+        if (btn->buttonType == RibbonButtonType::SmallIconOnly) {
+            // Только иконка
+            HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontIconSmall);
+            DrawText(hdc, btn->iconSymbol.c_str(), -1, &btn->rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            SelectObject(hdc, hOldFont);
+            
+            if (btn->hasDropdown) {
+                SetTextColor(hdc, COLOR_TEXT_MEDIUM);
+                TextOut(hdc, btn->rect.right - 8, btn->rect.bottom - 10, L"▾", 1);
+            }
+        } else {
+            // Иконка слева, текст справа
+            HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontIconSmall);
+            RECT iconRect = {btn->rect.left + 2, btn->rect.top, btn->rect.left + 18, btn->rect.bottom};
+            DrawText(hdc, btn->iconSymbol.c_str(), -1, &iconRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            
+            SelectObject(hdc, g_hFontRibbonSmall);
+            SetTextColor(hdc, btn->enabled ? COLOR_TEXT_DARK : COLOR_TEXT_LIGHT);
+            RECT textRect = {btn->rect.left + 18, btn->rect.top, btn->rect.right - 2, btn->rect.bottom};
+            DrawText(hdc, btn->text.c_str(), -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            
+            if (btn->hasDropdown) {
+                SetTextColor(hdc, COLOR_TEXT_MEDIUM);
+                TextOut(hdc, btn->rect.right - 10, btn->rect.top + 5, L"▾", 1);
+            }
+            
+            SelectObject(hdc, hOldFont);
+        }
+    }
+}
+
+// ============================================================================
+// РЕАЛИЗАЦИЯ ФУНКЦИЙ - ОТРИСОВКА
+// ============================================================================
+
+void DrawAll(HDC hdc, RECT* clientRect) {
+    // Фон
+    HBRUSH hBrushBg = CreateSolidBrush(COLOR_BG_GRAY);
+    FillRect(hdc, clientRect, hBrushBg);
+    DeleteObject(hBrushBg);
+    
+    // Отрисовка компонентов
+    DrawRibbon(hdc, clientRect);
+    DrawThumbnailPanel(hdc, clientRect);
+    DrawSlideArea(hdc, clientRect);
+    DrawStatusBar(hdc, clientRect);
+    
+    if (g_showNotes && g_notesHeight > 0) {
+        DrawNotesPanel(hdc, clientRect);
+    }
+}
+
+void DrawThumbnailPanel(HDC hdc, RECT* clientRect) {
+    RECT thumbPanel;
+    thumbPanel.left = 0;
+    thumbPanel.top = g_ribbonHeight;
+    thumbPanel.right = g_thumbnailWidth;
+    thumbPanel.bottom = clientRect->bottom - g_statusBarHeight;
+    
+    HBRUSH hBrushBg = CreateSolidBrush(COLOR_PANEL_BG);
+    FillRect(hdc, &thumbPanel, hBrushBg);
+    DeleteObject(hBrushBg);
+    
+    HPEN hPenBorder = CreatePen(PS_SOLID, 1, COLOR_BORDER_LIGHT);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+    MoveToEx(hdc, g_thumbnailWidth, g_ribbonHeight, NULL);
+    LineTo(hdc, g_thumbnailWidth, clientRect->bottom - g_statusBarHeight);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPenBorder);
+    
+    int thumbMargin = 12;
+    int thumbSlideWidth = g_thumbnailWidth - thumbMargin * 2 - 25;
+    int thumbSlideHeight = (int)(thumbSlideWidth * 9.0 / 16.0);
+    int thumbX = thumbMargin + 20;
+    int thumbY = g_ribbonHeight + thumbMargin;
+    
+    HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontSlideNum);
+    SetBkMode(hdc, TRANSPARENT);
+    
+    for (int i = 0; i < (int)g_presentation.slides.size(); i++) {
+        bool isSelected = (i == g_currentSlideIndex);
+        
+        std::wstring slideNum = std::to_wstring(i + 1);
+        SetTextColor(hdc, isSelected ? COLOR_PP_ORANGE : COLOR_TEXT_MEDIUM);
+        TextOut(hdc, thumbMargin, thumbY + thumbSlideHeight / 2 - 8, slideNum.c_str(), (int)slideNum.length());
+        
+        DrawThumbnail(hdc, g_presentation.slides[i].get(), i, thumbX, thumbY, thumbSlideWidth, thumbSlideHeight, isSelected);
+        
+        thumbY += thumbSlideHeight + thumbMargin + 5;
+        
+        if (thumbY + thumbSlideHeight > clientRect->bottom - g_statusBarHeight) {
+            break;
+        }
+    }
+    
+    SelectObject(hdc, hOldFont);
+}
+
+void DrawThumbnail(HDC hdc, Slide* slide, int index, int x, int y, int width, int height, bool selected) {
+    RECT shadowRect = {x + 2, y + 2, x + width + 2, y + height + 2};
+    HBRUSH hBrushShadow = CreateSolidBrush(RGB(200, 200, 200));
+    FillRect(hdc, &shadowRect, hBrushShadow);
+    DeleteObject(hBrushShadow);
+    
+    RECT thumbRect = {x, y, x + width, y + height};
+    HBRUSH hBrushWhite = CreateSolidBrush(slide->backgroundColor);
+    FillRect(hdc, &thumbRect, hBrushWhite);
+    DeleteObject(hBrushWhite);
+    
+    DrawSlide(hdc, slide, x, y, width, height, false);
+    
+    if (selected) {
+        HPEN hPenOrange = CreatePen(PS_SOLID, 3, COLOR_PP_ORANGE);
+        HPEN hOldPen = (HPEN)SelectObject(hdc, hPenOrange);
+        SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        Rectangle(hdc, x - 2, y - 2, x + width + 2, y + height + 2);
+        SelectObject(hdc, hOldPen);
+        DeleteObject(hPenOrange);
+    } else {
+        HPEN hPenBorder = CreatePen(PS_SOLID, 1, COLOR_BORDER_DARK);
+        HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+        SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        Rectangle(hdc, x, y, x + width, y + height);
+        SelectObject(hdc, hOldPen);
+        DeleteObject(hPenBorder);
+    }
+}
+
+void DrawSlideArea(HDC hdc, RECT* clientRect) {
+    int slideAreaLeft = g_thumbnailWidth + 1;
+    int slideAreaTop = g_ribbonHeight;
+    int slideAreaWidth = clientRect->right - g_thumbnailWidth - 1;
+    int slideAreaHeight = clientRect->bottom - g_ribbonHeight - g_statusBarHeight - g_notesHeight;
+    
+    RECT slideAreaRect = {slideAreaLeft, slideAreaTop, clientRect->right, slideAreaTop + slideAreaHeight};
+    HBRUSH hBrushArea = CreateSolidBrush(RGB(83, 83, 83));
+    FillRect(hdc, &slideAreaRect, hBrushArea);
+    DeleteObject(hBrushArea);
+    
+    RECT slideRect = GetSlideRect(clientRect);
+    int slideX = slideRect.left;
+    int slideY = slideRect.top;
+    int slideWidth = slideRect.right - slideRect.left;
+    int slideHeight = slideRect.bottom - slideRect.top;
+    
+    RECT shadowRect = {slideX + 5, slideY + 5, slideX + slideWidth + 5, slideY + slideHeight + 5};
+    HBRUSH hBrushShadow = CreateSolidBrush(RGB(50, 50, 50));
+    FillRect(hdc, &shadowRect, hBrushShadow);
+    DeleteObject(hBrushShadow);
+    
+    if (g_currentSlideIndex >= 0 && g_currentSlideIndex < (int)g_presentation.slides.size()) {
+        DrawSlide(hdc, g_presentation.slides[g_currentSlideIndex].get(), slideX, slideY, slideWidth, slideHeight, true);
+    }
+    
+    HPEN hPenBorder = CreatePen(PS_SOLID, 1, RGB(150, 150, 150));
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+    SelectObject(hdc, GetStockObject(NULL_BRUSH));
+    Rectangle(hdc, slideX, slideY, slideX + slideWidth, slideY + slideHeight);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPenBorder);
+    
+    if (g_showGrid) {
+        HPEN hPenGrid = CreatePen(PS_DOT, 1, RGB(200, 200, 200));
+        SelectObject(hdc, hPenGrid);
+        
+        int gridSize = slideWidth / 20;
+        for (int gx = slideX + gridSize; gx < slideX + slideWidth; gx += gridSize) {
+            MoveToEx(hdc, gx, slideY, NULL);
+            LineTo(hdc, gx, slideY + slideHeight);
+        }
+        for (int gy = slideY + gridSize; gy < slideY + slideHeight; gy += gridSize) {
+            MoveToEx(hdc, slideX, gy, NULL);
+            LineTo(hdc, slideX + slideWidth, gy);
+        }
+        
+        DeleteObject(hPenGrid);
+    }
+    
+    if (g_showGuides) {
+        HPEN hPenGuide = CreatePen(PS_DASH, 1, COLOR_BLUE);
+        SelectObject(hdc, hPenGuide);
+        
+        int centerX = slideX + slideWidth / 2;
+        int centerY = slideY + slideHeight / 2;
+        
+        MoveToEx(hdc, centerX, slideY, NULL);
+        LineTo(hdc, centerX, slideY + slideHeight);
+        MoveToEx(hdc, slideX, centerY, NULL);
+        LineTo(hdc, slideX + slideWidth, centerY);
+        
+        DeleteObject(hPenGuide);
+    }
+}
+
+void DrawSlide(HDC hdc, Slide* slide, int x, int y, int width, int height, bool isMainView) {
+    RECT slideRect = {x, y, x + width, y + height};
+    HBRUSH hBrushBg = CreateSolidBrush(slide->backgroundColor);
+    FillRect(hdc, &slideRect, hBrushBg);
+    DeleteObject(hBrushBg);
+    
+    if (slide->hBackgroundBitmap) {
+        HDC hdcMem = CreateCompatibleDC(hdc);
+        SelectObject(hdcMem, slide->hBackgroundBitmap);
+        
+        BITMAP bm;
+        GetObject(slide->hBackgroundBitmap, sizeof(BITMAP), &bm);
+        
+        SetStretchBltMode(hdc, HALFTONE);
+        StretchBlt(hdc, x, y, width, height, hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
+        
+        DeleteDC(hdcMem);
+    }
+    
+    for (auto& element : slide->elements) {
+        if (!element->visible) continue;
+        DrawSlideElement(hdc, element.get(), x, y, width, height);
+    }
+}
+
+void DrawSlideElement(HDC hdc, SlideElement* element, int slideX, int slideY, int slideWidth, int slideHeight) {
+    RECT rect = GetElementRect(element, slideX, slideY, slideWidth, slideHeight);
+    
+    switch (element->type) {
+        case SlideElementType::TextBox:
+            DrawTextElement(hdc, element, &rect);
+            break;
+        case SlideElementType::Image:
+            DrawImageElement(hdc, element, &rect);
+            break;
+        case SlideElementType::Shape:
+            DrawShapeElement(hdc, element, &rect);
+            break;
+        default:
+            break;
+    }
+    
+    if (element->selected) {
+        DrawSelectionHandles(hdc, &rect);
+    }
+}
+
+void DrawTextElement(HDC hdc, SlideElement* element, RECT* rect) {
+    int scaledFontSize = element->fontSize * (rect->right - rect->left) /
+                          (element->width * g_presentation.slideWidth / 10000);
+    if (scaledFontSize < 6) scaledFontSize = 6;
+    if (scaledFontSize > 200) scaledFontSize = 200;
+    
+    HFONT hFont = CreateFont(
+        scaledFontSize, 0, 0, 0,
+        element->bold ? FW_BOLD : FW_NORMAL,
+        element->italic, element->underline, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS,
+        element->fontName.c_str()
+    );
+    
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    SetTextColor(hdc, element->textColor);
+    SetBkMode(hdc, TRANSPARENT);
+    
+    if (element->fillColor != COLOR_WHITE || element->borderWidth > 0) {
+        HBRUSH hBrushFill = CreateSolidBrush(element->fillColor);
+        HPEN hPenBorder = CreatePen(PS_SOLID, element->borderWidth, element->borderColor);
+        
+        HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hBrushFill);
+        HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+        
+        Rectangle(hdc, rect->left, rect->top, rect->right, rect->bottom);
+        
+        SelectObject(hdc, hOldBrush);
+        SelectObject(hdc, hOldPen);
+        DeleteObject(hBrushFill);
+        DeleteObject(hPenBorder);
+    }
+    
+    RECT textRect = *rect;
+    InflateRect(&textRect, -5, -5);
+    DrawText(hdc, element->text.c_str(), -1, &textRect, DT_LEFT | DT_TOP | DT_WORDBREAK);
+    
+    SelectObject(hdc, hOldFont);
+    DeleteObject(hFont);
+}
+
+void DrawImageElement(HDC hdc, SlideElement* element, RECT* rect) {
+    if (element->hBitmap) {
+        HDC hdcMem = CreateCompatibleDC(hdc);
+        HBITMAP hOldBitmap = (HBITMAP)SelectObject(hdcMem, element->hBitmap);
+        
+        BITMAP bm;
+        GetObject(element->hBitmap, sizeof(BITMAP), &bm);
+        
+        SetStretchBltMode(hdc, HALFTONE);
+        StretchBlt(hdc, rect->left, rect->top, rect->right - rect->left, rect->bottom - rect->top,
+                   hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
+        
+        SelectObject(hdcMem, hOldBitmap);
+        DeleteDC(hdcMem);
+    } else {
+        HBRUSH hBrushFill = CreateSolidBrush(RGB(240, 240, 240));
+        FillRect(hdc, rect, hBrushFill);
+        DeleteObject(hBrushFill);
+        
+        HPEN hPenBorder = CreatePen(PS_SOLID, 1, RGB(200, 200, 200));
+        HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+        SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        Rectangle(hdc, rect->left, rect->top, rect->right, rect->bottom);
+        SelectObject(hdc, hOldPen);
+        DeleteObject(hPenBorder);
+        
+        SetTextColor(hdc, RGB(180, 180, 180));
+        HFONT hIconFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
+        HFONT hOldFont = (HFONT)SelectObject(hdc, hIconFont);
+        DrawText(hdc, L"🖼", -1, rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, hOldFont);
+        DeleteObject(hIconFont);
+    }
+    
+    if (element->borderWidth > 0) {
+        HPEN hPenBorder = CreatePen(PS_SOLID, element->borderWidth, element->borderColor);
+        HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+        SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        Rectangle(hdc, rect->left, rect->top, rect->right, rect->bottom);
+        SelectObject(hdc, hOldPen);
+        DeleteObject(hPenBorder);
+    }
+}
+
+void DrawShapeElement(HDC hdc, SlideElement* element, RECT* rect) {
+    HBRUSH hBrushFill = CreateSolidBrush(element->fillColor);
+    HPEN hPenBorder = CreatePen(PS_SOLID, element->borderWidth, element->borderColor);
+    
+    HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hBrushFill);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+    
+    switch (element->shapeType) {
+        case ShapeType::Rectangle:
+            Rectangle(hdc, rect->left, rect->top, rect->right, rect->bottom);
+            break;
+            
+        case ShapeType::RoundedRect:
+            RoundRect(hdc, rect->left, rect->top, rect->right, rect->bottom, 20, 20);
+            break;
+            
+        case ShapeType::Ellipse:
+            Ellipse(hdc, rect->left, rect->top, rect->right, rect->bottom);
+            break;
+            
+        case ShapeType::Triangle: {
+            POINT points[3] = {
+                {(rect->left + rect->right) / 2, rect->top},
+                {rect->left, rect->bottom},
+                {rect->right, rect->bottom}
+            };
+            Polygon(hdc, points, 3);
+            break;
+        }
+        
+        case ShapeType::Diamond: {
+            int cx = (rect->left + rect->right) / 2;
+            int cy = (rect->top + rect->bottom) / 2;
+            POINT points[4] = {
+                {cx, rect->top},
+                {rect->right, cy},
+                {cx, rect->bottom},
+                {rect->left, cy}
+            };
+            Polygon(hdc, points, 4);
+            break;
+        }
+        
+        case ShapeType::Star: {
+            int cx = (rect->left + rect->right) / 2;
+            int cy = (rect->top + rect->bottom) / 2;
+            int r1 = (rect->right - rect->left) / 2;
+            int r2 = r1 / 2;
+            
+            POINT points[10];
+            for (int i = 0; i < 10; i++) {
+                double angle = -3.14159 / 2 + i * 3.14159 / 5;
+                int r = (i % 2 == 0) ? r1 : r2;
+                points[i].x = cx + (int)(r * cos(angle));
+                points[i].y = cy + (int)(r * sin(angle));
+            }
+            Polygon(hdc, points, 10);
+            break;
+        }
+        
+        case ShapeType::Arrow: {
+            int midY = (rect->top + rect->bottom) / 2;
+            int arrowWidth = (rect->right - rect->left) / 4;
+            int arrowHeight = (rect->bottom - rect->top) / 3;
+            
+            POINT points[7] = {
+                {rect->left, midY - arrowHeight / 2},
+                {rect->right - arrowWidth, midY - arrowHeight / 2},
+                {rect->right - arrowWidth, rect->top},
+                {rect->right, midY},
+                {rect->right - arrowWidth, rect->bottom},
+                {rect->right - arrowWidth, midY + arrowHeight / 2},
+                {rect->left, midY + arrowHeight / 2}
+            };
+            Polygon(hdc, points, 7);
+            break;
+        }
+        
+        case ShapeType::Line:
+            MoveToEx(hdc, rect->left, rect->top, NULL);
+            LineTo(hdc, rect->right, rect->bottom);
+            break;
+            
+        default:
+            Rectangle(hdc, rect->left, rect->top, rect->right, rect->bottom);
+            break;
+    }
+    
+    SelectObject(hdc, hOldBrush);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hBrushFill);
+    DeleteObject(hPenBorder);
+}
+
+void DrawSelectionHandles(HDC hdc, RECT* rect) {
+    HPEN hPenSelection = CreatePen(PS_SOLID, 1, COLOR_SELECTION);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenSelection);
+    SelectObject(hdc, GetStockObject(NULL_BRUSH));
+    Rectangle(hdc, rect->left, rect->top, rect->right, rect->bottom);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPenSelection);
+    
+    int handleSize = 8;
+    HBRUSH hBrushHandle = CreateSolidBrush(COLOR_SELECTION);
+    HPEN hPenHandle = CreatePen(PS_SOLID, 1, COLOR_WHITE);
+    
+    SelectObject(hdc, hBrushHandle);
+    SelectObject(hdc, hPenHandle);
+    
+    Rectangle(hdc, rect->left - handleSize/2, rect->top - handleSize/2,
+               rect->left + handleSize/2, rect->top + handleSize/2);
+    Rectangle(hdc, rect->right - handleSize/2, rect->top - handleSize/2,
+               rect->right + handleSize/2, rect->top + handleSize/2);
+    Rectangle(hdc, rect->right - handleSize/2, rect->bottom - handleSize/2,
+               rect->right + handleSize/2, rect->bottom + handleSize/2);
+    Rectangle(hdc, rect->left - handleSize/2, rect->bottom - handleSize/2,
+               rect->left + handleSize/2, rect->bottom + handleSize/2);
+    
+    int midX = (rect->left + rect->right) / 2;
+    int midY = (rect->top + rect->bottom) / 2;
+    
+    Rectangle(hdc, midX - handleSize/2, rect->top - handleSize/2,
+               midX + handleSize/2, rect->top + handleSize/2);
+    Rectangle(hdc, rect->right - handleSize/2, midY - handleSize/2,
+               rect->right + handleSize/2, midY + handleSize/2);
+    Rectangle(hdc, midX - handleSize/2, rect->bottom - handleSize/2,
+               midX + handleSize/2, rect->bottom + handleSize/2);
+    Rectangle(hdc, rect->left - handleSize/2, midY - handleSize/2,
+               rect->left + handleSize/2, midY + handleSize/2);
+    
+    DeleteObject(hBrushHandle);
+    DeleteObject(hPenHandle);
+}
+
+void DrawStatusBar(HDC hdc, RECT* clientRect) {
+    RECT statusRect = {0, clientRect->bottom - g_statusBarHeight, clientRect->right, clientRect->bottom};
+    HBRUSH hBrushStatus = CreateSolidBrush(COLOR_STATUS_BAR);
+    FillRect(hdc, &statusRect, hBrushStatus);
+    DeleteObject(hBrushStatus);
+    
+    HPEN hPenBorder = CreatePen(PS_SOLID, 1, COLOR_BORDER_LIGHT);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+    MoveToEx(hdc, 0, clientRect->bottom - g_statusBarHeight, NULL);
+    LineTo(hdc, clientRect->right, clientRect->bottom - g_statusBarHeight);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPenBorder);
+    
+    HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontStatus);
+    SetTextColor(hdc, COLOR_TEXT_MEDIUM);
+    SetBkMode(hdc, TRANSPARENT);
+    
+    int yText = clientRect->bottom - g_statusBarHeight + 5;
+    int xPos = 15;
+    
+    std::wstring slideInfo = L"Слайд " + std::to_wstring(g_currentSlideIndex + 1) +
+                              L" из " + std::to_wstring(g_presentation.slides.size());
+    TextOut(hdc, xPos, yText, slideInfo.c_str(), (int)slideInfo.length());
+    
+    // Масштаб справа
+    int rightX = clientRect->right - 150;
+    std::wstring zoomText = std::to_wstring(g_zoomLevel) + L"%";
+    TextOut(hdc, rightX + 80, yText, zoomText.c_str(), (int)zoomText.length());
+    
+    SelectObject(hdc, hOldFont);
+}
+
+void DrawNotesPanel(HDC hdc, RECT* clientRect) {
+    int panelTop = clientRect->bottom - g_statusBarHeight - g_notesHeight;
+    
+    RECT notesRect = {g_thumbnailWidth + 1, panelTop, clientRect->right, clientRect->bottom - g_statusBarHeight};
+    
+    HBRUSH hBrushBg = CreateSolidBrush(COLOR_WHITE);
+    FillRect(hdc, &notesRect, hBrushBg);
+    DeleteObject(hBrushBg);
+    
+    HPEN hPenBorder = CreatePen(PS_SOLID, 1, COLOR_BORDER_LIGHT);
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+    MoveToEx(hdc, g_thumbnailWidth + 1, panelTop, NULL);
+    LineTo(hdc, clientRect->right, panelTop);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPenBorder);
+    
+    HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontStatus);
+    SetTextColor(hdc, COLOR_TEXT_MEDIUM);
+    SetBkMode(hdc, TRANSPARENT);
+    TextOut(hdc, g_thumbnailWidth + 15, panelTop + 8, L"Заметки к слайду:", 17);
+    
+    if (g_currentSlideIndex >= 0 && g_currentSlideIndex < (int)g_presentation.slides.size()) {
+        auto& slide = g_presentation.slides[g_currentSlideIndex];
+        if (!slide->notes.empty()) {
+            RECT textRect = {g_thumbnailWidth + 15, panelTop + 30, clientRect->right - 15, clientRect->bottom - g_statusBarHeight - 10};
+            SetTextColor(hdc, COLOR_TEXT_DARK);
+            DrawText(hdc, slide->notes.c_str(), -1, &textRect, DT_LEFT | DT_TOP | DT_WORDBREAK);
+        } else {
+            RECT textRect = {g_thumbnailWidth + 15, panelTop + 30, clientRect->right - 15, clientRect->bottom - g_statusBarHeight - 10};
+            SetTextColor(hdc, COLOR_TEXT_LIGHT);
+            DrawText(hdc, L"Нажмите, чтобы добавить заметки...", -1, &textRect, DT_LEFT | DT_TOP);
+        }
+    }
+    
+    SelectObject(hdc, hOldFont);
+}
+
+// ============================================================================
+// РЕАЛИЗАЦИЯ ФУНКЦИЙ - УПРАВЛЕНИЕ ПРЕЗЕНТАЦИЕЙ
+// ============================================================================
+
+void NewPresentation() {
+    g_presentation = Presentation();
+    g_currentSlideIndex = 0;
+    g_selectedElementIndex = -1;
+    
+    AddSlide(SlideLayout::TitleSlide);
+    
+    ClearUndoHistory();
+    SetModified(false);
+    UpdateWindowTitle();
+}
+
+void OpenPresentation() {
+    OPENFILENAME ofn = {0};
+    wchar_t szFile[260] = {0};
+    
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = g_hWnd;
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile) / sizeof(wchar_t);
+    ofn.lpstrFilter = L"Презентации PowerPoint Clone\0*.pptc\0Все файлы\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+    
+    if (GetOpenFileName(&ofn)) {
+        MessageBox(g_hWnd, L"Функция открытия файла будет реализована в следующей версии.",
+                    L"Информация", MB_OK | MB_ICONINFORMATION);
+    }
+}
+
+void SavePresentation() {
+    if (g_presentation.filePath.empty()) {
+        SavePresentationAs();
+    } else {
+        SetModified(false);
+        MessageBox(g_hWnd, L"Презентация сохранена.", L"Информация", MB_OK | MB_ICONINFORMATION);
+    }
+}
+
+void SavePresentationAs() {
+    OPENFILENAME ofn = {0};
+    wchar_t szFile[260] = {0};
+    
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = g_hWnd;
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile) / sizeof(wchar_t);
+    ofn.lpstrFilter = L"Презентации PowerPoint Clone\0*.pptc\0Все файлы\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrDefExt = L"pptc";
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
+    
+    if (GetSaveFileName(&ofn)) {
+        g_presentation.filePath = szFile;
+        SetModified(false);
+        UpdateWindowTitle();
+        MessageBox(g_hWnd, L"Презентация сохранена.", L"Информация", MB_OK | MB_ICONINFORMATION);
+    }
+}
+
+void ExportPresentation() {
+    MessageBox(g_hWnd, L"Функция экспорта будет реализована в следующей версии.
+
+Планируемые форматы:
+- PDF
+- Изображения (PNG, JPEG)
+- Видео",
+                L"Экспорт презентации", MB_OK | MB_ICONINFORMATION);
+}
+
+void PrintPresentation() {
+    MessageBox(g_hWnd, L"Функция печати будет реализована в следующей версии.",
+                L"Печать", MB_OK | MB_ICONINFORMATION);
+}
+
+void AddSlide(SlideLayout layout) {
+    auto newSlide = std::make_shared<Slide>();
+    newSlide->layout = layout;
+    newSlide->title = L"Слайд " + std::to_wstring(g_presentation.slides.size() + 1);
+    
+    CreateDefaultSlideContent(newSlide.get());
+    
+    if (g_presentation.slides.empty()) {
+        g_presentation.slides.push_back(newSlide);
+        g_currentSlideIndex = 0;
+    } else {
+        g_presentation.slides.insert(g_presentation.slides.begin() + g_currentSlideIndex + 1, newSlide);
+        g_currentSlideIndex++;
+    }
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void CreateDefaultSlideContent(Slide* slide) {
+    switch (slide->layout) {
+        case SlideLayout::TitleSlide: {
+            auto titleElement = std::make_shared<SlideElement>();
+            titleElement->type = SlideElementType::TextBox;
+            titleElement->x = 1000;
+            titleElement->y = 3000;
+            titleElement->width = 8000;
+            titleElement->height = 1500;
+            titleElement->text = L"Заголовок слайда";
+            titleElement->fontName = L"Segoe UI Light";
+            titleElement->fontSize = 48;
+            titleElement->textColor = RGB(50, 50, 50);
+            slide->elements.push_back(titleElement);
+            
+            auto subtitleElement = std::make_shared<SlideElement>();
+            subtitleElement->type = SlideElementType::TextBox;
+            subtitleElement->x = 2000;
+            subtitleElement->y = 5500;
+            subtitleElement->width = 6000;
+            subtitleElement->height = 1000;
+            subtitleElement->text = L"Подзаголовок слайда";
+            subtitleElement->fontName = L"Segoe UI";
+            subtitleElement->fontSize = 24;
+            subtitleElement->textColor = RGB(100, 100, 100);
+            slide->elements.push_back(subtitleElement);
+            break;
+        }
+        
+        case SlideLayout::TitleAndContent: {
+            auto titleElement = std::make_shared<SlideElement>();
+            titleElement->type = SlideElementType::TextBox;
+            titleElement->x = 500;
+            titleElement->y = 500;
+            titleElement->width = 9000;
+            titleElement->height = 1200;
+            titleElement->text = L"Заголовок слайда";
+            titleElement->fontName = L"Segoe UI";
+            titleElement->fontSize = 36;
+            titleElement->textColor = RGB(50, 50, 50);
+            slide->elements.push_back(titleElement);
+            
+            auto contentElement = std::make_shared<SlideElement>();
+            contentElement->type = SlideElementType::TextBox;
+            contentElement->x = 500;
+            contentElement->y = 2000;
+            contentElement->width = 9000;
+            contentElement->height = 7000;
+            contentElement->text = L"• Первый пункт
+• Второй пункт
+• Третий пункт";
+            contentElement->fontName = L"Segoe UI";
+            contentElement->fontSize = 24;
+            contentElement->textColor = RGB(80, 80, 80);
+            slide->elements.push_back(contentElement);
+            break;
+        }
+        
+        case SlideLayout::Blank:
+            break;
+            
+        default:
+            break;
+    }
+}
+
+void DuplicateSlide(int index) {
+    if (index < 0 || index >= (int)g_presentation.slides.size()) return;
+    
+    auto originalSlide = g_presentation.slides[index];
+    auto newSlide = std::make_shared<Slide>();
+    
+    newSlide->backgroundColor = originalSlide->backgroundColor;
+    newSlide->backgroundImage = originalSlide->backgroundImage;
+    newSlide->layout = originalSlide->layout;
+    newSlide->notes = originalSlide->notes;
+    newSlide->transition = originalSlide->transition;
+    newSlide->transitionDuration = originalSlide->transitionDuration;
+    newSlide->hidden = originalSlide->hidden;
+    newSlide->title = originalSlide->title + L" (копия)";
+    
+    for (auto& elem : originalSlide->elements) {
+        auto newElem = std::make_shared<SlideElement>();
+        *newElem = *elem;
+        newElem->hBitmap = NULL;
+        newSlide->elements.push_back(newElem);
+    }
+    
+    g_presentation.slides.insert(g_presentation.slides.begin() + index + 1, newSlide);
+    g_currentSlideIndex = index + 1;
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void DeleteSlide(int index) {
+    if (index < 0 || index >= (int)g_presentation.slides.size()) return;
+    if (g_presentation.slides.size() <= 1) {
+        MessageBox(g_hWnd, L"Невозможно удалить последний слайд.", L"Предупреждение", MB_OK | MB_ICONWARNING);
+        return;
+    }
+    
+    g_presentation.slides.erase(g_presentation.slides.begin() + index);
+    
+    if (g_currentSlideIndex >= (int)g_presentation.slides.size()) {
+        g_currentSlideIndex = (int)g_presentation.slides.size() - 1;
+    }
+    
+    g_selectedElementIndex = -1;
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void MoveSlideUp(int index) {
+    if (index <= 0 || index >= (int)g_presentation.slides.size()) return;
+    
+    std::swap(g_presentation.slides[index], g_presentation.slides[index - 1]);
+    g_currentSlideIndex = index - 1;
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void MoveSlideDown(int index) {
+    if (index < 0 || index >= (int)g_presentation.slides.size() - 1) return;
+    
+    std::swap(g_presentation.slides[index], g_presentation.slides[index + 1]);
+    g_currentSlideIndex = index + 1;
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void SelectSlide(int index) {
+    if (index < 0 || index >= (int)g_presentation.slides.size()) return;
+    
+    g_currentSlideIndex = index;
+    g_selectedElementIndex = -1;
+    DeselectAllElements();
+    
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void ChangeSlideLayout(int index, SlideLayout layout) {
+    if (index < 0 || index >= (int)g_presentation.slides.size()) return;
+    
+    g_presentation.slides[index]->layout = layout;
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+// ============================================================================
+// РЕАЛИЗАЦИЯ ФУНКЦИЙ - УПРАВЛЕНИЕ ЭЛЕМЕНТАМИ
+// ============================================================================
+
+void AddElement(SlideElementType type) {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    
+    auto element = std::make_shared<SlideElement>();
+    element->type = type;
+    element->x = 2000;
+    element->y = 2000;
+    element->width = 4000;
+    element->height = 2000;
+    element->zOrder = (int)g_presentation.slides[g_currentSlideIndex]->elements.size();
+    
+    g_presentation.slides[g_currentSlideIndex]->elements.push_back(element);
+    g_selectedElementIndex = (int)g_presentation.slides[g_currentSlideIndex]->elements.size() - 1;
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void AddTextBox() {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    
+    auto element = std::make_shared<SlideElement>();
+    element->type = SlideElementType::TextBox;
+    element->x = 2000;
+    element->y = 2000;
+    element->width = 5000;
+    element->height = 2000;
+    element->text = L"Введите текст";
+    element->fontName = L"Segoe UI";
+    element->fontSize = 18;
+    element->textColor = RGB(50, 50, 50);
+    element->fillColor = COLOR_WHITE;
+    element->borderColor = RGB(200, 200, 200);
+    element->borderWidth = 1;
+    element->zOrder = (int)g_presentation.slides[g_currentSlideIndex]->elements.size();
+    
+    g_presentation.slides[g_currentSlideIndex]->elements.push_back(element);
+    g_selectedElementIndex = (int)g_presentation.slides[g_currentSlideIndex]->elements.size() - 1;
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void AddImage() {
+    OPENFILENAME ofn = {0};
+    wchar_t szFile[260] = {0};
+    
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = g_hWnd;
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile) / sizeof(wchar_t);
+    ofn.lpstrFilter = L"Изображения\0*.bmp;*.jpg;*.jpeg;*.png;*.gif;*.tiff\0Все файлы\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+    
+    if (GetOpenFileName(&ofn)) {
+        if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+        
+        auto element = std::make_shared<SlideElement>();
+        element->type = SlideElementType::Image;
+        element->x = 2000;
+        element->y = 2000;
+        element->width = 4000;
+        element->height = 3000;
+        element->imagePath = szFile;
+        element->hBitmap = LoadImageFromFile(szFile);
+        element->zOrder = (int)g_presentation.slides[g_currentSlideIndex]->elements.size();
+        
+        g_presentation.slides[g_currentSlideIndex]->elements.push_back(element);
+        g_selectedElementIndex = (int)g_presentation.slides[g_currentSlideIndex]->elements.size() - 1;
+        
+        SetModified(true);
+        InvalidateRect(g_hWnd, NULL, TRUE);
+    }
+}
+
+void AddImageFromUrl() {
+    wchar_t url[1024] = {0};
+    
+    int result = MessageBox(g_hWnd, 
+        L"Для вставки изображения из интернета:
+
+"
+        L"1. Скопируйте URL изображения в буфер обмена
+"
+        L"2. Нажмите OK
+
+"
+        L"Поддерживаемые форматы: PNG, JPG, GIF, BMP",
+        L"Вставка изображения из URL", MB_OKCANCEL | MB_ICONINFORMATION);
+    
+    if (result == IDOK) {
+        if (OpenClipboard(g_hWnd)) {
+            HANDLE hData = GetClipboardData(CF_UNICODETEXT);
+            if (hData) {
+                wchar_t* pszText = (wchar_t*)GlobalLock(hData);
+                if (pszText) {
+                    wcscpy_s(url, 1024, pszText);
+                    GlobalUnlock(hData);
+                }
+            }
+            CloseClipboard();
+        }
+        
+        if (wcslen(url) > 0 && (wcsstr(url, L"http://") || wcsstr(url, L"https://"))) {
+            if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+            
+            auto element = std::make_shared<SlideElement>();
+            element->type = SlideElementType::Image;
+            element->x = 2000;
+            element->y = 2000;
+            element->width = 4000;
+            element->height = 3000;
+            element->imageUrl = url;
+            element->hBitmap = LoadImageFromUrl(url);
+            element->zOrder = (int)g_presentation.slides[g_currentSlideIndex]->elements.size();
+            
+            if (element->hBitmap) {
+                g_presentation.slides[g_currentSlideIndex]->elements.push_back(element);
+                g_selectedElementIndex = (int)g_presentation.slides[g_currentSlideIndex]->elements.size() - 1;
+                SetModified(true);
+                InvalidateRect(g_hWnd, NULL, TRUE);
+            } else {
+                MessageBox(g_hWnd, L"Не удалось загрузить изображение по указанному URL.",
+                            L"Ошибка", MB_OK | MB_ICONERROR);
+            }
+        } else {
+            MessageBox(g_hWnd, L"В буфере обмена не найден корректный URL.",
+                        L"Ошибка", MB_OK | MB_ICONERROR);
+        }
+    }
+}
+
+void AddShape(ShapeType type) {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    
+    auto element = std::make_shared<SlideElement>();
+    element->type = SlideElementType::Shape;
+    element->shapeType = type;
+    element->x = 2000;
+    element->y = 2000;
+    element->width = 3000;
+    element->height = 2000;
+    element->fillColor = RGB(68, 114, 196);
+    element->borderColor = RGB(48, 94, 176);
+    element->borderWidth = 2;
+    element->zOrder = (int)g_presentation.slides[g_currentSlideIndex]->elements.size();
+    
+    g_presentation.slides[g_currentSlideIndex]->elements.push_back(element);
+    g_selectedElementIndex = (int)g_presentation.slides[g_currentSlideIndex]->elements.size() - 1;
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void DeleteSelectedElement() {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    if (g_selectedElementIndex < 0 || g_selectedElementIndex >= (int)g_presentation.slides[g_currentSlideIndex]->elements.size()) return;
+    
+    g_presentation.slides[g_currentSlideIndex]->elements.erase(
+        g_presentation.slides[g_currentSlideIndex]->elements.begin() + g_selectedElementIndex
+    );
+    
+    g_selectedElementIndex = -1;
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void DuplicateSelectedElement() {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    if (g_selectedElementIndex < 0 || g_selectedElementIndex >= (int)g_presentation.slides[g_currentSlideIndex]->elements.size()) return;
+    
+    auto original = g_presentation.slides[g_currentSlideIndex]->elements[g_selectedElementIndex];
+    auto copy = std::make_shared<SlideElement>();
+    *copy = *original;
+    copy->x += 200;
+    copy->y += 200;
+    copy->hBitmap = NULL;
+    copy->selected = false;
+    copy->zOrder = (int)g_presentation.slides[g_currentSlideIndex]->elements.size();
+    
+    if (copy->type == SlideElementType::Image) {
+        if (!copy->imagePath.empty()) {
+            copy->hBitmap = LoadImageFromFile(copy->imagePath);
+        } else if (!copy->imageUrl.empty()) {
+            copy->hBitmap = LoadImageFromUrl(copy->imageUrl);
+        }
+    }
+    
+    g_presentation.slides[g_currentSlideIndex]->elements.push_back(copy);
+    g_selectedElementIndex = (int)g_presentation.slides[g_currentSlideIndex]->elements.size() - 1;
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void CopySelectedElement() {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    if (g_selectedElementIndex < 0 || g_selectedElementIndex >= (int)g_presentation.slides[g_currentSlideIndex]->elements.size()) return;
+    
+    g_clipboardElement = std::make_shared<SlideElement>();
+    *g_clipboardElement = *g_presentation.slides[g_currentSlideIndex]->elements[g_selectedElementIndex];
+    g_clipboardElement->hBitmap = NULL;
+}
+
+void PasteElement() {
+    if (!g_clipboardElement) return;
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    
+    auto newElement = std::make_shared<SlideElement>();
+    *newElement = *g_clipboardElement;
+    newElement->x += 200;
+    newElement->y += 200;
+    newElement->selected = false;
+    newElement->zOrder = (int)g_presentation.slides[g_currentSlideIndex]->elements.size();
+    
+    if (newElement->type == SlideElementType::Image) {
+        if (!newElement->imagePath.empty()) {
+            newElement->hBitmap = LoadImageFromFile(newElement->imagePath);
+        } else if (!newElement->imageUrl.empty()) {
+            newElement->hBitmap = LoadImageFromUrl(newElement->imageUrl);
+        }
+    }
+    
+    g_presentation.slides[g_currentSlideIndex]->elements.push_back(newElement);
+    g_selectedElementIndex = (int)g_presentation.slides[g_currentSlideIndex]->elements.size() - 1;
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void CutSelectedElement() {
+    CopySelectedElement();
+    DeleteSelectedElement();
+}
+
+void SelectElement(int index) {
+    DeselectAllElements();
+    
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    if (index < 0 || index >= (int)g_presentation.slides[g_currentSlideIndex]->elements.size()) {
+        g_selectedElementIndex = -1;
+        return;
+    }
+    
+    g_selectedElementIndex = index;
+    g_presentation.slides[g_currentSlideIndex]->elements[index]->selected = true;
+    
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void DeselectAllElements() {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    
+    for (auto& elem : g_presentation.slides[g_currentSlideIndex]->elements) {
+        elem->selected = false;
+    }
+}
+
+void MoveElement(int dx, int dy) {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    if (g_selectedElementIndex < 0 || g_selectedElementIndex >= (int)g_presentation.slides[g_currentSlideIndex]->elements.size()) return;
+    
+    auto& elem = g_presentation.slides[g_currentSlideIndex]->elements[g_selectedElementIndex];
+    elem->x += dx;
+    elem->y += dy;
+    
+    if (elem->x < 0) elem->x = 0;
+    if (elem->y < 0) elem->y = 0;
+    if (elem->x + elem->width > 10000) elem->x = 10000 - elem->width;
+    if (elem->y + elem->height > 10000) elem->y = 10000 - elem->height;
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void ResizeElement(int newWidth, int newHeight) {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    if (g_selectedElementIndex < 0 || g_selectedElementIndex >= (int)g_presentation.slides[g_currentSlideIndex]->elements.size()) return;
+    
+    auto& elem = g_presentation.slides[g_currentSlideIndex]->elements[g_selectedElementIndex];
+    
+    if (newWidth >= 100) elem->width = newWidth;
+    if (newHeight >= 100) elem->height = newHeight;
+    
+    SetModified(true);
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+// ============================================================================
+// РЕАЛИЗАЦИЯ ФУНКЦИЙ - ЗАГРУЗКА ИЗОБРАЖЕНИЙ
+// ============================================================================
+
+HBITMAP LoadImageFromFile(const std::wstring& path) {
+    HBITMAP hBitmap = NULL;
+    
+    Gdiplus::Bitmap* bitmap = Gdiplus::Bitmap::FromFile(path.c_str());
+    if (bitmap && bitmap->GetLastStatus() == Gdiplus::Ok) {
+        bitmap->GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &hBitmap);
+        delete bitmap;
+    }
+    
+    return hBitmap;
+}
+
+HBITMAP LoadImageFromUrl(const std::wstring& url) {
+    return DownloadImage(url);
+}
+
+HBITMAP DownloadImage(const std::wstring& url) {
+    HBITMAP hBitmap = NULL;
+    HINTERNET hInternet = NULL;
+    HINTERNET hUrl = NULL;
+    
+    hInternet = InternetOpen(L"PowerPointClone/1.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    if (!hInternet) return NULL;
+    
+    hUrl = InternetOpenUrl(hInternet, url.c_str(), NULL, 0, INTERNET_FLAG_RELOAD, 0);
+    if (!hUrl) {
+        InternetCloseHandle(hInternet);
+        return NULL;
+    }
+    
+    std::vector<BYTE> imageData;
+    BYTE buffer[8192];
+    DWORD bytesRead = 0;
+    
+    while (InternetReadFile(hUrl, buffer, sizeof(buffer), &bytesRead) && bytesRead > 0) {
+        imageData.insert(imageData.end(), buffer, buffer + bytesRead);
+    }
+    
+    InternetCloseHandle(hUrl);
+    InternetCloseHandle(hInternet);
+    
+    if (imageData.empty()) return NULL;
+    
+    HGLOBAL hGlobal = GlobalAlloc(GMEM_MOVEABLE, imageData.size());
+    if (hGlobal) {
+        void* pData = GlobalLock(hGlobal);
+        if (pData) {
+            memcpy(pData, imageData.data(), imageData.size());
+            GlobalUnlock(hGlobal);
+            
+            IStream* pStream = NULL;
+            if (CreateStreamOnHGlobal(hGlobal, TRUE, &pStream) == S_OK) {
+                Gdiplus::Bitmap* bitmap = Gdiplus::Bitmap::FromStream(pStream);
+                if (bitmap && bitmap->GetLastStatus() == Gdiplus::Ok) {
+                    bitmap->GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &hBitmap);
+                    delete bitmap;
+                }
+                pStream->Release();
+            }
+        } else {
+            GlobalFree(hGlobal);
+        }
+    }
+    
+    return hBitmap;
+}
+
+// ============================================================================
+// РЕАЛИЗАЦИЯ ФУНКЦИЙ - МАСШТАБИРОВАНИЕ И ПРОСМОТР
+// ============================================================================
+
+void ZoomIn() {
+    SetZoom(g_zoomLevel + 10);
+}
+
+void ZoomOut() {
+    SetZoom(g_zoomLevel - 10);
+}
+
+void SetZoom(int percent) {
+    if (percent < g_minZoom) percent = g_minZoom;
+    if (percent > g_maxZoom) percent = g_maxZoom;
+    
+    g_zoomLevel = percent;
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void FitToWindow() {
+    RECT clientRect;
+    GetClientRect(g_hWnd, &clientRect);
+    
+    int availableWidth = clientRect.right - g_thumbnailWidth - g_slideMargin * 2;
+    int availableHeight = clientRect.bottom - g_ribbonHeight - g_statusBarHeight - g_slideMargin * 2;
+    
+    float scaleX = (float)availableWidth / g_presentation.slideWidth;
+    float scaleY = (float)availableHeight / g_presentation.slideHeight;
+    float scale = min(scaleX, scaleY);
+    
+    g_zoomLevel = (int)(scale * 100);
+    if (g_zoomLevel < g_minZoom) g_zoomLevel = g_minZoom;
+    if (g_zoomLevel > g_maxZoom) g_zoomLevel = g_maxZoom;
+    
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void SetViewMode(int mode) {
+    switch (mode) {
+        case 0:
+            break;
+        case 1:
+            MessageBox(g_hWnd, L"Режим сортировщика слайдов будет реализован в следующей версии.",
+                        L"Информация", MB_OK | MB_ICONINFORMATION);
+            break;
+        case 2:
+            MessageBox(g_hWnd, L"Режим чтения будет реализован в следующей версии.",
+                        L"Информация", MB_OK | MB_ICONINFORMATION);
+            break;
+        case 3:
+            StartSlideshow(true);
+            break;
+    }
+}
+
+void StartSlideshow(bool fromBeginning) {
+    MessageBox(g_hWnd, 
+        L"Режим слайд-шоу будет реализован в следующей версии.
+
+"
+        L"Планируемые функции:
+"
+        L"- Полноэкранный показ
+"
+        L"- Переходы между слайдами
+"
+        L"- Анимация элементов
+"
+        L"- Указатель презентатора",
+        L"Слайд-шоу", MB_OK | MB_ICONINFORMATION);
+}
+
+void ToggleNotesPanel() {
+    g_showNotes = !g_showNotes;
+    g_notesHeight = g_showNotes ? 150 : 0;
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void ToggleRuler() {
+    g_showRuler = !g_showRuler;
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void ToggleGrid() {
+    g_showGrid = !g_showGrid;
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void ToggleGuides() {
+    g_showGuides = !g_showGuides;
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+// ============================================================================
+// РЕАЛИЗАЦИЯ ФУНКЦИЙ - ОТМЕНА/ПОВТОР И ФОРМАТИРОВАНИЕ
+// ============================================================================
+
+void Undo() {
+    if (g_undoStack.empty()) return;
+    g_undoStack.pop_back();
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void Redo() {
+    if (g_redoStack.empty()) return;
+    g_redoStack.pop_back();
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void SaveUndoState(UndoAction::Type type) {
+    g_redoStack.clear();
+    
+    if (g_undoStack.size() >= (size_t)g_maxUndoLevels) {
+        g_undoStack.erase(g_undoStack.begin());
+    }
+}
+
+void ClearUndoHistory() {
+    g_undoStack.clear();
+    g_redoStack.clear();
+}
+
+void FormatTextBold() {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    if (g_selectedElementIndex < 0 || g_selectedElementIndex >= (int)g_presentation.slides[g_currentSlideIndex]->elements.size()) return;
+    
+    auto& elem = g_presentation.slides[g_currentSlideIndex]->elements[g_selectedElementIndex];
+    if (elem->type == SlideElementType::TextBox) {
+        elem->bold = !elem->bold;
+        SetModified(true);
+        InvalidateRect(g_hWnd, NULL, TRUE);
+    }
+}
+
+void FormatTextItalic() {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    if (g_selectedElementIndex < 0 || g_selectedElementIndex >= (int)g_presentation.slides[g_currentSlideIndex]->elements.size()) return;
+    
+    auto& elem = g_presentation.slides[g_currentSlideIndex]->elements[g_selectedElementIndex];
+    if (elem->type == SlideElementType::TextBox) {
+        elem->italic = !elem->italic;
+        SetModified(true);
+        InvalidateRect(g_hWnd, NULL, TRUE);
+    }
+}
+
+void FormatTextUnderline() {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return;
+    if (g_selectedElementIndex < 0 || g_selectedElementIndex >= (int)g_presentation.slides[g_currentSlideIndex]->elements.size()) return;
+    
+    auto& elem = g_presentation.slides[g_currentSlideIndex]->elements[g_selectedElementIndex];
+    if (elem->type == SlideElementType::TextBox) {
+        elem->underline = !elem->underline;
+        SetModified(true);
+        InvalidateRect(g_hWnd, NULL, TRUE);
+    }
+}
+
+void SetTextAlignment(int alignment) {}
+void SetFontSize(int size) {}
+void SetFontName(const std::wstring& name) {}
+void SetTextColor(COLORREF color) {}
+void SetFillColor(COLORREF color) {}
+void BringToFront() {}
+void SendToBack() {}
+void BringForward() {}
+void SendBackward() {}
+void AlignElements(int alignment) {}
+
+// ============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ============================================================================
+
+void UpdateWindowTitle() {
+    std::wstring title = L"";
+    
+    if (g_presentation.filePath.empty()) {
+        title = L"Презентация1";
+    } else {
+        size_t pos = g_presentation.filePath.find_last_of(L"\\/");
+        if (pos != std::wstring::npos) {
+            title = g_presentation.filePath.substr(pos + 1);
+        } else {
+            title = g_presentation.filePath;
+        }
+    }
+    
+    if (g_presentation.modified) {
+        title += L" *";
+    }
+    
+    title += L" - PowerPoint";
+    
+    SetWindowText(g_hWnd, title.c_str());
+}
+
+void UpdateStatusBar() {
+    InvalidateRect(g_hWnd, NULL, TRUE);
+}
+
+void SetModified(bool modified) {
+    if (g_presentation.modified != modified) {
+        g_presentation.modified = modified;
+        UpdateWindowTitle();
+    }
+}
+
+std::wstring GetLayoutName(SlideLayout layout) {
+    switch (layout) {
+        case SlideLayout::TitleSlide: return L"Титульный слайд";
+        case SlideLayout::TitleAndContent: return L"Заголовок и объект";
+        case SlideLayout::SectionHeader: return L"Заголовок раздела";
+        case SlideLayout::TwoContent: return L"Два объекта";
+        case SlideLayout::Comparison: return L"Сравнение";
+        case SlideLayout::TitleOnly: return L"Только заголовок";
+        case SlideLayout::Blank: return L"Пустой слайд";
+        case SlideLayout::ContentWithCaption: return L"Объект с подписью";
+        case SlideLayout::PictureWithCaption: return L"Рисунок с подписью";
+        default: return L"Неизвестный";
+    }
+}
+
+std::wstring FormatNumber(int num) {
+    return std::to_wstring(num);
+}
+
+RECT GetSlideRect(RECT* clientRect) {
+    int slideAreaLeft = g_thumbnailWidth + 1;
+    int slideAreaTop = g_ribbonHeight;
+    int slideAreaWidth = clientRect->right - g_thumbnailWidth - 1;
+    int slideAreaHeight = clientRect->bottom - g_ribbonHeight - g_statusBarHeight - g_notesHeight;
+    
+    int baseSlideWidth = slideAreaWidth - g_slideMargin * 2;
+    int baseSlideHeight = slideAreaHeight - g_slideMargin * 2;
+    
+    int slideWidth, slideHeight;
+    
+    if (baseSlideWidth * 9 / 16 < baseSlideHeight) {
+        slideWidth = baseSlideWidth;
+        slideHeight = slideWidth * 9 / 16;
+    } else {
+        slideHeight = baseSlideHeight;
+        slideWidth = slideHeight * 16 / 9;
+    }
+    
+    slideWidth = slideWidth * g_zoomLevel / 100;
+    slideHeight = slideHeight * g_zoomLevel / 100;
+    
+    int slideX = slideAreaLeft + (slideAreaWidth - slideWidth) / 2;
+    int slideY = slideAreaTop + (slideAreaHeight - slideHeight) / 2;
+    
+    RECT slideRect = {slideX, slideY, slideX + slideWidth, slideY + slideHeight};
+    return slideRect;
+}
+
+RECT GetElementRect(SlideElement* element, int slideX, int slideY, int slideWidth, int slideHeight) {
+    RECT rect;
+    rect.left = slideX + element->x * slideWidth / 10000;
+    rect.top = slideY + element->y * slideHeight / 10000;
+    rect.right = rect.left + element->width * slideWidth / 10000;
+    rect.bottom = rect.top + element->height * slideHeight / 10000;
+    return rect;
+}
+
+int HitTestElement(int x, int y, int slideX, int slideY, int slideWidth, int slideHeight) {
+    if (g_currentSlideIndex < 0 || g_currentSlideIndex >= (int)g_presentation.slides.size()) return -1;
+    
+    auto& slide = g_presentation.slides[g_currentSlideIndex];
+    
+    for (int i = (int)slide->elements.size() - 1; i >= 0; i--) {
+        RECT rect = GetElementRect(slide->elements[i].get(), slideX, slideY, slideWidth, slideHeight);
+        POINT pt = {x, y};
+        if (PtInRect(&rect, pt)) {
+            return i;
+        }
+    }
+    
+    return -1;
+}
+
+int HitTestResizeHandle(int x, int y, RECT* elementRect) {
+    if (!elementRect) return -1;
+    
+    int handleSize = 8;
+    RECT handles[8];
+    
+    SetRect(&handles[0], elementRect->left - handleSize/2, elementRect->top - handleSize/2,
+             elementRect->left + handleSize/2, elementRect->top + handleSize/2);
+    SetRect(&handles[1], elementRect->right - handleSize/2, elementRect->top - handleSize/2,
+             elementRect->right + handleSize/2, elementRect->top + handleSize/2);
+    SetRect(&handles[2], elementRect->right - handleSize/2, elementRect->bottom - handleSize/2,
+             elementRect->right + handleSize/2, elementRect->bottom + handleSize/2);
+    SetRect(&handles[3], elementRect->left - handleSize/2, elementRect->bottom - handleSize/2,
+             elementRect->left + handleSize/2, elementRect->bottom + handleSize/2);
+    
+    int midX = (elementRect->left + elementRect->right) / 2;
+    int midY = (elementRect->top + elementRect->bottom) / 2;
+    
+    SetRect(&handles[4], midX - handleSize/2, elementRect->top - handleSize/2,
+             midX + handleSize/2, elementRect->top + handleSize/2);
+    SetRect(&handles[5], elementRect->right - handleSize/2, midY - handleSize/2,
+             elementRect->right + handleSize/2, midY + handleSize/2);
+    SetRect(&handles[6], midX - handleSize/2, elementRect->bottom - handleSize/2,
+             midX + handleSize/2, elementRect->bottom + handleSize/2);
+    SetRect(&handles[7], elementRect->left - handleSize/2, midY - handleSize/2,
+             elementRect->left + handleSize/2, midY + handleSize/2);
+    
+    POINT pt = {x, y};
+    for (int i = 0; i < 8; i++) {
+        if (PtInRect(&handles[i], pt)) {
+            return i;
+        }
+    }
+    
+    return -1;
+}
+
+// ============================================================================
+// ОБРАБОТЧИК СООБЩЕНИЙ ГЛАВНОГО ОКНА
+// ============================================================================
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+        case WM_CREATE:
+            return 0;
+            
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            
+            RECT clientRect;
+            GetClientRect(hWnd, &clientRect);
+            
+            HDC hdcMem = CreateCompatibleDC(hdc);
+            HBITMAP hbmMem = CreateCompatibleBitmap(hdc, clientRect.right, clientRect.bottom);
+            HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
+            
+            DrawAll(hdcMem, &clientRect);
+            
+            BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, hdcMem, 0, 0, SRCCOPY);
+            
+            SelectObject(hdcMem, hbmOld);
+            DeleteObject(hbmMem);
+            DeleteDC(hdcMem);
+            
+            EndPaint(hWnd, &ps);
+            return 0;
+        }
+        
+        case WM_SIZE:
+            InvalidateRect(hWnd, NULL, TRUE);
+            return 0;
+            
+        case WM_ERASEBKGND:
+            return 1;
+            
+        case WM_LBUTTONDOWN: {
+            int x = LOWORD(lParam);
+            int y = HIWORD(lParam);
+            
+            RECT clientRect;
+            GetClientRect(hWnd, &clientRect);
+            
+            // Проверка клика по кнопке "Файл"
+            POINT pt = {x, y};
+            if (PtInRect(&g_fileButtonRect, pt)) {
+                MessageBox(hWnd, L"Меню Файл будет реализовано в следующей версии.",
+                          L"Файл", MB_OK | MB_ICONINFORMATION);
+                return 0;
+            }
+            
+            // Проверка клика по вкладкам Ribbon
+            if (y < g_tabBarHeight) {
+                for (int i = 0; i < (int)g_ribbonTabs.size(); i++) {
+                    if (PtInRect(&g_ribbonTabs[i].tabRect, pt)) {
+                        g_activeTabIndex = i;
+                        InvalidateRect(hWnd, NULL, TRUE);
+                        return 0;
+                    }
+                }
+            }
+            
+            // Проверка клика по кнопкам Ribbon
+            if (y >= g_tabBarHeight && y < g_ribbonHeight) {
+                if (g_activeTabIndex >= 0 && g_activeTabIndex < (int)g_ribbonTabs.size()) {
+                    for (auto& group : g_ribbonTabs[g_activeTabIndex].groups) {
+                        for (auto& btn : group.buttons) {
+                            if (PtInRect(&btn.rect, pt)) {
+                                switch (btn.id) {
+                                    case IDB_NEW_SLIDE: AddSlide(); break;
+                                    case IDB_DELETE_SLIDE: DeleteSlide(g_currentSlideIndex); break;
+                                    case IDB_COPY_SLIDE: DuplicateSlide(g_currentSlideIndex); break;
+                                    case IDB_PASTE: PasteElement(); break;
+                                    case IDB_CUT: CutSelectedElement(); break;
+                                    case IDB_COPY: CopySelectedElement(); break;
+                                    case IDB_INSERT_TEXT: AddTextBox(); break;
+                                    case IDB_INSERT_IMAGE: AddImage(); break;
+                                    case IDB_INSERT_SHAPE: AddShape(ShapeType::Rectangle); break;
+                                    case IDB_BOLD: FormatTextBold(); break;
+                                    case IDB_ITALIC: FormatTextItalic(); break;
+                                    case IDB_UNDERLINE: FormatTextUnderline(); break;
+                                    case IDB_SLIDESHOW_BEGIN: StartSlideshow(true); break;
+                                    case IDB_SLIDESHOW_CURRENT: StartSlideshow(false); break;
+                                    case IDB_ZOOM_IN: ZoomIn(); break;
+                                    case IDB_ZOOM_OUT: ZoomOut(); break;
+                                    case IDB_FIT_SLIDE: FitToWindow(); break;
+                                    case IDM_VIEW_RULER: ToggleRuler(); break;
+                                    case IDM_VIEW_GRID: ToggleGrid(); break;
+                                    case IDM_VIEW_GUIDES: ToggleGuides(); break;
+                                    case IDM_HELP_ABOUT:
+                                        MessageBox(hWnd, 
+                                            L"PowerPoint Clone Pro
+"
+                                            L"Версия 1.0
+
+"
+                                            L"Программа для создания презентаций
+"
+                                            L"на основе Windows API и GDI+
+
+"
+                                            L"© 2025-2026 Все права защищены",
+                                            L"О программе", MB_OK | MB_ICONINFORMATION);
+                                        break;
+                                }
+                                return 0;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Проверка клика по миниатюрам
+            if (x < g_thumbnailWidth && y > g_ribbonHeight) {
+                int thumbMargin = 12;
+                int thumbSlideWidth = g_thumbnailWidth - thumbMargin * 2 - 25;
+                int thumbSlideHeight = (int)(thumbSlideWidth * 9.0 / 16.0);
+                int thumbX = thumbMargin + 20;
+                int thumbY = g_ribbonHeight + thumbMargin;
+                
+                for (int i = 0; i < (int)g_presentation.slides.size(); i++) {
+                    RECT thumbRect = {thumbX, thumbY, thumbX + thumbSlideWidth, thumbY + thumbSlideHeight};
+                    if (PtInRect(&thumbRect, pt)) {
+                        SelectSlide(i);
+                        return 0;
+                    }
+                    thumbY += thumbSlideHeight + thumbMargin + 5;
+                }
+            }
+            
+            // Проверка клика по области слайда
+            RECT slideRect = GetSlideRect(&clientRect);
+            
+            if (PtInRect(&slideRect, pt)) {
+                int elementIndex = HitTestElement(x, y, slideRect.left, slideRect.top, 
+                    slideRect.right - slideRect.left, slideRect.bottom - slideRect.top);
+                
+                if (elementIndex >= 0) {
+                    SelectElement(elementIndex);
+                    
+                    g_isDragging = true;
+                    g_dragStart = {x, y};
+                    SetCapture(hWnd);
+                } else {
+                    g_selectedElementIndex = -1;
+                    DeselectAllElements();
+                    InvalidateRect(hWnd, NULL, TRUE);
+                }
+            }
+            
+            return 0;
+        }
+        
+        case WM_LBUTTONUP:
+            if (g_isDragging || g_isResizing) {
+                g_isDragging = false;
+                g_isResizing = false;
+                ReleaseCapture();
+            }
+            return 0;
+            
+        case WM_MOUSEMOVE: {
+            int x = LOWORD(lParam);
+            int y = HIWORD(lParam);
+            POINT pt = {x, y};
+            
+            // Обновление hover состояний
+            bool needsRedraw = false;
+            
+            // Кнопка Файл
+            bool wasFileHovered = g_fileButtonHovered;
+            g_fileButtonHovered = PtInRect(&g_fileButtonRect, pt);
+            if (wasFileHovered != g_fileButtonHovered) needsRedraw = true;
+            
+            // Вкладки
+            int wasHoveredTab = g_hoveredTabIndex;
+            g_hoveredTabIndex = -1;
+            if (y < g_tabBarHeight && x > g_fileButtonRect.right) {
+                for (int i = 0; i < (int)g_ribbonTabs.size(); i++) {
+                    if (PtInRect(&g_ribbonTabs[i].tabRect, pt)) {
+                        g_hoveredTabIndex = i;
+                        break;
+                    }
+                }
+            }
+            if (wasHoveredTab != g_hoveredTabIndex) needsRedraw = true;
+            
+            // Кнопки Ribbon
+            if (y >= g_tabBarHeight && y < g_ribbonHeight) {
+                if (g_activeTabIndex >= 0 && g_activeTabIndex < (int)g_ribbonTabs.size()) {
+                    for (auto& group : g_ribbonTabs[g_activeTabIndex].groups) {
+                        for (auto& btn : group.buttons) {
+                            bool wasHovered = btn.hovered;
+                            btn.hovered = PtInRect(&btn.rect, pt);
+                            if (wasHovered != btn.hovered) needsRedraw = true;
+                        }
+                    }
+                }
+            }
+            
+            if (needsRedraw) {
+                InvalidateRect(hWnd, NULL, FALSE);
+            }
+            
+            // Перетаскивание элемента
+            if (g_isDragging && g_selectedElementIndex >= 0) {
+                RECT clientRect;
+                GetClientRect(hWnd, &clientRect);
+                RECT slideRect = GetSlideRect(&clientRect);
+                
+                int slideWidth = slideRect.right - slideRect.left;
+                int slideHeight = slideRect.bottom - slideRect.top;
+                
+                int dx = (x - g_dragStart.x) * 10000 / slideWidth;
+                int dy = (y - g_dragStart.y) * 10000 / slideHeight;
+                
+                if (dx != 0 || dy != 0) {
+                    MoveElement(dx, dy);
+                    g_dragStart = {x, y};
+                }
+            }
+            
+            g_lastMousePos = {x, y};
+            return 0;
+        }
+        
+        case WM_RBUTTONDOWN: {
+            int x = LOWORD(lParam);
+            int y = HIWORD(lParam);
+            
+            HMENU hMenu = CreatePopupMenu();
+            
+            RECT clientRect;
+            GetClientRect(hWnd, &clientRect);
+            RECT slideRect = GetSlideRect(&clientRect);
+            POINT pt = {x, y};
+            
+            if (x < g_thumbnailWidth && y > g_ribbonHeight) {
+                AppendMenu(hMenu, MF_STRING, IDM_SLIDE_NEW, L"Новый слайд");
+                AppendMenu(hMenu, MF_STRING, IDM_SLIDE_DUPLICATE, L"Дублировать слайд");
+                AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+                AppendMenu(hMenu, MF_STRING, IDM_SLIDE_DELETE, L"Удалить слайд");
+                AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+                AppendMenu(hMenu, MF_STRING, IDM_SLIDE_MOVE_UP, L"Переместить вверх");
+                AppendMenu(hMenu, MF_STRING, IDM_SLIDE_MOVE_DOWN, L"Переместить вниз");
+            } else if (PtInRect(&slideRect, pt)) {
+                int elemIndex = HitTestElement(x, y, slideRect.left, slideRect.top,
+                    slideRect.right - slideRect.left, slideRect.bottom - slideRect.top);
+                
+                if (elemIndex >= 0) {
+                    SelectElement(elemIndex);
+                    AppendMenu(hMenu, MF_STRING, IDM_EDIT_CUT, L"Вырезать\tCtrl+X");
+                    AppendMenu(hMenu, MF_STRING, IDM_EDIT_COPY, L"Копировать\tCtrl+C");
+                    AppendMenu(hMenu, MF_STRING, IDM_EDIT_PASTE, L"Вставить\tCtrl+V");
+                    AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+                    AppendMenu(hMenu, MF_STRING, IDM_EDIT_DUPLICATE, L"Дублировать");
+                    AppendMenu(hMenu, MF_STRING, IDM_EDIT_DELETE, L"Удалить\tDel");
+                } else {
+                    AppendMenu(hMenu, MF_STRING, IDM_EDIT_PASTE, L"Вставить\tCtrl+V");
+                    AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+                    AppendMenu(hMenu, MF_STRING, IDM_INSERT_TEXT, L"Вставить текст");
+                    AppendMenu(hMenu, MF_STRING, IDM_INSERT_IMAGE, L"Вставить изображение");
+                    AppendMenu(hMenu, MF_STRING, IDM_INSERT_IMAGE_URL, L"Вставить изображение из URL");
+                    AppendMenu(hMenu, MF_STRING, IDM_INSERT_SHAPE, L"Вставить фигуру");
+                }
+            }
+            
+            POINT screenPt = {x, y};
+            ClientToScreen(hWnd, &screenPt);
+            TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, screenPt.x, screenPt.y, 0, hWnd, NULL);
+            DestroyMenu(hMenu);
+            
+            return 0;
+        }
+        
+        case WM_COMMAND: {
+            int wmId = LOWORD(wParam);
+            
+            switch (wmId) {
+                case IDM_FILE_NEW: NewPresentation(); break;
+                case IDM_FILE_OPEN: OpenPresentation(); break;
+                case IDM_FILE_SAVE: SavePresentation(); break;
+                case IDM_FILE_SAVE_AS: SavePresentationAs(); break;
+                case IDM_FILE_EXPORT: ExportPresentation(); break;
+                case IDM_FILE_PRINT: PrintPresentation(); break;
+                case IDM_FILE_EXIT: PostQuitMessage(0); break;
+                
+                case IDM_EDIT_UNDO: Undo(); break;
+                case IDM_EDIT_REDO: Redo(); break;
+                case IDM_EDIT_CUT: CutSelectedElement(); break;
+                case IDM_EDIT_COPY: CopySelectedElement(); break;
+                case IDM_EDIT_PASTE: PasteElement(); break;
+                case IDM_EDIT_DELETE: DeleteSelectedElement(); break;
+                case IDM_EDIT_DUPLICATE: DuplicateSelectedElement(); break;
+                
+                case IDM_SLIDE_NEW: AddSlide(); break;
+                case IDM_SLIDE_DUPLICATE: DuplicateSlide(g_currentSlideIndex); break;
+                case IDM_SLIDE_DELETE: DeleteSlide(g_currentSlideIndex); break;
+                case IDM_SLIDE_MOVE_UP: MoveSlideUp(g_currentSlideIndex); break;
+                case IDM_SLIDE_MOVE_DOWN: MoveSlideDown(g_currentSlideIndex); break;
+                
+                case IDM_INSERT_TEXT: AddTextBox(); break;
+                case IDM_INSERT_IMAGE: AddImage(); break;
+                case IDM_INSERT_IMAGE_URL: AddImageFromUrl(); break;
+                case IDM_INSERT_SHAPE: AddShape(ShapeType::Rectangle); break;
+                
+                case IDM_VIEW_NORMAL: SetViewMode(0); break;
+                case IDM_VIEW_SORTER: SetViewMode(1); break;
+                case IDM_VIEW_READING: SetViewMode(2); break;
+                case IDM_VIEW_SLIDESHOW: StartSlideshow(true); break;
+                case IDM_VIEW_ZOOM_IN: ZoomIn(); break;
+                case IDM_VIEW_ZOOM_OUT: ZoomOut(); break;
+                case IDM_VIEW_FIT_WINDOW: FitToWindow(); break;
+                case IDM_VIEW_NOTES: ToggleNotesPanel(); break;
+                case IDM_VIEW_RULER: ToggleRuler(); break;
+                case IDM_VIEW_GRID: ToggleGrid(); break;
+                case IDM_VIEW_GUIDES: ToggleGuides(); break;
+                
+                case IDM_HELP_ABOUT:
+                    MessageBox(hWnd, 
+                        L"PowerPoint Clone Pro
+"
+                        L"Версия 1.0
+
+"
+                        L"Программа для создания презентаций
+"
+                        L"на основе Windows API и GDI+
+
+"
+                        L"© 2025-2026 Все права защищены",
+                        L"О программе", MB_OK | MB_ICONINFORMATION);
+                    break;
+            }
+            return 0;
+        }
+        
+        case WM_KEYDOWN: {
+            bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+            bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+            
+            switch (wParam) {
+                case VK_DELETE:
+                    DeleteSelectedElement();
+                    break;
+                    
+                case VK_LEFT:
+                    if (g_selectedElementIndex >= 0) MoveElement(-100, 0);
+                    break;
+                case VK_RIGHT:
+                    if (g_selectedElementIndex >= 0) MoveElement(100, 0);
+                    break;
+                case VK_UP:
+                    if (g_selectedElementIndex >= 0) MoveElement(0, -100);
+                    break;
+                case VK_DOWN:
+                    if (g_selectedElementIndex >= 0) MoveElement(0, 100);
+                    break;
+                    
+                case VK_ESCAPE:
+                    g_selectedElementIndex = -1;
+                    DeselectAllElements();
+                    InvalidateRect(hWnd, NULL, TRUE);
+                    break;
+                    
+                case 'N':
+                    if (ctrl) NewPresentation();
+                    break;
+                case 'O':
+                    if (ctrl) OpenPresentation();
+                    break;
+                case 'S':
+                    if (ctrl && shift) SavePresentationAs();
+                    else if (ctrl) SavePresentation();
+                    break;
+                case 'Z':
+                    if (ctrl) Undo();
+                    break;
+                case 'Y':
+                    if (ctrl) Redo();
+                    break;
+                case 'C':
+                    if (ctrl) CopySelectedElement();
+                    break;
+                case 'V':
+                    if (ctrl) PasteElement();
+                    break;
+                case 'X':
+                    if (ctrl) CutSelectedElement();
+                    break;
+                case 'D':
+                    if (ctrl) DuplicateSelectedElement();
+                    break;
+                case 'M':
+                    if (ctrl) AddSlide();
+                    break;
+                    
+                case VK_F5:
+                    if (shift) StartSlideshow(false);
+                    else StartSlideshow(true);
+                    break;
+                    
+                case VK_ADD:
+                case VK_OEM_PLUS:
+                    if (ctrl) ZoomIn();
+                    break;
+                case VK_SUBTRACT:
+                case VK_OEM_MINUS:
+                    if (ctrl) ZoomOut();
+                    break;
+                    
+                case VK_PRIOR:
+                    if (g_currentSlideIndex > 0) SelectSlide(g_currentSlideIndex - 1);
+                    break;
+                case VK_NEXT:
+                    if (g_currentSlideIndex < (int)g_presentation.slides.size() - 1) 
+                        SelectSlide(g_currentSlideIndex + 1);
+                    break;
+                case VK_HOME:
+                    if (ctrl) SelectSlide(0);
+                    break;
+                case VK_END:
+                    if (ctrl) SelectSlide((int)g_presentation.slides.size() - 1);
+                    break;
+            }
+            return 0;
+        }
+        
+        case WM_MOUSEWHEEL: {
+            int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+            bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+            
+            if (ctrl) {
+                if (delta > 0) ZoomIn();
+                else ZoomOut();
+            } else {
+                if (delta > 0 && g_currentSlideIndex > 0) {
+                    SelectSlide(g_currentSlideIndex - 1);
+                } else if (delta < 0 && g_currentSlideIndex < (int)g_presentation.slides.size() - 1) {
+                    SelectSlide(g_currentSlideIndex + 1);
+                }
+            }
+            return 0;
+        }
+        
+        case WM_CLOSE:
+            if (g_presentation.modified) {
+                int result = MessageBox(hWnd, 
+                    L"Презентация была изменена. Сохранить изменения?",
+                    L"Сохранение", MB_YESNOCANCEL | MB_ICONQUESTION);
+                
+                if (result == IDYES) {
+                    SavePresentation();
+                } else if (result == IDCANCEL) {
+                    return 0;
+                }
+            }
+            DestroyWindow(hWnd);
+            return 0;
+            
+        case WM_DESTROY:
+            Cleanup();
+            PostQuitMessage(0);
+            return 0;
+            
+        default:
+            return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    return 0;
+}
+
+// ============================================================================
+// ТОЧКА ВХОДА
+// ============================================================================
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    GdiplusStartupInput gdiplusStartupInput;
+    GdiplusStartup(&g_gdiplusToken, &gdiplusStartupInput, NULL);
+    
+    INITCOMMONCONTROLSEX icex;
+    icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    icex.dwICC = ICC_BAR_CLASSES | ICC_STANDARD_CLASSES;
+    InitCommonControlsEx(&icex);
+    
+    if (!InitApplication(hInstance)) {
+        MessageBox(NULL, L"Ошибка регистрации класса окна!", L"Ошибка", MB_ICONERROR);
+        return 1;
+    }
+    
+    if (!InitInstance(hInstance, nCmdShow)) {
+        MessageBox(NULL, L"Ошибка создания окна!", L"Ошибка", MB_ICONERROR);
+        return 1;
+    }
+    
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    
+    return (int)msg.wParam;
+}
