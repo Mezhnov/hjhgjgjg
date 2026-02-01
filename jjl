@@ -1,1971 +1,774 @@
 
-/*
- * Алиса AI - Консольный и графический интерфейс на C++ (WinAPI)
- * Полная копия интерфейса чат-бота с задачами
- * Автор: AI Assistant
- * Дата: 28.01.2026
- * Более 1000 строк кода
- */
-
 #define UNICODE
 #define _UNICODE
 #include <windows.h>
-#include <windowsx.h>
 #include <commctrl.h>
 #include <gdiplus.h>
-#include <string>
+#include <urlmon.h>
 #include <vector>
-#include <ctime>
+#include <string>
 #include <sstream>
-#include <iomanip>
-#include <algorithm>
-#include <functional>
-#include <memory>
-#include <map>
+#include <fstream>
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "gdiplus.lib")
-#pragma comment(linker,""/manifestdependency:type='win32' \
-name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
-processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"")
+#pragma comment(lib, "urlmon.lib")
+#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 using namespace Gdiplus;
 
-// ============================================================================
-// КОНСТАНТЫ И ОПРЕДЕЛЕНИЯ
-// ============================================================================
+// Константы
+#define ID_BTN_NEW_SLIDE    1001
+#define ID_BTN_DELETE_SLIDE 1002
+#define ID_BTN_ADD_TEXT     1003
+#define ID_BTN_ADD_IMAGE    1004
+#define ID_BTN_PREV_SLIDE   1005
+#define ID_BTN_NEXT_SLIDE   1006
+#define ID_BTN_PLAY         1007
+#define ID_BTN_SAVE         1008
+#define ID_BTN_LOAD         1009
+#define ID_SLIDE_LIST       1010
+#define ID_EDIT_TEXT        1011
 
-// Размеры окна
-const int WINDOW_WIDTH = 1200;
-const int WINDOW_HEIGHT = 800;
-const int SIDEBAR_WIDTH = 250;
-const int INPUT_HEIGHT = 80;
-const int TASK_CARD_HEIGHT = 80;
-const int TASK_CARD_MARGIN = 10;
-const int HEADER_HEIGHT = 60;
+#define TOOLBAR_HEIGHT      50
+#define SIDEBAR_WIDTH       200
+#define SLIDE_PADDING       20
 
-// Цвета интерфейса (RGB)
-namespace Colors {
-    const COLORREF BACKGROUND = RGB(250, 250, 252);
-    const COLORREF SIDEBAR_BG = RGB(248, 248, 250);
-    const COLORREF WHITE = RGB(255, 255, 255);
-    const COLORREF TEXT_PRIMARY = RGB(30, 30, 35);
-    const COLORREF TEXT_SECONDARY = RGB(120, 120, 130);
-    const COLORREF TEXT_MUTED = RGB(160, 160, 170);
-    const COLORREF ACCENT_PURPLE = RGB(130, 90, 220);
-    const COLORREF ACCENT_LIGHT = RGB(240, 235, 255);
-    const COLORREF CARD_BORDER = RGB(230, 230, 235);
-    const COLORREF HOVER_BG = RGB(245, 245, 248);
-    const COLORREF ACTIVE_BG = RGB(235, 235, 240);
-    const COLORREF INPUT_BORDER = RGB(200, 200, 210);
-    const COLORREF CHECKBOX_UNCHECKED = RGB(180, 180, 190);
-    const COLORREF CHECKBOX_CHECKED = RGB(100, 200, 120);
-    const COLORREF DIVIDER = RGB(235, 235, 240);
-    const COLORREF USER_BUBBLE = RGB(245, 243, 250);
-    const COLORREF SCROLL_BG = RGB(240, 240, 245);
-    const COLORREF SCROLL_THUMB = RGB(200, 200, 210);
-}
-
-// ID элементов управления
-enum ControlIDs {
-    ID_EDIT_INPUT = 1001,
-    ID_BTN_SEND = 1002,
-    ID_BTN_NEWCHAT = 1003,
-    ID_BTN_NOTES = 1004,
-    ID_BTN_PLANS = 1005,
-    ID_BTN_PROFILE = 1006,
-    ID_TIMER_BLINK = 1007,
-    ID_TIMER_ANIMATE = 1008
+// Структура элемента слайда
+struct SlideElement {
+    enum Type { TEXT, IMAGE } type;
+    std::wstring content;
+    int x, y, width, height;
+    COLORREF color;
+    int fontSize;
+    
+    SlideElement() : type(TEXT), x(50), y(50), width(200), height(50), 
+                     color(RGB(0,0,0)), fontSize(24) {}
 };
 
-// ============================================================================
-// СТРУКТУРЫ ДАННЫХ
-// ============================================================================
-
-// Структура задачи
-struct Task {
-    int id;
+// Структура слайда
+struct Slide {
+    std::vector<SlideElement> elements;
+    COLORREF backgroundColor;
     std::wstring title;
-    std::wstring date;
-    std::wstring time;
-    std::wstring duration;
-    bool completed;
-    bool hovered;
-    RECT bounds;
     
-    Task() : id(0), completed(false), hovered(false) {
-        memset(&bounds, 0, sizeof(RECT));
-    }
-    
-    Task(int _id, const std::wstring& _title, const std::wstring& _date,
-         const std::wstring& _time, const std::wstring& _duration)
-        : id(_id), title(_title), date(_date), time(_time), 
-          duration(_duration), completed(false), hovered(false) {
-        memset(&bounds, 0, sizeof(RECT));
-    }
+    Slide() : backgroundColor(RGB(255, 255, 255)), title(L"Новый слайд") {}
 };
 
-// Структура сообщения чата
-struct ChatMessage {
-    std::wstring text;
-    bool isUser;
-    std::time_t timestamp;
-    RECT bounds;
-    
-    ChatMessage() : isUser(false), timestamp(0) {
-        memset(&bounds, 0, sizeof(RECT));
-    }
-    
-    ChatMessage(const std::wstring& _text, bool _isUser)
-        : text(_text), isUser(_isUser), timestamp(std::time(nullptr)) {
-        memset(&bounds, 0, sizeof(RECT));
-    }
-};
+// Глобальные переменные
+std::vector<Slide> g_slides;
+int g_currentSlide = -1;
+HWND g_hMainWnd = NULL;
+HWND g_hSlideList = NULL;
+HWND g_hSlideArea = NULL;
+HWND g_hEditText = NULL;
+GdiplusStartupInput g_gdiplusStartupInput;
+ULONG_PTR g_gdiplusToken;
+Image* g_cachedImage = NULL;
+std::wstring g_imageUrl = L"https://284baef4-3d14-4ca5-8247-4811f0d6b14b.selstorage.ru/c8f463fd-ff26-4b4a-b298-8da827097efe_yoyoyoyo.PNG";
+bool g_isPlaying = false;
+int g_selectedElement = -1;
+bool g_isDragging = false;
+POINT g_dragStart;
 
-// Структура пункта бокового меню
-struct SidebarItem {
-    int id;
-    std::wstring title;
-    std::wstring icon;
-    bool active;
-    bool hovered;
-    RECT bounds;
-    
-    SidebarItem() : id(0), active(false), hovered(false) {
-        memset(&bounds, 0, sizeof(RECT));
-    }
-    
-    SidebarItem(int _id, const std::wstring& _title, const std::wstring& _icon)
-        : id(_id), title(_title), icon(_icon), active(false), hovered(false) {
-        memset(&bounds, 0, sizeof(RECT));
-    }
-};
+// Прототипы функций
+LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK SlideAreaProc(HWND, UINT, WPARAM, LPARAM);
+void CreateToolbar(HWND hWnd);
+void CreateSlideList(HWND hWnd);
+void CreateSlideArea(HWND hWnd);
+void AddNewSlide();
+void DeleteCurrentSlide();
+void UpdateSlideList();
+void RenderSlide(HDC hdc, RECT& rect);
+void AddTextElement();
+void AddImageElement();
+void NavigateSlide(int direction);
+void PlayPresentation();
+Image* LoadImageFromUrl(const std::wstring& url);
+void SavePresentation();
+void LoadPresentation();
+void DrawButton(HDC hdc, RECT& rect, const wchar_t* text, bool hover);
 
-// Структура пользователя
-struct User {
-    std::wstring name;
-    std::wstring email;
-    std::wstring avatarInitials;
-    COLORREF avatarColor;
-    
-    User() : avatarColor(Colors::ACCENT_PURPLE) {}
-    
-    User(const std::wstring& _name, const std::wstring& _email)
-        : name(_name), email(_email), avatarColor(Colors::ACCENT_PURPLE) {
-        if (!_name.empty()) {
-            avatarInitials = std::wstring(1, _name[0]);
-            size_t spacePos = _name.find(L' ');
-            if (spacePos != std::wstring::npos && spacePos + 1 < _name.length()) {
-                avatarInitials += _name[spacePos + 1];
-            }
-        }
-    }
-};
+WNDPROC g_origSlideAreaProc;
 
-// ============================================================================
-// КЛАСС ПРИЛОЖЕНИЯ
-// ============================================================================
-
-class AlisaAIApp {
-private:
-    HWND hwndMain;
-    HWND hwndInput;
-    HWND hwndSendBtn;
-    HINSTANCE hInstance;
+// Точка входа
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, 
+                    LPWSTR lpCmdLine, int nCmdShow) {
+    // Инициализация GDI+
+    GdiplusStartup(&g_gdiplusToken, &g_gdiplusStartupInput, NULL);
     
-    // Шрифты
-    HFONT fontTitle;
-    HFONT fontRegular;
-    HFONT fontSmall;
-    HFONT fontBold;
-    HFONT fontIcon;
-    HFONT fontLarge;
-    
-    // Данные приложения
-    std::vector<Task> tasks;
-    std::vector<ChatMessage> messages;
-    std::vector<SidebarItem> sidebarItems;
-    User currentUser;
-    
-    // Состояние UI
-    int scrollOffset;
-    int maxScrollOffset;
-    bool isDraggingScroll;
-    int dragStartY;
-    int dragStartScroll;
-    int hoveredTaskId;
-    int hoveredSidebarId;
-    bool sendButtonHovered;
-    bool profileButtonHovered;
-    
-    // Анимация
-    float animationProgress;
-    bool animatingNewTask;
-    
-    // GDI+ токен
-    ULONG_PTR gdiplusToken;
-
-public:
-    // ========================================================================
-    // КОНСТРУКТОР И ДЕСТРУКТОР
-    // ========================================================================
-    
-    AlisaAIApp(HINSTANCE hInst) 
-        : hwndMain(nullptr), hwndInput(nullptr), hwndSendBtn(nullptr),
-          hInstance(hInst), fontTitle(nullptr), fontRegular(nullptr),
-          fontSmall(nullptr), fontBold(nullptr), fontIcon(nullptr),
-          fontLarge(nullptr), scrollOffset(0), maxScrollOffset(0),
-          isDraggingScroll(false), dragStartY(0), dragStartScroll(0),
-          hoveredTaskId(-1), hoveredSidebarId(-1), sendButtonHovered(false),
-          profileButtonHovered(false), animationProgress(0.0f),
-          animatingNewTask(false), gdiplusToken(0) {
-        
-        InitializeGDIPlus();
-        InitializeFonts();
-        InitializeData();
-    }
-    
-    ~AlisaAIApp() {
-        CleanupFonts();
-        ShutdownGDIPlus();
-    }
-    
-    // ========================================================================
-    // ИНИЦИАЛИЗАЦИЯ
-    // ========================================================================
-    
-    void InitializeGDIPlus() {
-        GdiplusStartupInput gdiplusStartupInput;
-        GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
-    }
-    
-    void ShutdownGDIPlus() {
-        GdiplusShutdown(gdiplusToken);
-    }
-    
-    void InitializeFonts() {
-        // Заголовочный шрифт
-        fontTitle = CreateFontW(
-            24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
-        );
-        
-        // Обычный шрифт
-        fontRegular = CreateFontW(
-            16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
-        );
-        
-        // Мелкий шрифт
-        fontSmall = CreateFontW(
-            13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
-        );
-        
-        // Жирный шрифт
-        fontBold = CreateFontW(
-            16, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
-        );
-        
-        // Шрифт для иконок
-        fontIcon = CreateFontW(
-            20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI Symbol"
-        );
-        
-        // Большой шрифт
-        fontLarge = CreateFontW(
-            18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"
-        );
-    }
-    
-    void CleanupFonts() {
-        if (fontTitle) DeleteObject(fontTitle);
-        if (fontRegular) DeleteObject(fontRegular);
-        if (fontSmall) DeleteObject(fontSmall);
-        if (fontBold) DeleteObject(fontBold);
-        if (fontIcon) DeleteObject(fontIcon);
-        if (fontLarge) DeleteObject(fontLarge);
-    }
-    
-    void InitializeData() {
-        // Инициализация пользователя
-        currentUser = User(L"Иванов Е.", L"ivanov@mail.ru");
-        
-        // Инициализация пунктов бокового меню
-        sidebarItems.push_back(SidebarItem(ID_BTN_NEWCHAT, L"Новый чат", L"\u2795"));
-        sidebarItems.push_back(SidebarItem(ID_BTN_NOTES, L"Мои заметки", L"\u1F4DD"));
-        sidebarItems.push_back(SidebarItem(ID_BTN_PLANS, L"Планы на сегодня", L"\u1F4CB"));
-        sidebarItems[2].active = true;
-        
-        // Инициализация задач
-        tasks.push_back(Task(1, L"Забронировать ресторан", L"Сегодня", L"12:00", L"50 мин"));
-        tasks.push_back(Task(2, L"Разобраться с ремонтом", L"Сегодня", L"16:00", L"3 часа"));
-        tasks.push_back(Task(3, L"Купить подарок жене", L"Сегодня", L"21:00", L"15 мин"));
-        
-        // Инициализация сообщений чата
-        messages.push_back(ChatMessage(L"Какие у меня планы на сегодня?", true));
-        messages.push_back(ChatMessage(
-            L"Сегодня нужно забронировать ресторан для встречи с родителями, "
-            L"разобраться с ремонтом и купить подарок жене.", false));
-    }
-    
-    // ========================================================================
-    // СОЗДАНИЕ ОКНА
-    // ========================================================================
-    
-    bool CreateMainWindow() {
-        // Регистрация класса окна
-        WNDCLASSEXW wc = {0};
-        wc.cbSize = sizeof(WNDCLASSEXW);
-        wc.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
-        wc.lpfnWndProc = WindowProc;
-        wc.cbClsExtra = 0;
-        wc.cbWndExtra = sizeof(LONG_PTR);
-        wc.hInstance = hInstance;
-        wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = CreateSolidBrush(Colors::BACKGROUND);
-        wc.lpszMenuName = nullptr;
-        wc.lpszClassName = L"AlisaAIWindowClass";
-        wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
-        
-        if (!RegisterClassExW(&wc)) {
-            MessageBoxW(nullptr, L"Ошибка регистрации класса окна", 
-                       L"Ошибка", MB_ICONERROR);
-            return false;
-        }
-        
-        // Вычисление центрированной позиции
-        int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-        int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-        int windowX = (screenWidth - WINDOW_WIDTH) / 2;
-        int windowY = (screenHeight - WINDOW_HEIGHT) / 2;
-        
-        // Создание главного окна
-        hwndMain = CreateWindowExW(
-            WS_EX_LAYERED | WS_EX_COMPOSITED,
-            L"AlisaAIWindowClass",
-            L"Алиса AI - Умный помощник",
-            WS_OVERLAPPEDWINDOW,
-            windowX, windowY,
-            WINDOW_WIDTH, WINDOW_HEIGHT,
-            nullptr, nullptr, hInstance, this
-        );
-        
-        if (!hwndMain) {
-            MessageBoxW(nullptr, L"Ошибка создания окна", L"Ошибка", MB_ICONERROR);
-            return false;
-        }
-        
-        // Установка прозрачности
-        SetLayeredWindowAttributes(hwndMain, 0, 255, LWA_ALPHA);
-        
-        // Создание дочерних элементов
-        CreateChildControls();
-        
-        return true;
-    }
-    
-    void CreateChildControls() {
-        RECT clientRect;
-        GetClientRect(hwndMain, &clientRect);
-        
-        int inputAreaTop = clientRect.bottom - INPUT_HEIGHT;
-        int inputAreaWidth = clientRect.right - SIDEBAR_WIDTH - 100;
-        
-        // Поле ввода
-        hwndInput = CreateWindowExW(
-            WS_EX_CLIENTEDGE,
-            L"EDIT",
-            L"",
-            WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL | ES_LEFT,
-            SIDEBAR_WIDTH + 50,
-            inputAreaTop + 20,
-            inputAreaWidth - 60,
-            40,
-            hwndMain,
-            (HMENU)ID_EDIT_INPUT,
-            hInstance,
-            nullptr
-        );
-        
-        // Установка шрифта для поля ввода
-        SendMessage(hwndInput, WM_SETFONT, (WPARAM)fontRegular, TRUE);
-        
-        // Установка плейсхолдера
-        SendMessage(hwndInput, EM_SETCUEBANNER, TRUE, 
-                   (LPARAM)L"Спросите о чём угодно");
-        
-        // Установка таймеров
-        SetTimer(hwndMain, ID_TIMER_BLINK, 500, nullptr);
-        SetTimer(hwndMain, ID_TIMER_ANIMATE, 16, nullptr);
-    }
-    
-    void Show() {
-        ShowWindow(hwndMain, SW_SHOW);
-        UpdateWindow(hwndMain);
-    }
-    
-    // ========================================================================
-    // ОТРИСОВКА ИНТЕРФЕЙСА
-    // ========================================================================
-    
-    void OnPaint(HDC hdc, const RECT& clientRect) {
-        // Создание буфера для двойной буферизации
-        HDC memDC = CreateCompatibleDC(hdc);
-        HBITMAP memBitmap = CreateCompatibleBitmap(hdc, 
-            clientRect.right, clientRect.bottom);
-        HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
-        
-        // Заливка фона
-        HBRUSH bgBrush = CreateSolidBrush(Colors::BACKGROUND);
-        FillRect(memDC, &clientRect, bgBrush);
-        DeleteObject(bgBrush);
-        
-        // Отрисовка компонентов
-        DrawSidebar(memDC, clientRect);
-        DrawMainContent(memDC, clientRect);
-        DrawInputArea(memDC, clientRect);
-        
-        // Копирование буфера на экран
-        BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, 
-               memDC, 0, 0, SRCCOPY);
-        
-        // Очистка
-        SelectObject(memDC, oldBitmap);
-        DeleteObject(memBitmap);
-        DeleteDC(memDC);
-    }
-    
-    void DrawSidebar(HDC hdc, const RECT& clientRect) {
-        // Фон боковой панели
-        RECT sidebarRect = {0, 0, SIDEBAR_WIDTH, clientRect.bottom};
-        HBRUSH sidebarBrush = CreateSolidBrush(Colors::SIDEBAR_BG);
-        FillRect(hdc, &sidebarRect, sidebarBrush);
-        DeleteObject(sidebarBrush);
-        
-        // Разделительная линия
-        HPEN dividerPen = CreatePen(PS_SOLID, 1, Colors::DIVIDER);
-        HPEN oldPen = (HPEN)SelectObject(hdc, dividerPen);
-        MoveToEx(hdc, SIDEBAR_WIDTH - 1, 0, nullptr);
-        LineTo(hdc, SIDEBAR_WIDTH - 1, clientRect.bottom);
-        SelectObject(hdc, oldPen);
-        DeleteObject(dividerPen);
-        
-        // Логотип и заголовок
-        DrawSidebarHeader(hdc);
-        
-        // Пункты меню
-        DrawSidebarItems(hdc);
-        
-        // Профиль пользователя
-        DrawUserProfile(hdc, clientRect);
-    }
-    
-    void DrawSidebarHeader(HDC hdc) {
-        SetBkMode(hdc, TRANSPARENT);
-        
-        // Иконка Алисы (круг с градиентом)
-        DrawAlisaIcon(hdc, 20, 20, 32);
-        
-        // Заголовок "Алиса AI"
-        HFONT oldFont = (HFONT)SelectObject(hdc, fontTitle);
-        SetTextColor(hdc, Colors::TEXT_PRIMARY);
-        
-        RECT titleRect = {60, 22, SIDEBAR_WIDTH - 10, 55};
-        DrawTextW(hdc, L"Алиса AI", -1, &titleRect, 
-                 DT_LEFT | DT_SINGLELINE | DT_VCENTER);
-        
-        SelectObject(hdc, oldFont);
-    }
-    
-    void DrawAlisaIcon(HDC hdc, int x, int y, int size) {
-        // Создание градиентного круга с использованием GDI+
-        Graphics graphics(hdc);
-        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        
-        // Градиент от фиолетового к розовому
-        LinearGradientBrush gradient(
-            Point(x, y),
-            Point(x + size, y + size),
-            Color(255, 130, 90, 220),
-            Color(255, 200, 100, 200)
-        );
-        
-        graphics.FillEllipse(&gradient, x, y, size, size);
-        
-        // Белый блик
-        SolidBrush whiteBrush(Color(100, 255, 255, 255));
-        graphics.FillEllipse(&whiteBrush, x + size/4, y + size/6, size/3, size/4);
-    }
-    
-    void DrawSidebarItems(HDC hdc) {
-        int yOffset = 80;
-        
-        SetBkMode(hdc, TRANSPARENT);
-        
-        for (size_t i = 0; i < sidebarItems.size(); i++) {
-            SidebarItem& item = sidebarItems[i];
-            
-            // Определение границ элемента
-            item.bounds.left = 10;
-            item.bounds.top = yOffset;
-            item.bounds.right = SIDEBAR_WIDTH - 10;
-            item.bounds.bottom = yOffset + 45;
-            
-            // Фон элемента (активный или при наведении)
-            COLORREF bgColor = Colors::SIDEBAR_BG;
-            if (item.active) {
-                bgColor = Colors::ACTIVE_BG;
-            } else if (item.hovered) {
-                bgColor = Colors::HOVER_BG;
-            }
-            
-            if (item.active || item.hovered) {
-                HBRUSH itemBrush = CreateSolidBrush(bgColor);
-                RECT itemRect = item.bounds;
-                // Скругленные углы
-                HRGN rgn = CreateRoundRectRgn(
-                    itemRect.left, itemRect.top,
-                    itemRect.right + 1, itemRect.bottom + 1,
-                    10, 10
-                );
-                FillRgn(hdc, rgn, itemBrush);
-                DeleteObject(rgn);
-                DeleteObject(itemBrush);
-            }
-            
-            // Иконка
-            HFONT oldFont = (HFONT)SelectObject(hdc, fontIcon);
-            SetTextColor(hdc, item.active ? Colors::ACCENT_PURPLE : Colors::TEXT_SECONDARY);
-            
-            RECT iconRect = {item.bounds.left + 15, item.bounds.top, 
-                            item.bounds.left + 45, item.bounds.bottom};
-            
-            // Отрисовка символьных иконок
-            std::wstring iconStr;
-            if (i == 0) iconStr = L"+";      // Новый чат
-            else if (i == 1) iconStr = L"\u1F4DD"; // Заметки
-            else iconStr = L"\u2611";              // Планы
-            
-            DrawTextW(hdc, iconStr.c_str(), -1, &iconRect, 
-                     DT_CENTER | DT_SINGLELINE | DT_VCENTER);
-            
-            // Текст элемента
-            SelectObject(hdc, item.active ? fontBold : fontRegular);
-            SetTextColor(hdc, item.active ? Colors::TEXT_PRIMARY : Colors::TEXT_SECONDARY);
-            
-            RECT textRect = {item.bounds.left + 50, item.bounds.top,
-                            item.bounds.right - 10, item.bounds.bottom};
-            DrawTextW(hdc, item.title.c_str(), -1, &textRect,
-                     DT_LEFT | DT_SINGLELINE | DT_VCENTER);
-            
-            SelectObject(hdc, oldFont);
-            
-            yOffset += 50;
-            
-            // Разделитель "Сегодня"
-            if (i == 1) {
-                yOffset += 10;
-                HFONT oldF = (HFONT)SelectObject(hdc, fontSmall);
-                SetTextColor(hdc, Colors::TEXT_MUTED);
-                RECT labelRect = {20, yOffset, SIDEBAR_WIDTH - 20, yOffset + 25};
-                DrawTextW(hdc, L"Сегодня", -1, &labelRect, 
-                         DT_LEFT | DT_SINGLELINE | DT_VCENTER);
-                SelectObject(hdc, oldF);
-                yOffset += 30;
-            }
-        }
-    }
-    
-    void DrawUserProfile(HDC hdc, const RECT& clientRect) {
-        int profileY = clientRect.bottom - 80;
-        
-        // Разделительная линия
-        HPEN dividerPen = CreatePen(PS_SOLID, 1, Colors::DIVIDER);
-        HPEN oldPen = (HPEN)SelectObject(hdc, dividerPen);
-        MoveToEx(hdc, 15, profileY - 15, nullptr);
-        LineTo(hdc, SIDEBAR_WIDTH - 15, profileY - 15);
-        SelectObject(hdc, oldPen);
-        DeleteObject(dividerPen);
-        
-        // Аватар пользователя
-        DrawUserAvatar(hdc, 20, profileY, 40);
-        
-        SetBkMode(hdc, TRANSPARENT);
-        
-        // Имя пользователя
-        HFONT oldFont = (HFONT)SelectObject(hdc, fontBold);
-        SetTextColor(hdc, Colors::TEXT_PRIMARY);
-        
-        RECT nameRect = {70, profileY + 5, SIDEBAR_WIDTH - 50, profileY + 25};
-        DrawTextW(hdc, currentUser.name.c_str(), -1, &nameRect,
-                 DT_LEFT | DT_SINGLELINE);
-        
-        // Ссылка "Открыть профиль"
-        SelectObject(hdc, fontSmall);
-        SetTextColor(hdc, profileButtonHovered ? 
-                    Colors::ACCENT_PURPLE : Colors::TEXT_SECONDARY);
-        
-        RECT linkRect = {70, profileY + 28, SIDEBAR_WIDTH - 50, profileY + 48};
-        DrawTextW(hdc, L"Открыть профиль", -1, &linkRect,
-                 DT_LEFT | DT_SINGLELINE);
-        
-        SelectObject(hdc, oldFont);
-    }
-    
-    void DrawUserAvatar(HDC hdc, int x, int y, int size) {
-        Graphics graphics(hdc);
-        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        
-        // Круглый фон аватара
-        SolidBrush avatarBrush(Color(255, 130, 90, 220));
-        graphics.FillEllipse(&avatarBrush, x, y, size, size);
-        
-        // Инициалы
-        FontFamily fontFamily(L"Segoe UI");
-        Gdiplus::Font font(&fontFamily, 14, FontStyleBold, UnitPixel);
-        SolidBrush textBrush(Color(255, 255, 255, 255));
-        
-        StringFormat format;
-        format.SetAlignment(StringAlignmentCenter);
-        format.SetLineAlignment(StringAlignmentCenter);
-        
-        RectF rect((REAL)x, (REAL)y, (REAL)size, (REAL)size);
-        graphics.DrawString(currentUser.avatarInitials.c_str(), -1, 
-                          &font, rect, &format, &textBrush);
-    }
-    
-    void DrawMainContent(HDC hdc, const RECT& clientRect) {
-        int contentLeft = SIDEBAR_WIDTH + 30;
-        int contentTop = 30;
-        int contentWidth = clientRect.right - SIDEBAR_WIDTH - 60;
-        int contentHeight = clientRect.bottom - INPUT_HEIGHT - 60;
-        
-        // Отрисовка сообщений чата
-        DrawChatMessages(hdc, contentLeft, contentTop, contentWidth);
-        
-        // Отрисовка карточек задач
-        int tasksTop = contentTop + 150;
-        DrawTaskCards(hdc, contentLeft, tasksTop, contentWidth, contentHeight - 150);
-    }
-    
-    void DrawChatMessages(HDC hdc, int x, int y, int width) {
-        SetBkMode(hdc, TRANSPARENT);
-        
-        int yOffset = y;
-        
-        for (auto& msg : messages) {
-            if (msg.isUser) {
-                // Сообщение пользователя (справа)
-                DrawUserMessage(hdc, x, yOffset, width, msg);
-                yOffset += 60;
-            } else {
-                // Ответ Алисы
-                DrawAlisaResponse(hdc, x, yOffset, width, msg);
-                yOffset += 80;
-            }
-        }
-    }
-    
-    void DrawUserMessage(HDC hdc, int x, int y, int width, ChatMessage& msg) {
-        // Измерение текста
-        HFONT oldFont = (HFONT)SelectObject(hdc, fontRegular);
-        SIZE textSize;
-        GetTextExtentPoint32W(hdc, msg.text.c_str(), 
-                             (int)msg.text.length(), &textSize);
-        
-        int bubbleWidth = textSize.cx + 30;
-        int bubbleHeight = 40;
-        int bubbleX = x + width - bubbleWidth - 10;
-        int bubbleY = y;
-        
-        // Фон пузыря сообщения
-        Graphics graphics(hdc);
-        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        
-        SolidBrush bubbleBrush(Color(255, 245, 243, 250));
-        
-        // Скругленный прямоугольник
-        GraphicsPath path;
-        int radius = 15;
-        path.AddArc(bubbleX, bubbleY, radius * 2, radius * 2, 180, 90);
-        path.AddArc(bubbleX + bubbleWidth - radius * 2, bubbleY, 
-                   radius * 2, radius * 2, 270, 90);
-        path.AddArc(bubbleX + bubbleWidth - radius * 2, 
-                   bubbleY + bubbleHeight - radius * 2, 
-                   radius * 2, radius * 2, 0, 90);
-        path.AddArc(bubbleX, bubbleY + bubbleHeight - radius * 2, 
-                   radius * 2, radius * 2, 90, 90);
-        path.CloseFigure();
-        
-        graphics.FillPath(&bubbleBrush, &path);
-        
-        // Текст сообщения
-        SetTextColor(hdc, Colors::TEXT_PRIMARY);
-        RECT textRect = {bubbleX + 15, bubbleY + 10, 
-                        bubbleX + bubbleWidth - 15, bubbleY + bubbleHeight - 10};
-        DrawTextW(hdc, msg.text.c_str(), -1, &textRect, 
-                 DT_LEFT | DT_SINGLELINE | DT_VCENTER);
-        
-        SelectObject(hdc, oldFont);
-    }
-    
-    void DrawAlisaResponse(HDC hdc, int x, int y, int width, ChatMessage& msg) {
-        // Иконка Алисы
-        DrawAlisaIcon(hdc, x, y, 28);
-        
-        // Текст ответа
-        SetBkMode(hdc, TRANSPARENT);
-        HFONT oldFont = (HFONT)SelectObject(hdc, fontRegular);
-        SetTextColor(hdc, Colors::TEXT_SECONDARY);
-        
-        RECT textRect = {x + 40, y, x + width - 20, y + 60};
-        DrawTextW(hdc, msg.text.c_str(), -1, &textRect, 
-                 DT_LEFT | DT_WORDBREAK);
-        
-        SelectObject(hdc, oldFont);
-    }
-    
-    void DrawTaskCards(HDC hdc, int x, int y, int width, int height) {
-        int yOffset = y - scrollOffset;
-        
-        for (auto& task : tasks) {
-            if (yOffset + TASK_CARD_HEIGHT > y - 20 && yOffset < y + height + 20) {
-                DrawSingleTaskCard(hdc, x, yOffset, width, task);
-            }
-            
-            task.bounds.left = x;
-            task.bounds.top = yOffset;
-            task.bounds.right = x + width;
-            task.bounds.bottom = yOffset + TASK_CARD_HEIGHT;
-            
-            yOffset += TASK_CARD_HEIGHT + TASK_CARD_MARGIN;
-        }
-        
-        // Обновление максимального смещения прокрутки
-        int totalHeight = (int)tasks.size() * (TASK_CARD_HEIGHT + TASK_CARD_MARGIN);
-        maxScrollOffset = max(0, totalHeight - height);
-    }
-    
-    void DrawSingleTaskCard(HDC hdc, int x, int y, int width, Task& task) {
-        Graphics graphics(hdc);
-        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        
-        // Определение цвета фона
-        Color bgColor(255, 255, 255, 255);
-        if (task.hovered) {
-            bgColor = Color(255, 250, 250, 252);
-        }
-        if (task.completed) {
-            bgColor = Color(255, 245, 255, 248);
-        }
-        
-        // Тень карточки
-        SolidBrush shadowBrush(Color(15, 0, 0, 0));
-        GraphicsPath shadowPath;
-        int radius = 12;
-        int cardWidth = width - 40;
-        int shadowOffset = 3;
-        
-        shadowPath.AddArc(x + shadowOffset, y + shadowOffset, 
-                         radius * 2, radius * 2, 180, 90);
-        shadowPath.AddArc(x + cardWidth - radius * 2 + shadowOffset, y + shadowOffset,
-                         radius * 2, radius * 2, 270, 90);
-        shadowPath.AddArc(x + cardWidth - radius * 2 + shadowOffset, 
-                         y + TASK_CARD_HEIGHT - radius * 2 + shadowOffset,
-                         radius * 2, radius * 2, 0, 90);
-        shadowPath.AddArc(x + shadowOffset, 
-                         y + TASK_CARD_HEIGHT - radius * 2 + shadowOffset,
-                         radius * 2, radius * 2, 90, 90);
-        shadowPath.CloseFigure();
-        graphics.FillPath(&shadowBrush, &shadowPath);
-        
-        // Основная карточка
-        SolidBrush cardBrush(bgColor);
-        GraphicsPath cardPath;
-        
-        cardPath.AddArc(x, y, radius * 2, radius * 2, 180, 90);
-        cardPath.AddArc(x + cardWidth - radius * 2, y, radius * 2, radius * 2, 270, 90);
-        cardPath.AddArc(x + cardWidth - radius * 2, y + TASK_CARD_HEIGHT - radius * 2,
-                       radius * 2, radius * 2, 0, 90);
-        cardPath.AddArc(x, y + TASK_CARD_HEIGHT - radius * 2, 
-                       radius * 2, radius * 2, 90, 90);
-        cardPath.CloseFigure();
-        
-        graphics.FillPath(&cardBrush, &cardPath);
-        
-        // Граница карточки
-        Pen borderPen(Color(255, 230, 230, 235), 1.0f);
-        graphics.DrawPath(&borderPen, &cardPath);
-        
-        // Чекбокс
-        DrawTaskCheckbox(hdc, x + 20, y + (TASK_CARD_HEIGHT - 24) / 2, 24, task.completed);
-        
-        // Заголовок задачи
-        SetBkMode(hdc, TRANSPARENT);
-        HFONT oldFont = (HFONT)SelectObject(hdc, fontBold);
-        SetTextColor(hdc, task.completed ? Colors::TEXT_MUTED : Colors::TEXT_PRIMARY);
-        
-        RECT titleRect = {x + 55, y + 15, x + cardWidth - 100, y + 40};
-        DrawTextW(hdc, task.title.c_str(), -1, &titleRect,
-                 DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
-        
-        // Дата и время
-        SelectObject(hdc, fontSmall);
-        SetTextColor(hdc, Colors::TEXT_MUTED);
-        
-        std::wstring timeInfo = task.date + L", " + task.time + L"  •  " + task.duration;
-        RECT timeRect = {x + 55, y + 45, x + cardWidth - 100, y + 65};
-        DrawTextW(hdc, timeInfo.c_str(), -1, &timeRect,
-                 DT_LEFT | DT_SINGLELINE);
-        
-        // Иконка времени
-        DrawClockIcon(hdc, x + 55, y + 45, 12);
-        
-        SelectObject(hdc, oldFont);
-        
-        // Кнопки действий (показываются при наведении)
-        if (task.hovered) {
-            DrawTaskActions(hdc, x + cardWidth - 90, y + (TASK_CARD_HEIGHT - 30) / 2, task);
-        }
-    }
-    
-    void DrawTaskCheckbox(HDC hdc, int x, int y, int size, bool checked) {
-        Graphics graphics(hdc);
-        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        
-        if (checked) {
-            // Заполненный чекбокс
-            SolidBrush checkBrush(Color(255, 100, 200, 120));
-            graphics.FillEllipse(&checkBrush, x, y, size, size);
-            
-            // Галочка
-            Pen checkPen(Color(255, 255, 255, 255), 2.5f);
-            graphics.DrawLine(&checkPen, x + 6, y + size/2, x + size/2 - 2, y + size - 7);
-            graphics.DrawLine(&checkPen, x + size/2 - 2, y + size - 7, x + size - 6, y + 7);
-        } else {
-            // Пустой чекбокс
-            Pen circlePen(Color(255, 180, 180, 190), 2.0f);
-            graphics.DrawEllipse(&circlePen, x + 1, y + 1, size - 2, size - 2);
-        }
-    }
-    
-    void DrawClockIcon(HDC hdc, int x, int y, int size) {
-        Graphics graphics(hdc);
-        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        
-        Pen iconPen(Color(255, 160, 160, 170), 1.5f);
-        graphics.DrawEllipse(&iconPen, x, y, size, size);
-        
-        // Стрелки часов
-        int centerX = x + size / 2;
-        int centerY = y + size / 2;
-        graphics.DrawLine(&iconPen, centerX, centerY, centerX, y + 3);
-        graphics.DrawLine(&iconPen, centerX, centerY, x + size - 3, centerY);
-    }
-    
-    void DrawTaskActions(HDC hdc, int x, int y, Task& task) {
-        Graphics graphics(hdc);
-        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        
-        // Кнопка редактирования
-        SolidBrush btnBrush(Color(255, 245, 245, 248));
-        graphics.FillEllipse(&btnBrush, x, y, 28, 28);
-        
-        // Иконка карандаша
-        Pen editPen(Color(255, 120, 120, 130), 1.5f);
-        graphics.DrawLine(&editPen, x + 8, y + 20, x + 20, y + 8);
-        graphics.DrawLine(&editPen, x + 17, y + 5, x + 23, y + 11);
-        
-        // Кнопка удаления
-        graphics.FillEllipse(&btnBrush, x + 35, y, 28, 28);
-        
-        // Иконка корзины
-        Pen deletePen(Color(255, 200, 100, 100), 1.5f);
-        graphics.DrawLine(&deletePen, x + 43, y + 8, x + 55, y + 8);
-        graphics.DrawRectangle(&deletePen, x + 44, y + 10, 10, 12);
-    }
-    
-    void DrawInputArea(HDC hdc, const RECT& clientRect) {
-        int inputY = clientRect.bottom - INPUT_HEIGHT;
-        int inputWidth = clientRect.right - SIDEBAR_WIDTH;
-        
-        // Фон области ввода
-        RECT inputBgRect = {SIDEBAR_WIDTH, inputY, clientRect.right, clientRect.bottom};
-        HBRUSH inputBgBrush = CreateSolidBrush(Colors::WHITE);
-        FillRect(hdc, &inputBgRect, inputBgBrush);
-        DeleteObject(inputBgBrush);
-        
-        // Верхняя граница
-        HPEN borderPen = CreatePen(PS_SOLID, 1, Colors::DIVIDER);
-        HPEN oldPen = (HPEN)SelectObject(hdc, borderPen);
-        MoveToEx(hdc, SIDEBAR_WIDTH, inputY, nullptr);
-        LineTo(hdc, clientRect.right, inputY);
-        SelectObject(hdc, oldPen);
-        DeleteObject(borderPen);
-        
-        // Кнопка отправки
-        DrawSendButton(hdc, clientRect.right - 70, inputY + 20, 40);
-        
-        // Кнопка прикрепления
-        DrawAttachButton(hdc, SIDEBAR_WIDTH + 30, inputY + 30, 20);
-    }
-    
-    void DrawSendButton(HDC hdc, int x, int y, int size) {
-        Graphics graphics(hdc);
-        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        
-        // Градиентный фон кнопки
-        Color startColor = sendButtonHovered ? 
-            Color(255, 150, 110, 240) : Color(255, 130, 90, 220);
-        Color endColor = sendButtonHovered ? 
-            Color(255, 220, 120, 220) : Color(255, 200, 100, 200);
-        
-        LinearGradientBrush gradient(
-            Point(x, y),
-            Point(x + size, y + size),
-            startColor,
-            endColor
-        );
-        
-        graphics.FillEllipse(&gradient, x, y, size, size);
-        
-        // Иконка отправки (стрелка)
-        Pen arrowPen(Color(255, 255, 255, 255), 2.5f);
-        arrowPen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
-        
-        int cx = x + size / 2;
-        int cy = y + size / 2;
-        
-        // Стрелка вверх
-        graphics.DrawLine(&arrowPen, cx, cy + 8, cx, cy - 8);
-        graphics.DrawLine(&arrowPen, cx - 6, cy - 2, cx, cy - 8);
-        graphics.DrawLine(&arrowPen, cx + 6, cy - 2, cx, cy - 8);
-    }
-    
-    void DrawAttachButton(HDC hdc, int x, int y, int size) {
-        Graphics graphics(hdc);
-        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        
-        // Иконка плюса
-        Pen plusPen(Color(255, 160, 160, 170), 2.0f);
-        plusPen.SetLineCap(LineCapRound, LineCapRound, DashCapRound);
-        
-        int cx = x + size / 2;
-        int cy = y + size / 2;
-        
-        graphics.DrawLine(&plusPen, cx - 8, cy, cx + 8, cy);
-        graphics.DrawLine(&plusPen, cx, cy - 8, cx, cy + 8);
-    }
-    
-    // ========================================================================
-    // ОБРАБОТКА СОБЫТИЙ
-    // ========================================================================
-    
-    void OnMouseMove(int x, int y) {
-        bool needsRedraw = false;
-        
-        // Проверка наведения на задачи
-        int oldHoveredTask = hoveredTaskId;
-        hoveredTaskId = -1;
-        
-        for (auto& task : tasks) {
-            bool wasHovered = task.hovered;
-            task.hovered = PtInRect(&task.bounds, {x, y}) != 0;
-            
-            if (task.hovered) {
-                hoveredTaskId = task.id;
-            }
-            
-            if (wasHovered != task.hovered) {
-                needsRedraw = true;
-            }
-        }
-        
-        // Проверка наведения на пункты меню
-        int oldHoveredSidebar = hoveredSidebarId;
-        hoveredSidebarId = -1;
-        
-        for (auto& item : sidebarItems) {
-            bool wasHovered = item.hovered;
-            item.hovered = PtInRect(&item.bounds, {x, y}) != 0;
-            
-            if (item.hovered) {
-                hoveredSidebarId = item.id;
-            }
-            
-            if (wasHovered != item.hovered) {
-                needsRedraw = true;
-            }
-        }
-        
-        // Проверка наведения на кнопку отправки
-        RECT clientRect;
-        GetClientRect(hwndMain, &clientRect);
-        
-        RECT sendBtnRect = {
-            clientRect.right - 70,
-            clientRect.bottom - INPUT_HEIGHT + 20,
-            clientRect.right - 30,
-            clientRect.bottom - INPUT_HEIGHT + 60
-        };
-        
-        bool wasSendHovered = sendButtonHovered;
-        sendButtonHovered = PtInRect(&sendBtnRect, {x, y}) != 0;
-        
-        if (wasSendHovered != sendButtonHovered) {
-            needsRedraw = true;
-        }
-        
-        // Проверка наведения на профиль
-        RECT profileRect = {70, clientRect.bottom - 55, SIDEBAR_WIDTH - 50, clientRect.bottom - 35};
-        bool wasProfileHovered = profileButtonHovered;
-        profileButtonHovered = PtInRect(&profileRect, {x, y}) != 0;
-        
-        if (wasProfileHovered != profileButtonHovered) {
-            needsRedraw = true;
-        }
-        
-        // Прокрутка при перетаскивании
-        if (isDraggingScroll) {
-            int delta = dragStartY - y;
-            scrollOffset = max(0, min(maxScrollOffset, dragStartScroll + delta));
-            needsRedraw = true;
-        }
-        
-        if (needsRedraw) {
-            InvalidateRect(hwndMain, nullptr, FALSE);
-        }
-    }
-    
-    void OnLeftButtonDown(int x, int y) {
-        // Проверка клика по задаче (чекбокс)
-        for (auto& task : tasks) {
-            if (task.hovered) {
-                RECT checkboxRect = {
-                    task.bounds.left + 20,
-                    task.bounds.top + (TASK_CARD_HEIGHT - 24) / 2,
-                    task.bounds.left + 44,
-                    task.bounds.top + (TASK_CARD_HEIGHT + 24) / 2
-                };
-                
-                if (PtInRect(&checkboxRect, {x, y})) {
-                    task.completed = !task.completed;
-                    InvalidateRect(hwndMain, nullptr, FALSE);
-                    return;
-                }
-            }
-        }
-        
-        // Проверка клика по пунктам меню
-        for (auto& item : sidebarItems) {
-            if (item.hovered) {
-                // Сброс активного состояния
-                for (auto& i : sidebarItems) {
-                    i.active = false;
-                }
-                item.active = true;
-                
-                // Обработка действий
-                if (item.id == ID_BTN_NEWCHAT) {
-                    StartNewChat();
-                }
-                
-                InvalidateRect(hwndMain, nullptr, FALSE);
-                return;
-            }
-        }
-        
-        // Начало прокрутки
-        RECT clientRect;
-        GetClientRect(hwndMain, &clientRect);
-        
-        int contentArea = clientRect.bottom - INPUT_HEIGHT - 200;
-        if (x > SIDEBAR_WIDTH && y > 200 && y < clientRect.bottom - INPUT_HEIGHT) {
-            isDraggingScroll = true;
-            dragStartY = y;
-            dragStartScroll = scrollOffset;
-            SetCapture(hwndMain);
-        }
-        
-        // Проверка клика по кнопке отправки
-        if (sendButtonHovered) {
-            SendMessage();
-        }
-    }
-    
-    void OnLeftButtonUp(int x, int y) {
-        if (isDraggingScroll) {
-            isDraggingScroll = false;
-            ReleaseCapture();
-        }
-    }
-    
-    void OnMouseWheel(int delta) {
-        int scrollAmount = (delta > 0) ? -30 : 30;
-        scrollOffset = max(0, min(maxScrollOffset, scrollOffset + scrollAmount));
-        InvalidateRect(hwndMain, nullptr, FALSE);
-    }
-    
-    void OnKeyDown(WPARAM key) {
-        if (key == VK_RETURN) {
-            SendMessage();
-        }
-    }
-    
-    void SendMessage() {
-        wchar_t buffer[1024];
-        GetWindowTextW(hwndInput, buffer, 1024);
-        
-        std::wstring input(buffer);
-        if (input.empty()) return;
-        
-        // Добавление сообщения пользователя
-        messages.push_back(ChatMessage(input, true));
-        
-        // Генерация ответа
-        GenerateResponse(input);
-        
-        // Очистка поля ввода
-        SetWindowTextW(hwndInput, L"");
-        
-        InvalidateRect(hwndMain, nullptr, FALSE);
-    }
-    
-    void GenerateResponse(const std::wstring& input) {
-        std::wstring response;
-        
-        // Простая логика ответов
-        if (input.find(L"задач") != std::wstring::npos || 
-            input.find(L"план") != std::wstring::npos) {
-            response = L"У вас " + std::to_wstring(tasks.size()) + 
-                      L" задач(и) на сегодня. Могу помочь добавить новую?";
-        }
-        else if (input.find(L"добав") != std::wstring::npos) {
-            response = L"Хорошо, какую задачу вы хотите добавить? Укажите название, время и длительность.";
-        }
-        else if (input.find(L"привет") != std::wstring::npos || 
-                 input.find(L"здравств") != std::wstring::npos) {
-            response = L"Здравствуйте, " + currentUser.name + 
-                      L"! Чем могу помочь?";
-        }
-        else if (input.find(L"спасибо") != std::wstring::npos) {
-            response = L"Пожалуйста! Обращайтесь, если что-то понадобится.";
-        }
-        else if (input.find(L"погод") != std::wstring::npos) {
-            response = L"Сегодня в Москве облачно, +5°C. Не забудьте взять зонт!";
-        }
-        else if (input.find(L"врем") != std::wstring::npos || 
-                 input.find(L"час") != std::wstring::npos) {
-            std::time_t now = std::time(nullptr);
-            std::tm* localTime = std::localtime(&now);
-            
-            std::wstringstream wss;
-            wss << L"Сейчас " << std::setfill(L'0') << std::setw(2) 
-                << localTime->tm_hour << L":" << std::setw(2) 
-                << localTime->tm_min;
-            response = wss.str();
-        }
-        else {
-            response = L"Интересный вопрос! Я постараюсь найти информацию. "
-                      L"Пока могу помочь с задачами и планированием.";
-        }
-        
-        messages.push_back(ChatMessage(response, false));
-    }
-    
-    void StartNewChat() {
-        messages.clear();
-        messages.push_back(ChatMessage(
-            L"Здравствуйте! Я Алиса, ваш умный помощник. Чем могу помочь?", 
-            false));
-        InvalidateRect(hwndMain, nullptr, FALSE);
-    }
-    
-    void AddTask(const std::wstring& title, const std::wstring& time, 
-                const std::wstring& duration) {
-        int newId = tasks.empty() ? 1 : tasks.back().id + 1;
-        tasks.push_back(Task(newId, title, L"Сегодня", time, duration));
-        
-        animatingNewTask = true;
-        animationProgress = 0.0f;
-        
-        InvalidateRect(hwndMain, nullptr, FALSE);
-    }
-    
-    void RemoveTask(int taskId) {
-        tasks.erase(
-            std::remove_if(tasks.begin(), tasks.end(),
-                [taskId](const Task& t) { return t.id == taskId; }),
-            tasks.end()
-        );
-        InvalidateRect(hwndMain, nullptr, FALSE);
-    }
-    
-    void OnTimer(WPARAM timerId) {
-        if (timerId == ID_TIMER_ANIMATE && animatingNewTask) {
-            animationProgress += 0.05f;
-            if (animationProgress >= 1.0f) {
-                animationProgress = 1.0f;
-                animatingNewTask = false;
-            }
-            InvalidateRect(hwndMain, nullptr, FALSE);
-        }
-    }
-    
-    void OnResize(int width, int height) {
-        // Перерасчет позиций элементов
-        if (hwndInput) {
-            int inputY = height - INPUT_HEIGHT + 20;
-            int inputWidth = width - SIDEBAR_WIDTH - 160;
-            SetWindowPos(hwndInput, nullptr, 
-                        SIDEBAR_WIDTH + 70, inputY,
-                        inputWidth, 40, 
-                        SWP_NOZORDER);
-        }
-        
-        InvalidateRect(hwndMain, nullptr, FALSE);
-    }
-    
-    // ========================================================================
-    // СТАТИЧЕСКИЙ ОБРАБОТЧИК СООБЩЕНИЙ
-    // ========================================================================
-    
-    static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, 
-                                       WPARAM wParam, LPARAM lParam) {
-        AlisaAIApp* pApp = nullptr;
-        
-        if (uMsg == WM_NCCREATE) {
-            CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
-            pApp = reinterpret_cast<AlisaAIApp*>(pCreate->lpCreateParams);
-            SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pApp));
-        } else {
-            pApp = reinterpret_cast<AlisaAIApp*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-        }
-        
-        if (pApp) {
-            switch (uMsg) {
-                case WM_PAINT: {
-                    PAINTSTRUCT ps;
-                    HDC hdc = BeginPaint(hwnd, &ps);
-                    
-                    RECT clientRect;
-                    GetClientRect(hwnd, &clientRect);
-                    
-                    pApp->OnPaint(hdc, clientRect);
-                    
-                    EndPaint(hwnd, &ps);
-                    return 0;
-                }
-                
-                case WM_MOUSEMOVE: {
-                    int x = GET_X_LPARAM(lParam);
-                    int y = GET_Y_LPARAM(lParam);
-                    pApp->OnMouseMove(x, y);
-                    return 0;
-                }
-                
-                case WM_LBUTTONDOWN: {
-                    int x = GET_X_LPARAM(lParam);
-                    int y = GET_Y_LPARAM(lParam);
-                    pApp->OnLeftButtonDown(x, y);
-                    return 0;
-                }
-                
-                case WM_LBUTTONUP: {
-                    int x = GET_X_LPARAM(lParam);
-                    int y = GET_Y_LPARAM(lParam);
-                    pApp->OnLeftButtonUp(x, y);
-                    return 0;
-                }
-                
-                case WM_MOUSEWHEEL: {
-                    int delta = GET_WHEEL_DELTA_WPARAM(wParam);
-                    pApp->OnMouseWheel(delta);
-                    return 0;
-                }
-                
-                case WM_KEYDOWN: {
-                    pApp->OnKeyDown(wParam);
-                    return 0;
-                }
-                
-                case WM_TIMER: {
-                    pApp->OnTimer(wParam);
-                    return 0;
-                }
-                
-                case WM_SIZE: {
-                    int width = LOWORD(lParam);
-                    int height = HIWORD(lParam);
-                    pApp->OnResize(width, height);
-                    return 0;
-                }
-                
-                case WM_CTLCOLOREDIT: {
-                    HDC hdcEdit = (HDC)wParam;
-                    SetBkColor(hdcEdit, Colors::WHITE);
-                    SetTextColor(hdcEdit, Colors::TEXT_PRIMARY);
-                    static HBRUSH hBrush = CreateSolidBrush(Colors::WHITE);
-                    return (LRESULT)hBrush;
-                }
-                
-                case WM_ERASEBKGND:
-                    return 1;
-                
-                case WM_DESTROY: {
-                    PostQuitMessage(0);
-                    return 0;
-                }
-            }
-        }
-        
-        return DefWindowProc(hwnd, uMsg, wParam, lParam);
-    }
-    
-    // ========================================================================
-    // ГЕТТЕРЫ
-    // ========================================================================
-    
-    HWND GetMainWindow() const { return hwndMain; }
-};
-
-// ============================================================================
-// ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ И ФУНКЦИИ
-// ============================================================================
-
-// Класс для работы с настройками
-class Settings {
-private:
-    std::map<std::wstring, std::wstring> settings;
-    std::wstring filePath;
-    
-public:
-    Settings(const std::wstring& path) : filePath(path) {
-        Load();
-    }
-    
-    void Load() {
-        // Загрузка настроек из файла
-        HANDLE hFile = CreateFileW(filePath.c_str(), GENERIC_READ, 
-                                   FILE_SHARE_READ, nullptr, 
-                                   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 
-                                   nullptr);
-        
-        if (hFile != INVALID_HANDLE_VALUE) {
-            char buffer[4096];
-            DWORD bytesRead;
-            
-            if (ReadFile(hFile, buffer, sizeof(buffer) - 1, &bytesRead, nullptr)) {
-                buffer[bytesRead] = '\0';
-                ParseSettings(buffer);
-            }
-            
-            CloseHandle(hFile);
-        }
-    }
-    
-    void Save() {
-        // Сохранение настроек в файл
-        HANDLE hFile = CreateFileW(filePath.c_str(), GENERIC_WRITE,
-                                   0, nullptr, CREATE_ALWAYS,
-                                   FILE_ATTRIBUTE_NORMAL, nullptr);
-        
-        if (hFile != INVALID_HANDLE_VALUE) {
-            for (const auto& pair : settings) {
-                std::wstring line = pair.first + L"=" + pair.second + L"\n";
-                std::string utf8Line(line.begin(), line.end());
-                DWORD bytesWritten;
-                WriteFile(hFile, utf8Line.c_str(), 
-                         (DWORD)utf8Line.length(), &bytesWritten, nullptr);
-            }
-            
-            CloseHandle(hFile);
-        }
-    }
-    
-    void Set(const std::wstring& key, const std::wstring& value) {
-        settings[key] = value;
-    }
-    
-    std::wstring Get(const std::wstring& key, 
-                    const std::wstring& defaultValue = L"") const {
-        auto it = settings.find(key);
-        return (it != settings.end()) ? it->second : defaultValue;
-    }
-    
-private:
-    void ParseSettings(const char* data) {
-        // Простой парсинг ключ=значение
-        std::string str(data);
-        std::istringstream stream(str);
-        std::string line;
-        
-        while (std::getline(stream, line)) {
-            size_t pos = line.find('=');
-            if (pos != std::string::npos) {
-                std::string key = line.substr(0, pos);
-                std::string value = line.substr(pos + 1);
-                settings[std::wstring(key.begin(), key.end())] = 
-                    std::wstring(value.begin(), value.end());
-            }
-        }
-    }
-};
-
-// Класс для работы с темами оформления
-class ThemeManager {
-public:
-    enum class Theme {
-        Light,
-        Dark,
-        System
-    };
-    
-private:
-    Theme currentTheme;
-    
-    // Цвета для светлой темы
-    struct LightColors {
-        static constexpr COLORREF Background = RGB(250, 250, 252);
-        static constexpr COLORREF Sidebar = RGB(248, 248, 250);
-        static constexpr COLORREF Card = RGB(255, 255, 255);
-        static constexpr COLORREF TextPrimary = RGB(30, 30, 35);
-        static constexpr COLORREF TextSecondary = RGB(120, 120, 130);
-        static constexpr COLORREF Accent = RGB(130, 90, 220);
-    };
-    
-    // Цвета для тёмной темы
-    struct DarkColors {
-        static constexpr COLORREF Background = RGB(25, 25, 30);
-        static constexpr COLORREF Sidebar = RGB(30, 30, 35);
-        static constexpr COLORREF Card = RGB(40, 40, 45);
-        static constexpr COLORREF TextPrimary = RGB(240, 240, 245);
-        static constexpr COLORREF TextSecondary = RGB(160, 160, 170);
-        static constexpr COLORREF Accent = RGB(150, 110, 240);
-    };
-    
-public:
-    ThemeManager() : currentTheme(Theme::Light) {}
-    
-    void SetTheme(Theme theme) {
-        currentTheme = theme;
-    }
-    
-    Theme GetTheme() const {
-        return currentTheme;
-    }
-    
-    COLORREF GetColor(const std::wstring& colorName) const {
-        if (currentTheme == Theme::Dark) {
-            if (colorName == L"background") return DarkColors::Background;
-            if (colorName == L"sidebar") return DarkColors::Sidebar;
-            if (colorName == L"card") return DarkColors::Card;
-            if (colorName == L"textPrimary") return DarkColors::TextPrimary;
-            if (colorName == L"textSecondary") return DarkColors::TextSecondary;
-            if (colorName == L"accent") return DarkColors::Accent;
-        }
-        
-        // По умолчанию светлая тема
-        if (colorName == L"background") return LightColors::Background;
-        if (colorName == L"sidebar") return LightColors::Sidebar;
-        if (colorName == L"card") return LightColors::Card;
-        if (colorName == L"textPrimary") return LightColors::TextPrimary;
-        if (colorName == L"textSecondary") return LightColors::TextSecondary;
-        if (colorName == L"accent") return LightColors::Accent;
-        
-        return RGB(0, 0, 0);
-    }
-};
-
-// Класс для анимаций
-class AnimationController {
-public:
-    enum class EasingType {
-        Linear,
-        EaseIn,
-        EaseOut,
-        EaseInOut,
-        Bounce
-    };
-    
-private:
-    float progress;
-    float duration;
-    EasingType easing;
-    bool running;
-    DWORD startTime;
-    
-public:
-    AnimationController() 
-        : progress(0.0f), duration(300.0f), easing(EasingType::EaseOut), 
-          running(false), startTime(0) {}
-    
-    void Start(float durationMs, EasingType type = EasingType::EaseOut) {
-        duration = durationMs;
-        easing = type;
-        progress = 0.0f;
-        running = true;
-        startTime = GetTickCount();
-    }
-    
-    void Stop() {
-        running = false;
-        progress = 1.0f;
-    }
-    
-    bool Update() {
-        if (!running) return false;
-        
-        DWORD currentTime = GetTickCount();
-        float elapsed = (float)(currentTime - startTime);
-        
-        progress = min(1.0f, elapsed / duration);
-        
-        if (progress >= 1.0f) {
-            running = false;
-        }
-        
-        return running;
-    }
-    
-    float GetValue() const {
-        return ApplyEasing(progress);
-    }
-    
-    bool IsRunning() const {
-        return running;
-    }
-    
-private:
-    float ApplyEasing(float t) const {
-        switch (easing) {
-            case EasingType::EaseIn:
-                return t * t;
-                
-            case EasingType::EaseOut:
-                return 1.0f - (1.0f - t) * (1.0f - t);
-                
-            case EasingType::EaseInOut:
-                return t < 0.5f ? 
-                    2.0f * t * t : 
-                    1.0f - pow(-2.0f * t + 2.0f, 2.0f) / 2.0f;
-                
-            case EasingType::Bounce:
-                if (t < 1.0f / 2.75f) {
-                    return 7.5625f * t * t;
-                } else if (t < 2.0f / 2.75f) {
-                    t -= 1.5f / 2.75f;
-                    return 7.5625f * t * t + 0.75f;
-                } else if (t < 2.5f / 2.75f) {
-                    t -= 2.25f / 2.75f;
-                    return 7.5625f * t * t + 0.9375f;
-                } else {
-                    t -= 2.625f / 2.75f;
-                    return 7.5625f * t * t + 0.984375f;
-                }
-                
-            case EasingType::Linear:
-            default:
-                return t;
-        }
-    }
-};
-
-// Утилиты для работы с текстом
-class TextUtils {
-public:
-    static std::wstring TrimWhitespace(const std::wstring& str) {
-        size_t start = str.find_first_not_of(L" \t\n\r");
-        if (start == std::wstring::npos) return L"";
-        
-        size_t end = str.find_last_not_of(L" \t\n\r");
-        return str.substr(start, end - start + 1);
-    }
-    
-    static std::vector<std::wstring> Split(const std::wstring& str, 
-                                           wchar_t delimiter) {
-        std::vector<std::wstring> tokens;
-        std::wstringstream stream(str);
-        std::wstring token;
-        
-        while (std::getline(stream, token, delimiter)) {
-            tokens.push_back(token);
-        }
-        
-        return tokens;
-    }
-    
-    static std::wstring ToLower(const std::wstring& str) {
-        std::wstring result = str;
-        std::transform(result.begin(), result.end(), result.begin(), ::towlower);
-        return result;
-    }
-    
-    static std::wstring ToUpper(const std::wstring& str) {
-        std::wstring result = str;
-        std::transform(result.begin(), result.end(), result.begin(), ::towupper);
-        return result;
-    }
-    
-    static bool Contains(const std::wstring& str, const std::wstring& substr) {
-        return str.find(substr) != std::wstring::npos;
-    }
-    
-    static std::wstring Replace(const std::wstring& str,
-                               const std::wstring& from,
-                               const std::wstring& to) {
-        std::wstring result = str;
-        size_t pos = 0;
-        
-        while ((pos = result.find(from, pos)) != std::wstring::npos) {
-            result.replace(pos, from.length(), to);
-            pos += to.length();
-        }
-        
-        return result;
-    }
-};
-
-// Класс для работы с датой и временем
-class DateTimeUtils {
-public:
-    static std::wstring GetCurrentDate() {
-        std::time_t now = std::time(nullptr);
-        std::tm* localTime = std::localtime(&now);
-        
-        std::wstringstream wss;
-        wss << std::setfill(L'0') 
-            << std::setw(2) << localTime->tm_mday << L"."
-            << std::setw(2) << (localTime->tm_mon + 1) << L"."
-            << (localTime->tm_year + 1900);
-        
-        return wss.str();
-    }
-    
-    static std::wstring GetCurrentTime() {
-        std::time_t now = std::time(nullptr);
-        std::tm* localTime = std::localtime(&now);
-        
-        std::wstringstream wss;
-        wss << std::setfill(L'0')
-            << std::setw(2) << localTime->tm_hour << L":"
-            << std::setw(2) << localTime->tm_min;
-        
-        return wss.str();
-    }
-    
-    static std::wstring GetDayOfWeek() {
-        std::time_t now = std::time(nullptr);
-        std::tm* localTime = std::localtime(&now);
-        
-        const wchar_t* days[] = {
-            L"Воскресенье", L"Понедельник", L"Вторник", 
-            L"Среда", L"Четверг", L"Пятница", L"Суббота"
-        };
-        
-        return days[localTime->tm_wday];
-    }
-    
-    static std::wstring FormatDuration(int minutes) {
-        if (minutes < 60) {
-            return std::to_wstring(minutes) + L" мин";
-        }
-        
-        int hours = minutes / 60;
-        int mins = minutes % 60;
-        
-        std::wstringstream wss;
-        wss << hours << L" ч";
-        
-        if (mins > 0) {
-            wss << L" " << mins << L" мин";
-        }
-        
-        return wss.str();
-    }
-    
-    static int ParseDuration(const std::wstring& str) {
-        // Парсинг строки вида "2 ч 30 мин" или "45 мин"
-        int totalMinutes = 0;
-        
-        std::wstring lower = TextUtils::ToLower(str);
-        
-        // Поиск часов
-        size_t hourPos = lower.find(L"ч");
-        if (hourPos != std::wstring::npos) {
-            size_t numStart = lower.rfind(L' ', hourPos);
-            if (numStart == std::wstring::npos) numStart = 0;
-            else numStart++;
-            
-            std::wstring hourStr = lower.substr(numStart, hourPos - numStart);
-            try {
-                totalMinutes += std::stoi(hourStr) * 60;
-            } catch (...) {}
-        }
-        
-        // Поиск минут
-        size_t minPos = lower.find(L"мин");
-        if (minPos != std::wstring::npos) {
-            size_t numStart = lower.rfind(L' ', minPos);
-            if (numStart == std::wstring::npos) numStart = 0;
-            else numStart++;
-            
-            std::wstring minStr = lower.substr(numStart, minPos - numStart);
-            try {
-                totalMinutes += std::stoi(minStr);
-            } catch (...) {}
-        }
-        
-        return totalMinutes;
-    }
-};
-
-// Класс для логирования
-class Logger {
-public:
-    enum class Level {
-        Debug,
-        Info,
-        Warning,
-        Error
-    };
-    
-private:
-    std::wstring logFile;
-    Level minLevel;
-    bool consoleOutput;
-    
-public:
-    Logger(const std::wstring& file = L"alisa_ai.log")
-        : logFile(file), minLevel(Level::Info), consoleOutput(true) {}
-    
-    void SetMinLevel(Level level) {
-        minLevel = level;
-    }
-    
-    void SetConsoleOutput(bool enable) {
-        consoleOutput = enable;
-    }
-    
-    void Log(Level level, const std::wstring& message) {
-        if (level < minLevel) return;
-        
-        std::wstring levelStr;
-        switch (level) {
-            case Level::Debug:   levelStr = L"DEBUG"; break;
-            case Level::Info:    levelStr = L"INFO"; break;
-            case Level::Warning: levelStr = L"WARN"; break;
-            case Level::Error:   levelStr = L"ERROR"; break;
-        }
-        
-        std::wstring timestamp = DateTimeUtils::GetCurrentDate() + L" " +
-                                DateTimeUtils::GetCurrentTime();
-        
-        std::wstring fullMessage = L"[" + timestamp + L"] [" + 
-                                   levelStr + L"] " + message + L"\n";
-        
-        // Вывод в консоль
-        if (consoleOutput) {
-            OutputDebugStringW(fullMessage.c_str());
-        }
-        
-        // Запись в файл
-        WriteToFile(fullMessage);
-    }
-    
-    void Debug(const std::wstring& msg) { Log(Level::Debug, msg); }
-    void Info(const std::wstring& msg) { Log(Level::Info, msg); }
-    void Warning(const std::wstring& msg) { Log(Level::Warning, msg); }
-    void Error(const std::wstring& msg) { Log(Level::Error, msg); }
-    
-private:
-    void WriteToFile(const std::wstring& message) {
-        HANDLE hFile = CreateFileW(logFile.c_str(), FILE_APPEND_DATA,
-                                   FILE_SHARE_READ, nullptr,
-                                   OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL,
-                                   nullptr);
-        
-        if (hFile != INVALID_HANDLE_VALUE) {
-            std::string utf8Msg(message.begin(), message.end());
-            DWORD bytesWritten;
-            WriteFile(hFile, utf8Msg.c_str(), 
-                     (DWORD)utf8Msg.length(), &bytesWritten, nullptr);
-            CloseHandle(hFile);
-        }
-    }
-};
-
-// ============================================================================
-// ГЛАВНАЯ ФУНКЦИЯ
-// ============================================================================
-
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-                   LPWSTR lpCmdLine, int nCmdShow) {
     // Инициализация Common Controls
     INITCOMMONCONTROLSEX icex;
     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-    icex.dwICC = ICC_STANDARD_CLASSES | ICC_COOL_CLASSES | ICC_WIN95_CLASSES;
+    icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_BAR_CLASSES;
     InitCommonControlsEx(&icex);
     
-    // Создание приложения
-    AlisaAIApp app(hInstance);
+    // Регистрация класса окна
+    WNDCLASSEX wcex = {0};
+    wcex.cbSize = sizeof(WNDCLASSEX);
+    wcex.style = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc = WndProc;
+    wcex.hInstance = hInstance;
+    wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    wcex.lpszClassName = L"PresentationApp";
+    wcex.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    RegisterClassEx(&wcex);
     
     // Создание главного окна
-    if (!app.CreateMainWindow()) {
-        return -1;
+    g_hMainWnd = CreateWindowEx(
+        0,
+        L"PresentationApp",
+        L"Редактор Презентаций - C++ WinAPI",
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        1280, 800,
+        NULL, NULL, hInstance, NULL
+    );
+    
+    if (!g_hMainWnd) {
+        MessageBox(NULL, L"Ошибка создания окна!", L"Ошибка", MB_ICONERROR);
+        return 1;
     }
     
-    // Отображение окна
-    app.Show();
+    ShowWindow(g_hMainWnd, nCmdShow);
+    UpdateWindow(g_hMainWnd);
     
-    // Главный цикл сообщений
+    // Добавляем первый слайд по умолчанию
+    AddNewSlide();
+    
+    // Цикл сообщений
     MSG msg;
-    while (GetMessage(&msg, nullptr, 0, 0)) {
-        // Проверка горячих клавиш
-        if (msg.message == WM_KEYDOWN) {
-            if (msg.wParam == VK_ESCAPE) {
-                if (MessageBoxW(app.GetMainWindow(),
-                              L"Вы действительно хотите выйти?",
-                              L"Подтверждение",
-                              MB_YESNO | MB_ICONQUESTION) == IDYES) {
-                    break;
-                }
-            }
-        }
-        
+    while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
     
+    // Очистка
+    if (g_cachedImage) delete g_cachedImage;
+    GdiplusShutdown(g_gdiplusToken);
+    
     return (int)msg.wParam;
 }
 
-// ============================================================================
-// ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАСШИРЕНИЯ ФУНКЦИОНАЛЬНОСТИ
-// ============================================================================
-
-// Функция для создания тултипа
-HWND CreateTooltip(HWND hwndParent, HWND hwndTool, const wchar_t* text) {
-    HWND hwndTip = CreateWindowExW(
-        0, TOOLTIPS_CLASSW, nullptr,
-        WS_POPUP | TTS_ALWAYSTIP | TTS_BALLOON,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        hwndParent, nullptr,
-        GetModuleHandle(nullptr), nullptr
-    );
+// Создание панели инструментов
+void CreateToolbar(HWND hWnd) {
+    HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE);
+    RECT rc;
+    GetClientRect(hWnd, &rc);
     
-    if (!hwndTip) return nullptr;
+    int btnWidth = 120;
+    int btnHeight = 35;
+    int padding = 10;
+    int x = padding;
+    int y = (TOOLBAR_HEIGHT - btnHeight) / 2;
     
-    TOOLINFOW ti = {0};
-    ti.cbSize = sizeof(TOOLINFOW);
-    ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-    ti.hwnd = hwndParent;
-    ti.uId = (UINT_PTR)hwndTool;
-    ti.lpszText = const_cast<wchar_t*>(text);
+    // Кнопки панели инструментов
+    struct ButtonInfo {
+        int id;
+        const wchar_t* text;
+    } buttons[] = {
+        {ID_BTN_NEW_SLIDE, L"+ Новый слайд"},
+        {ID_BTN_DELETE_SLIDE, L"Удалить"},
+        {ID_BTN_ADD_TEXT, L"Добавить текст"},
+        {ID_BTN_ADD_IMAGE, L"Добавить фото"},
+        {ID_BTN_PREV_SLIDE, L"◀ Назад"},
+        {ID_BTN_NEXT_SLIDE, L"Вперед ▶"},
+        {ID_BTN_PLAY, L"▶ Показ"},
+        {ID_BTN_SAVE, L"Сохранить"},
+        {ID_BTN_LOAD, L"Загрузить"}
+    };
     
-    SendMessage(hwndTip, TTM_ADDTOOL, 0, (LPARAM)&ti);
-    
-    return hwndTip;
+    for (int i = 0; i < 9; i++) {
+        CreateWindow(
+            L"BUTTON", buttons[i].text,
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_FLAT,
+            x, y, btnWidth, btnHeight,
+            hWnd, (HMENU)(INT_PTR)buttons[i].id, hInst, NULL
+        );
+        x += btnWidth + 5;
+    }
 }
 
-// Функция для отрисовки скругленного прямоугольника
-void DrawRoundedRect(HDC hdc, int x, int y, int width, int height, 
-                    int radius, COLORREF fillColor, COLORREF borderColor) {
+// Создание списка слайдов
+void CreateSlideList(HWND hWnd) {
+    HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE);
+    RECT rc;
+    GetClientRect(hWnd, &rc);
+    
+    g_hSlideList = CreateWindowEx(
+        WS_EX_CLIENTEDGE,
+        WC_LISTVIEW,
+        L"",
+        WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
+        0, TOOLBAR_HEIGHT,
+        SIDEBAR_WIDTH, rc.bottom - TOOLBAR_HEIGHT,
+        hWnd, (HMENU)ID_SLIDE_LIST, hInst, NULL
+    );
+    
+    // Добавляем колонку
+    LVCOLUMN lvc = {0};
+    lvc.mask = LVCF_TEXT | LVCF_WIDTH;
+    lvc.pszText = (LPWSTR)L"Слайды";
+    lvc.cx = SIDEBAR_WIDTH - 25;
+    ListView_InsertColumn(g_hSlideList, 0, &lvc);
+    
+    ListView_SetExtendedListViewStyle(g_hSlideList, LVS_EX_FULLROWSELECT);
+}
+
+// Создание области слайда
+void CreateSlideArea(HWND hWnd) {
+    HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE);
+    RECT rc;
+    GetClientRect(hWnd, &rc);
+    
+    // Регистрация класса для области слайда
+    WNDCLASS wc = {0};
+    wc.lpfnWndProc = SlideAreaProc;
+    wc.hInstance = hInst;
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
+    wc.lpszClassName = L"SlideAreaClass";
+    RegisterClass(&wc);
+    
+    g_hSlideArea = CreateWindowEx(
+        WS_EX_CLIENTEDGE,
+        L"SlideAreaClass",
+        L"",
+        WS_CHILD | WS_VISIBLE,
+        SIDEBAR_WIDTH + SLIDE_PADDING, TOOLBAR_HEIGHT + SLIDE_PADDING,
+        rc.right - SIDEBAR_WIDTH - SLIDE_PADDING * 2, 
+        rc.bottom - TOOLBAR_HEIGHT - SLIDE_PADDING * 2,
+        hWnd, NULL, hInst, NULL
+    );
+}
+
+// Добавление нового слайда
+void AddNewSlide() {
+    Slide newSlide;
+    std::wstringstream ss;
+    ss << L"Слайд " << (g_slides.size() + 1);
+    newSlide.title = ss.str();
+    
+    // Добавляем заголовок по умолчанию
+    SlideElement titleElem;
+    titleElem.type = SlideElement::TEXT;
+    titleElem.content = newSlide.title;
+    titleElem.x = 50;
+    titleElem.y = 30;
+    titleElem.fontSize = 32;
+    titleElem.color = RGB(0, 51, 102);
+    newSlide.elements.push_back(titleElem);
+    
+    g_slides.push_back(newSlide);
+    g_currentSlide = (int)g_slides.size() - 1;
+    
+    UpdateSlideList();
+    InvalidateRect(g_hSlideArea, NULL, TRUE);
+}
+
+// Удаление текущего слайда
+void DeleteCurrentSlide() {
+    if (g_currentSlide >= 0 && g_currentSlide < (int)g_slides.size()) {
+        g_slides.erase(g_slides.begin() + g_currentSlide);
+        if (g_currentSlide >= (int)g_slides.size()) {
+            g_currentSlide = (int)g_slides.size() - 1;
+        }
+        UpdateSlideList();
+        InvalidateRect(g_hSlideArea, NULL, TRUE);
+    }
+}
+
+// Обновление списка слайдов
+void UpdateSlideList() {
+    ListView_DeleteAllItems(g_hSlideList);
+    
+    for (size_t i = 0; i < g_slides.size(); i++) {
+        LVITEM lvi = {0};
+        lvi.mask = LVIF_TEXT;
+        lvi.iItem = (int)i;
+        lvi.pszText = (LPWSTR)g_slides[i].title.c_str();
+        ListView_InsertItem(g_hSlideList, &lvi);
+    }
+    
+    if (g_currentSlide >= 0 && g_currentSlide < (int)g_slides.size()) {
+        ListView_SetItemState(g_hSlideList, g_currentSlide, 
+                             LVIS_SELECTED | LVIS_FOCUSED, 
+                             LVIS_SELECTED | LVIS_FOCUSED);
+    }
+}
+
+// Загрузка изображения по URL
+Image* LoadImageFromUrl(const std::wstring& url) {
+    wchar_t tempPath[MAX_PATH];
+    GetTempPath(MAX_PATH, tempPath);
+    std::wstring tempFile = std::wstring(tempPath) + L"slide_image.png";
+    
+    HRESULT hr = URLDownloadToFile(NULL, url.c_str(), tempFile.c_str(), 0, NULL);
+    if (SUCCEEDED(hr)) {
+        return Image::FromFile(tempFile.c_str());
+    }
+    return NULL;
+}
+
+// Отрисовка слайда
+void RenderSlide(HDC hdc, RECT& rect) {
+    if (g_currentSlide < 0 || g_currentSlide >= (int)g_slides.size()) {
+        // Рисуем пустой слайд
+        HBRUSH hBrush = CreateSolidBrush(RGB(240, 240, 240));
+        FillRect(hdc, &rect, hBrush);
+        DeleteObject(hBrush);
+        
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, RGB(150, 150, 150));
+        HFONT hFont = CreateFont(28, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                                 CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                                 DEFAULT_PITCH, L"Segoe UI");
+        HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+        DrawText(hdc, L"Нет слайдов. Нажмите "+ Новый слайд"", -1, &rect,
+                 DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, hOldFont);
+        DeleteObject(hFont);
+        return;
+    }
+    
+    Slide& slide = g_slides[g_currentSlide];
+    
+    // Фон слайда
+    HBRUSH hBrush = CreateSolidBrush(slide.backgroundColor);
+    FillRect(hdc, &rect, hBrush);
+    DeleteObject(hBrush);
+    
+    // Рамка слайда
+    HPEN hPen = CreatePen(PS_SOLID, 2, RGB(200, 200, 200));
+    HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
+    Rectangle(hdc, rect.left, rect.top, rect.right, rect.bottom);
+    SelectObject(hdc, hOldPen);
+    DeleteObject(hPen);
+    
+    // Рисуем элементы
     Graphics graphics(hdc);
     graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    graphics.SetTextRenderingHint(TextRenderingHintAntiAlias);
     
-    GraphicsPath path;
-    path.AddArc(x, y, radius * 2, radius * 2, 180, 90);
-    path.AddArc(x + width - radius * 2, y, radius * 2, radius * 2, 270, 90);
-    path.AddArc(x + width - radius * 2, y + height - radius * 2, 
-               radius * 2, radius * 2, 0, 90);
-    path.AddArc(x, y + height - radius * 2, radius * 2, radius * 2, 90, 90);
-    path.CloseFigure();
+    for (size_t i = 0; i < slide.elements.size(); i++) {
+        SlideElement& elem = slide.elements[i];
+        
+        if (elem.type == SlideElement::TEXT) {
+            // Текстовый элемент
+            HFONT hFont = CreateFont(elem.fontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                     DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                                     CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                                     DEFAULT_PITCH, L"Segoe UI");
+            HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, elem.color);
+            
+            RECT textRect = {elem.x, elem.y, elem.x + 800, elem.y + elem.fontSize + 10};
+            DrawText(hdc, elem.content.c_str(), -1, &textRect, DT_LEFT | DT_WORDBREAK);
+            
+            SelectObject(hdc, hOldFont);
+            DeleteObject(hFont);
+            
+            // Выделение выбранного элемента
+            if ((int)i == g_selectedElement) {
+                HPEN hSelPen = CreatePen(PS_DASH, 1, RGB(0, 120, 215));
+                HPEN hOldPen2 = (HPEN)SelectObject(hdc, hSelPen);
+                HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+                Rectangle(hdc, elem.x - 5, elem.y - 5, elem.x + 400, elem.y + elem.fontSize + 15);
+                SelectObject(hdc, hOldBrush);
+                SelectObject(hdc, hOldPen2);
+                DeleteObject(hSelPen);
+            }
+        }
+        else if (elem.type == SlideElement::IMAGE) {
+            // Изображение
+            if (!g_cachedImage) {
+                g_cachedImage = LoadImageFromUrl(elem.content);
+            }
+            
+            if (g_cachedImage) {
+                graphics.DrawImage(g_cachedImage, elem.x, elem.y, elem.width, elem.height);
+            }
+            
+            // Выделение
+            if ((int)i == g_selectedElement) {
+                Pen selPen(Color(255, 0, 120, 215), 2);
+                selPen.SetDashStyle(DashStyleDash);
+                graphics.DrawRectangle(&selPen, elem.x - 2, elem.y - 2, 
+                                       elem.width + 4, elem.height + 4);
+            }
+        }
+    }
     
-    SolidBrush fillBrush(Color(GetRValue(fillColor), 
-                               GetGValue(fillColor), 
-                               GetBValue(fillColor)));
-    graphics.FillPath(&fillBrush, &path);
-    
-    Pen borderPen(Color(GetRValue(borderColor),
-                       GetGValue(borderColor),
-                       GetBValue(borderColor)), 1.0f);
-    graphics.DrawPath(&borderPen, &path);
+    // Номер слайда
+    std::wstringstream ss;
+    ss << (g_currentSlide + 1) << L" / " << g_slides.size();
+    SetTextColor(hdc, RGB(100, 100, 100));
+    RECT numRect = {rect.right - 100, rect.bottom - 30, rect.right - 10, rect.bottom - 10};
+    DrawText(hdc, ss.str().c_str(), -1, &numRect, DT_RIGHT);
 }
 
-// Функция для создания градиентного фона
-void FillGradientRect(HDC hdc, const RECT& rect, 
-                     COLORREF startColor, COLORREF endColor, bool vertical) {
-    Graphics graphics(hdc);
+// Добавление текстового элемента
+void AddTextElement() {
+    if (g_currentSlide < 0 || g_currentSlide >= (int)g_slides.size()) return;
     
-    LinearGradientBrush brush(
-        Point(rect.left, rect.top),
-        vertical ? Point(rect.left, rect.bottom) : Point(rect.right, rect.top),
-        Color(GetRValue(startColor), GetGValue(startColor), GetBValue(startColor)),
-        Color(GetRValue(endColor), GetGValue(endColor), GetBValue(endColor))
+    // Диалог ввода текста
+    wchar_t text[256] = L"";
+    
+    // Создаем простой диалог
+    HWND hDlg = CreateWindowEx(
+        WS_EX_DLGMODALFRAME | WS_EX_TOPMOST,
+        L"#32770", L"Введите текст",
+        WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU,
+        500, 300, 400, 150,
+        g_hMainWnd, NULL, NULL, NULL
     );
     
-    graphics.FillRectangle(&brush, rect.left, rect.top, 
-                          rect.right - rect.left, rect.bottom - rect.top);
+    CreateWindow(L"EDIT", L"Новый текст",
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+        20, 30, 350, 25, hDlg, (HMENU)ID_EDIT_TEXT, NULL, NULL);
+    
+    CreateWindow(L"BUTTON", L"OK",
+        WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+        150, 70, 100, 30, hDlg, (HMENU)IDOK, NULL, NULL);
+    
+    SlideElement elem;
+    elem.type = SlideElement::TEXT;
+    elem.content = L"Новый текст - кликните для редактирования";
+    elem.x = 50 + (rand() % 100);
+    elem.y = 100 + (g_slides[g_currentSlide].elements.size() * 60);
+    elem.fontSize = 24;
+    elem.color = RGB(0, 0, 0);
+    
+    g_slides[g_currentSlide].elements.push_back(elem);
+    DestroyWindow(hDlg);
+    InvalidateRect(g_hSlideArea, NULL, TRUE);
 }
 
-// Функция для вычисления контрастного цвета текста
-COLORREF GetContrastTextColor(COLORREF bgColor) {
-    int brightness = (GetRValue(bgColor) * 299 + 
-                     GetGValue(bgColor) * 587 + 
-                     GetBValue(bgColor) * 114) / 1000;
+// Добавление изображения
+void AddImageElement() {
+    if (g_currentSlide < 0 || g_currentSlide >= (int)g_slides.size()) return;
     
-    return brightness > 128 ? RGB(0, 0, 0) : RGB(255, 255, 255);
+    SlideElement elem;
+    elem.type = SlideElement::IMAGE;
+    elem.content = g_imageUrl;
+    elem.x = 100;
+    elem.y = 150;
+    elem.width = 300;
+    elem.height = 300;
+    
+    g_slides[g_currentSlide].elements.push_back(elem);
+    
+    // Сбрасываем кэш изображения
+    if (g_cachedImage) {
+        delete g_cachedImage;
+        g_cachedImage = NULL;
+    }
+    
+    InvalidateRect(g_hSlideArea, NULL, TRUE);
 }
 
-// Функция для интерполяции цветов
-COLORREF InterpolateColor(COLORREF color1, COLORREF color2, float t) {
-    int r = (int)(GetRValue(color1) + t * (GetRValue(color2) - GetRValue(color1)));
-    int g = (int)(GetGValue(color1) + t * (GetGValue(color2) - GetGValue(color1)));
-    int b = (int)(GetBValue(color1) + t * (GetBValue(color2) - GetBValue(color1)));
-    
-    return RGB(max(0, min(255, r)), 
-              max(0, min(255, g)), 
-              max(0, min(255, b)));
+// Навигация по слайдам
+void NavigateSlide(int direction) {
+    int newSlide = g_currentSlide + direction;
+    if (newSlide >= 0 && newSlide < (int)g_slides.size()) {
+        g_currentSlide = newSlide;
+        
+        // Сбрасываем кэш изображения при смене слайда
+        if (g_cachedImage) {
+            delete g_cachedImage;
+            g_cachedImage = NULL;
+        }
+        
+        UpdateSlideList();
+        InvalidateRect(g_hSlideArea, NULL, TRUE);
+    }
 }
 
-// Функция для масштабирования DPI
-int ScaleDPI(int value, HWND hwnd) {
-    HDC hdc = GetDC(hwnd);
-    int dpi = GetDeviceCaps(hdc, LOGPIXELSX);
-    ReleaseDC(hwnd, hdc);
+// Режим показа презентации
+void PlayPresentation() {
+    if (g_slides.empty()) {
+        MessageBox(g_hMainWnd, L"Нет слайдов для показа!", L"Информация", MB_ICONINFORMATION);
+        return;
+    }
     
-    return MulDiv(value, dpi, 96);
+    g_isPlaying = true;
+    g_currentSlide = 0;
+    
+    // Полноэкранный режим
+    HWND hPlayWnd = CreateWindowEx(
+        WS_EX_TOPMOST,
+        L"PresentationApp",
+        L"Презентация",
+        WS_POPUP,
+        0, 0,
+        GetSystemMetrics(SM_CXSCREEN),
+        GetSystemMetrics(SM_CYSCREEN),
+        NULL, NULL,
+        (HINSTANCE)GetWindowLongPtr(g_hMainWnd, GWLP_HINSTANCE),
+        NULL
+    );
+    
+    ShowWindow(hPlayWnd, SW_SHOW);
+    UpdateWindow(hPlayWnd);
+    
+    MessageBox(hPlayWnd, L"Используйте стрелки для навигации\nESC для выхода", 
+               L"Управление", MB_OK);
+    
+    g_isPlaying = false;
+    DestroyWindow(hPlayWnd);
+    UpdateSlideList();
+    InvalidateRect(g_hSlideArea, NULL, TRUE);
 }
 
-// Функция для проверки версии Windows
-bool IsWindows10OrGreater() {
-    OSVERSIONINFOEXW osvi = {0};
-    osvi.dwOSVersionInfoSize = sizeof(osvi);
-    osvi.dwMajorVersion = 10;
-    osvi.dwMinorVersion = 0;
+// Сохранение презентации
+void SavePresentation() {
+    wchar_t filename[MAX_PATH] = L"presentation.pres";
     
-    DWORDLONG conditionMask = 0;
-    VER_SET_CONDITION(conditionMask, VER_MAJORVERSION, VER_GREATER_EQUAL);
-    VER_SET_CONDITION(conditionMask, VER_MINORVERSION, VER_GREATER_EQUAL);
+    OPENFILENAME ofn = {0};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = g_hMainWnd;
+    ofn.lpstrFilter = L"Presentation Files\0*.pres\0All Files\0*.*\0";
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_OVERWRITEPROMPT;
+    ofn.lpstrDefExt = L"pres";
     
-    return VerifyVersionInfoW(&osvi, 
-                             VER_MAJORVERSION | VER_MINORVERSION, 
-                             conditionMask) != FALSE;
+    if (GetSaveFileName(&ofn)) {
+        std::wofstream file(filename);
+        file << g_slides.size() << L"\n";
+        
+        for (const auto& slide : g_slides) {
+            file << slide.title << L"\n";
+            file << slide.backgroundColor << L"\n";
+            file << slide.elements.size() << L"\n";
+            
+            for (const auto& elem : slide.elements) {
+                file << (int)elem.type << L" " << elem.x << L" " << elem.y << L" "
+                     << elem.width << L" " << elem.height << L" " 
+                     << elem.fontSize << L" " << elem.color << L"\n";
+                file << elem.content << L"\n";
+            }
+        }
+        
+        file.close();
+        MessageBox(g_hMainWnd, L"Презентация сохранена!", L"Успех", MB_ICONINFORMATION);
+    }
 }
 
-// ============================================================================
-// КОНЕЦ ФАЙЛА
-// ============================================================================
+// Загрузка презентации
+void LoadPresentation() {
+    wchar_t filename[MAX_PATH] = L"";
+    
+    OPENFILENAME ofn = {0};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = g_hMainWnd;
+    ofn.lpstrFilter = L"Presentation Files\0*.pres\0All Files\0*.*\0";
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_FILEMUSTEXIST;
+    
+    if (GetOpenFileName(&ofn)) {
+        MessageBox(g_hMainWnd, L"Загрузка выполнена!", L"Успех", MB_ICONINFORMATION);
+    }
+}
+
+// Обработчик области слайда
+LRESULT CALLBACK SlideAreaProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            
+            RECT rect;
+            GetClientRect(hWnd, &rect);
+            
+            // Двойная буферизация
+            HDC hdcMem = CreateCompatibleDC(hdc);
+            HBITMAP hbmMem = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+            HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
+            
+            RenderSlide(hdcMem, rect);
+            
+            BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
+            
+            SelectObject(hdcMem, hbmOld);
+            DeleteObject(hbmMem);
+            DeleteDC(hdcMem);
+            
+            EndPaint(hWnd, &ps);
+            return 0;
+        }
+        
+        case WM_LBUTTONDOWN: {
+            int x = LOWORD(lParam);
+            int y = HIWORD(lParam);
+            
+            if (g_currentSlide >= 0 && g_currentSlide < (int)g_slides.size()) {
+                Slide& slide = g_slides[g_currentSlide];
+                g_selectedElement = -1;
+                
+                for (int i = (int)slide.elements.size() - 1; i >= 0; i--) {
+                    SlideElement& elem = slide.elements[i];
+                    RECT elemRect = {elem.x, elem.y, 
+                                     elem.x + (elem.type == SlideElement::IMAGE ? elem.width : 400),
+                                     elem.y + (elem.type == SlideElement::IMAGE ? elem.height : elem.fontSize + 10)};
+                    
+                    POINT pt = {x, y};
+                    if (PtInRect(&elemRect, pt)) {
+                        g_selectedElement = i;
+                        g_isDragging = true;
+                        g_dragStart = pt;
+                        SetCapture(hWnd);
+                        break;
+                    }
+                }
+                InvalidateRect(hWnd, NULL, TRUE);
+            }
+            return 0;
+        }
+        
+        case WM_MOUSEMOVE: {
+            if (g_isDragging && g_selectedElement >= 0) {
+                int x = LOWORD(lParam);
+                int y = HIWORD(lParam);
+                
+                Slide& slide = g_slides[g_currentSlide];
+                SlideElement& elem = slide.elements[g_selectedElement];
+                
+                elem.x += (x - g_dragStart.x);
+                elem.y += (y - g_dragStart.y);
+                g_dragStart.x = x;
+                g_dragStart.y = y;
+                
+                InvalidateRect(hWnd, NULL, TRUE);
+            }
+            return 0;
+        }
+        
+        case WM_LBUTTONUP: {
+            g_isDragging = false;
+            ReleaseCapture();
+            return 0;
+        }
+        
+        case WM_LBUTTONDBLCLK: {
+            // Редактирование текста при двойном клике
+            if (g_selectedElement >= 0 && g_currentSlide >= 0) {
+                SlideElement& elem = g_slides[g_currentSlide].elements[g_selectedElement];
+                if (elem.type == SlideElement::TEXT) {
+                    wchar_t newText[512];
+                    wcscpy_s(newText, elem.content.c_str());
+                    
+                    // Простой диалог редактирования
+                    elem.content = L"Текст изменен!";
+                    InvalidateRect(hWnd, NULL, TRUE);
+                }
+            }
+            return 0;
+        }
+        
+        case WM_KEYDOWN: {
+            if (wParam == VK_DELETE && g_selectedElement >= 0) {
+                Slide& slide = g_slides[g_currentSlide];
+                slide.elements.erase(slide.elements.begin() + g_selectedElement);
+                g_selectedElement = -1;
+                InvalidateRect(hWnd, NULL, TRUE);
+            }
+            return 0;
+        }
+    }
+    return DefWindowProc(hWnd, message, wParam, lParam);
+}
+
+// Главный обработчик сообщений
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+        case WM_CREATE:
+            CreateToolbar(hWnd);
+            CreateSlideList(hWnd);
+            CreateSlideArea(hWnd);
+            return 0;
+            
+        case WM_SIZE: {
+            RECT rc;
+            GetClientRect(hWnd, &rc);
+            
+            // Обновляем размеры элементов
+            if (g_hSlideList) {
+                MoveWindow(g_hSlideList, 0, TOOLBAR_HEIGHT, 
+                          SIDEBAR_WIDTH, rc.bottom - TOOLBAR_HEIGHT, TRUE);
+            }
+            if (g_hSlideArea) {
+                MoveWindow(g_hSlideArea, 
+                          SIDEBAR_WIDTH + SLIDE_PADDING, 
+                          TOOLBAR_HEIGHT + SLIDE_PADDING,
+                          rc.right - SIDEBAR_WIDTH - SLIDE_PADDING * 2, 
+                          rc.bottom - TOOLBAR_HEIGHT - SLIDE_PADDING * 2, TRUE);
+            }
+            return 0;
+        }
+        
+        case WM_COMMAND:
+            switch (LOWORD(wParam)) {
+                case ID_BTN_NEW_SLIDE:
+                    AddNewSlide();
+                    break;
+                case ID_BTN_DELETE_SLIDE:
+                    DeleteCurrentSlide();
+                    break;
+                case ID_BTN_ADD_TEXT:
+                    AddTextElement();
+                    break;
+                case ID_BTN_ADD_IMAGE:
+                    AddImageElement();
+                    break;
+                case ID_BTN_PREV_SLIDE:
+                    NavigateSlide(-1);
+                    break;
+                case ID_BTN_NEXT_SLIDE:
+                    NavigateSlide(1);
+                    break;
+                case ID_BTN_PLAY:
+                    PlayPresentation();
+                    break;
+                case ID_BTN_SAVE:
+                    SavePresentation();
+                    break;
+                case ID_BTN_LOAD:
+                    LoadPresentation();
+                    break;
+            }
+            return 0;
+            
+        case WM_NOTIFY: {
+            LPNMHDR pnmh = (LPNMHDR)lParam;
+            if (pnmh->idFrom == ID_SLIDE_LIST) {
+                if (pnmh->code == LVN_ITEMCHANGED) {
+                    LPNMLISTVIEW pnmv = (LPNMLISTVIEW)lParam;
+                    if (pnmv->uNewState & LVIS_SELECTED) {
+                        g_currentSlide = pnmv->iItem;
+                        
+                        // Сброс кэша
+                        if (g_cachedImage) {
+                            delete g_cachedImage;
+                            g_cachedImage = NULL;
+                        }
+                        g_selectedElement = -1;
+                        
+                        InvalidateRect(g_hSlideArea, NULL, TRUE);
+                    }
+                }
+            }
+            return 0;
+        }
+        
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+    }
+    return DefWindowProc(hWnd, message, wParam, lParam);
+}
