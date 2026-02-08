@@ -1,0 +1,33 @@
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MauiApp1.MainPage">
+
+    <StackLayout HorizontalOptions="Center" VerticalOptions="Center">
+        <!-- Текст -->
+        <Label x:Name="MyLabel" Text="Привет, мир!" FontSize="24" />
+
+        <!-- Кнопка -->
+        <Button Text="Нажми меня" Clicked="OnButtonClicked" />
+    </StackLayout>
+
+</ContentPage>
+
+using Microsoft.Maui.Controls;
+
+namespace MauiApp1;
+
+public partial class MainPage : ContentPage
+{
+    int count = 0;
+
+    public MainPage()
+    {
+        InitializeComponent();
+    }
+
+    private void OnButtonClicked(object sender, EventArgs e)
+    {
+        count++;
+        MyLabel.Text = "Кнопка нажата {count} раз(а)";
+    }
+}
