@@ -1,0 +1,7 @@
+Сборка начата в 20:20...
+1>------ Сборка начата: проект: UniSchedule, Конфигурация: Debug Any CPU ------
+1>C:\Program Files\dotnet\packs\Microsoft.Maui.Sdk\8.0.100\Sdk\BundledVersions.targets(85,5): warning MA002: Starting with .NET 8, setting  <UseMaui>true</UseMaui>  does not automatically include NuGet package references in your project.  Update your project by including this item:  <PackageReference Include="Microsoft.Maui.Controls" Version="8.0.100" />.  You can skip this warning by setting  <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>  in your project file.
+1>C:\Users\User\.nuget\packages\microsoft.windowsappsdk\1.5.240802000\buildTransitive\Microsoft.Build.Msix.Packaging.targets(148,5): error : Improper project configuration: no AppxManifest is specified, but WindowsPackageType is not set to MSIX.
+1>Сборка проекта "UniSchedule.csproj" завершена с ошибкой.
+========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
+========== Сборка завершено в 20:20 и заняло 00,305 с ==========
