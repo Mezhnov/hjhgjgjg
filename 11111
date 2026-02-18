@@ -1,2363 +1,451 @@
-улучши дизаййн ide до уровня pycharm и сделай пожалуйста пример реализация на этом языке программмирования сайт то есть нужно чтобы у этого языка был фраемворк и тд напиши весь код в одном файле
-
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║                     NOVA PROGRAMMING LANGUAGE v1.0                            ║
-║              Уникальный язык программирования с IDE и фреймворком             ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
-
-СИНТАКСИС NOVA:
-===============
--- Это комментарий
-let x := 10                    -- Объявление переменной
-const PI := 3.14159            -- Константа
-show "Hello"                   -- Вывод
-input "Enter: " -> name        -- Ввод
-
-func add(a, b) {:              -- Функция
-    return a + b
-:}
-
-when x > 5 {:                  -- Условие
-    show "Big"
-:} otherwise {:
-    show "Small"
-:}
-
-loop i from 1 to 10 {:         -- Цикл for
-    show i
-:}
-
-while x > 0 {:                 -- Цикл while
-    let x := x - 1
-:}
-
-each item in list {:           -- Цикл foreach
-    show item
-:}
-
-list numbers := [1, 2, 3]      -- Список
-dict person := {name: "John"}  -- Словарь
-
-class Animal {:                -- Класс
-    func init(name) {:
-        self.name := name
-    :}
-    
-    func speak() {:
-        show self.name
-    :}
-:}
-
--- ФРЕЙМВОРК NOVA WEB --
-@route "/" {:
-    render "index"
-:}
-
-@api "/users" {:
-    respond json(users)
-:}
-"""
-
-import re
-import sys
-import json
-import threading
-import http.server
-import socketserver
-from enum import Enum, auto
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Callable
-import tkinter as tk
-from tkinter import ttk, scrolledtext, filedialog, messagebox
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#                              ЛЕКСЕР (TOKENIZER)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TokenType(Enum):
-    # Литералы
-    NUMBER = auto()
-    STRING = auto()
-    IDENTIFIER = auto()
-    BOOLEAN = auto()
-    
-    # Ключевые слова
-    LET = auto()
-    CONST = auto()
-    FUNC = auto()
-    RETURN = auto()
-    WHEN = auto()
-    OTHERWISE = auto()
-    LOOP = auto()
-    FROM = auto()
-    TO = auto()
-    WHILE = auto()
-    EACH = auto()
-    IN = auto()
-    CLASS = auto()
-    SELF = auto()
-    LIST = auto()
-    DICT = auto()
-    SHOW = auto()
-    INPUT = auto()
-    AND = auto()
-    OR = auto()
-    NOT = auto()
-    BREAK = auto()
-    CONTINUE = auto()
-    NULL = auto()
-    
-    # Фреймворк
-    ROUTE = auto()
-    API = auto()
-    RENDER = auto()
-    RESPOND = auto()
-    
-    # Операторы
-    ASSIGN = auto()        # :=
-    PLUS = auto()          # +
-    MINUS = auto()         # -
-    MULTIPLY = auto()      # *
-    DIVIDE = auto()        # /
-    MODULO = auto()        # %
-    POWER = auto()         # ^
-    EQ = auto()            # ==
-    NEQ = auto()           # !=
-    LT = auto()            # <
-    GT = auto()            # >
-    LTE = auto()           # <=
-    GTE = auto()           # >=
-    ARROW = auto()         # ->
-    
-    # Разделители
-    LPAREN = auto()        # (
-    RPAREN = auto()        # )
-    LBRACE_START = auto()  # {:
-    RBRACE_END = auto()    # :}
-    LBRACKET = auto()      # [
-    RBRACKET = auto()      # ]
-    LDICT = auto()         # {
-    RDICT = auto()         # }
-    COMMA = auto()         # ,
-    COLON = auto()         # :
-    DOT = auto()           # .
-    NEWLINE = auto()
-    
-    # Специальные
-    EOF = auto()
-    COMMENT = auto()
-
-
-@dataclass
-class Token:
-    type: TokenType
-    value: Any
-    line: int
-    column: int
-
-
-class Lexer:
-    KEYWORDS = {
-        'let': TokenType.LET,
-        'const': TokenType.CONST,
-        'func': TokenType.FUNC,
-        'return': TokenType.RETURN,
-        'when': TokenType.WHEN,
-        'otherwise': TokenType.OTHERWISE,
-        'loop': TokenType.LOOP,
-        'from': TokenType.FROM,
-        'to': TokenType.TO,
-        'while': TokenType.WHILE,
-        'each': TokenType.EACH,
-        'in': TokenType.IN,
-        'class': TokenType.CLASS,
-        'self': TokenType.SELF,
-        'list': TokenType.LIST,
-        'dict': TokenType.DICT,
-        'show': TokenType.SHOW,
-        'input': TokenType.INPUT,
-        'and': TokenType.AND,
-        'or': TokenType.OR,
-        'not': TokenType.NOT,
-        'true': TokenType.BOOLEAN,
-        'false': TokenType.BOOLEAN,
-        'null': TokenType.NULL,
-        'break': TokenType.BREAK,
-        'continue': TokenType.CONTINUE,
-    }
-    
-    def __init__(self, source: str):
-        self.source = source
-        self.pos = 0
-        self.line = 1
-        self.column = 1
-        self.tokens: List[Token] = []
-    
-    def current_char(self) -> Optional[str]:
-        if self.pos >= len(self.source):
-            return None
-        return self.source[self.pos]
-    
-    def peek(self, offset: int = 1) -> Optional[str]:
-        pos = self.pos + offset
-        if pos >= len(self.source):
-            return None
-        return self.source[pos]
-    
-    def advance(self) -> Optional[str]:
-        char = self.current_char()
-        self.pos += 1
-        if char == '\n':
-            self.line += 1
-            self.column = 1
-        else:
-            self.column += 1
-        return char
-    
-    def add_token(self, type: TokenType, value: Any = None):
-        self.tokens.append(Token(type, value, self.line, self.column))
-    
-    def skip_whitespace(self):
-        while self.current_char() and self.current_char() in ' \t\r':
-            self.advance()
-    
-    def skip_comment(self):
-        if self.current_char() == '-' and self.peek() == '-':
-            while self.current_char() and self.current_char() != '\n':
-                self.advance()
-    
-    def read_string(self) -> str:
-        quote = self.advance()  # " или '
-        result = ""
-        while self.current_char() and self.current_char() != quote:
-            if self.current_char() == '\\':
-                self.advance()
-                escape_char = self.advance()
-                escape_map = {'n': '\n', 't': '\t', 'r': '\r', '\\': '\\', '"': '"', "'": "'"}
-                result += escape_map.get(escape_char, escape_char)
-            else:
-                result += self.advance()
-        self.advance()  # закрывающая кавычка
-        return result
-    
-    def read_number(self) -> float:
-        result = ""
-        while self.current_char() and (self.current_char().isdigit() or self.current_char() == '.'):
-            result += self.advance()
-        return float(result) if '.' in result else int(result)
-    
-    def read_identifier(self) -> str:
-        result = ""
-        while self.current_char() and (self.current_char().isalnum() or self.current_char() == '_'):
-            result += self.advance()
-        return result
-    
-    def tokenize(self) -> List[Token]:
-        while self.current_char():
-            self.skip_whitespace()
-            
-            if not self.current_char():
-                break
-            
-            # Комментарий
-            if self.current_char() == '-' and self.peek() == '-':
-                self.skip_comment()
-                continue
-            
-            # Перевод строки
-            if self.current_char() == '\n':
-                self.add_token(TokenType.NEWLINE)
-                self.advance()
-                continue
-            
-            # Строки
-            if self.current_char() in '"\'':
-                self.add_token(TokenType.STRING, self.read_string())
-                continue
-            
-            # Числа
-            if self.current_char().isdigit():
-                self.add_token(TokenType.NUMBER, self.read_number())
-                continue
-            
-            # Идентификаторы и ключевые слова
-            if self.current_char().isalpha() or self.current_char() == '_':
-                ident = self.read_identifier()
-                if ident in self.KEYWORDS:
-                    token_type = self.KEYWORDS[ident]
-                    value = ident if token_type == TokenType.BOOLEAN else None
-                    self.add_token(token_type, value)
-                else:
-                    self.add_token(TokenType.IDENTIFIER, ident)
-                continue
-            
-            # Декораторы фреймворка
-            if self.current_char() == '@':
-                self.advance()
-                ident = self.read_identifier()
-                if ident == 'route':
-                    self.add_token(TokenType.ROUTE)
-                elif ident == 'api':
-                    self.add_token(TokenType.API)
-                continue
-            
-            # Двухсимвольные операторы
-            two_char = self.current_char() + (self.peek() or '')
-            
-            if two_char == '{:':
-                self.add_token(TokenType.LBRACE_START)
-                self.advance()
-                self.advance()
-                continue
-            
-            if two_char == ':}':
-                self.add_token(TokenType.RBRACE_END)
-                self.advance()
-                self.advance()
-                continue
-            
-            if two_char == ':=':
-                self.add_token(TokenType.ASSIGN)
-                self.advance()
-                self.advance()
-                continue
-            
-            if two_char == '->':
-                self.add_token(TokenType.ARROW)
-                self.advance()
-                self.advance()
-                continue
-            
-            if two_char == '==':
-                self.add_token(TokenType.EQ)
-                self.advance()
-                self.advance()
-                continue
-            
-            if two_char == '!=':
-                self.add_token(TokenType.NEQ)
-                self.advance()
-                self.advance()
-                continue
-            
-            if two_char == '<=':
-                self.add_token(TokenType.LTE)
-                self.advance()
-                self.advance()
-                continue
-            
-            if two_char == '>=':
-                self.add_token(TokenType.GTE)
-                self.advance()
-                self.advance()
-                continue
-            
-            # Односимвольные операторы
-            char = self.current_char()
-            single_tokens = {
-                '+': TokenType.PLUS,
-                '-': TokenType.MINUS,
-                '*': TokenType.MULTIPLY,
-                '/': TokenType.DIVIDE,
-                '%': TokenType.MODULO,
-                '^': TokenType.POWER,
-                '<': TokenType.LT,
-                '>': TokenType.GT,
-                '(': TokenType.LPAREN,
-                ')': TokenType.RPAREN,
-                '[': TokenType.LBRACKET,
-                ']': TokenType.RBRACKET,
-                '{': TokenType.LDICT,
-                '}': TokenType.RDICT,
-                ',': TokenType.COMMA,
-                ':': TokenType.COLON,
-                '.': TokenType.DOT,
-            }
-            
-            if char in single_tokens:
-                self.add_token(single_tokens[char])
-                self.advance()
-                continue
-            
-            # Неизвестный символ
-            self.advance()
-        
-        self.add_token(TokenType.EOF)
-        return self.tokens
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#                              AST УЗЛЫ (PARSER)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class ASTNode:
-    pass
-
-@dataclass
-class NumberNode(ASTNode):
-    value: float
-
-@dataclass
-class StringNode(ASTNode):
-    value: str
-
-@dataclass
-class BooleanNode(ASTNode):
-    value: bool
-
-@dataclass
-class NullNode(ASTNode):
-    pass
-
-@dataclass
-class IdentifierNode(ASTNode):
-    name: str
-
-@dataclass
-class BinaryOpNode(ASTNode):
-    left: ASTNode
-    op: TokenType
-    right: ASTNode
-
-@dataclass
-class UnaryOpNode(ASTNode):
-    op: TokenType
-    operand: ASTNode
-
-@dataclass
-class AssignNode(ASTNode):
-    name: str
-    value: ASTNode
-    is_const: bool = False
-
-@dataclass
-class VariableNode(ASTNode):
-    name: str
-
-@dataclass
-class ShowNode(ASTNode):
-    expressions: List[ASTNode]
-
-@dataclass
-class InputNode(ASTNode):
-    prompt: ASTNode
-    variable: str
-
-@dataclass
-class BlockNode(ASTNode):
-    statements: List[ASTNode]
-
-@dataclass
-class WhenNode(ASTNode):
-    condition: ASTNode
-    then_block: ASTNode
-    else_block: Optional[ASTNode] = None
-
-@dataclass
-class LoopNode(ASTNode):
-    variable: str
-    start: ASTNode
-    end: ASTNode
-    body: ASTNode
-
-@dataclass
-class WhileNode(ASTNode):
-    condition: ASTNode
-    body: ASTNode
-
-@dataclass
-class EachNode(ASTNode):
-    variable: str
-    iterable: ASTNode
-    body: ASTNode
-
-@dataclass
-class FuncDefNode(ASTNode):
-    name: str
-    params: List[str]
-    body: ASTNode
-
-@dataclass
-class FuncCallNode(ASTNode):
-    name: str
-    args: List[ASTNode]
-
-@dataclass
-class ReturnNode(ASTNode):
-    value: Optional[ASTNode]
-
-@dataclass
-class BreakNode(ASTNode):
-    pass
-
-@dataclass
-class ContinueNode(ASTNode):
-    pass
-
-@dataclass
-class ListNode(ASTNode):
-    elements: List[ASTNode]
-
-@dataclass
-class DictNode(ASTNode):
-    pairs: List[tuple]
-
-@dataclass
-class IndexNode(ASTNode):
-    obj: ASTNode
-    index: ASTNode
-
-@dataclass
-class PropertyNode(ASTNode):
-    obj: ASTNode
-    property: str
-
-@dataclass
-class ClassDefNode(ASTNode):
-    name: str
-    methods: List[FuncDefNode]
-
-@dataclass
-class MethodCallNode(ASTNode):
-    obj: ASTNode
-    method: str
-    args: List[ASTNode]
-
-@dataclass 
-class SelfNode(ASTNode):
-    property: str
-
-@dataclass
-class RouteNode(ASTNode):
-    path: str
-    body: ASTNode
-
-@dataclass
-class ApiNode(ASTNode):
-    path: str
-    body: ASTNode
-
-@dataclass
-class RenderNode(ASTNode):
-    template: ASTNode
-
-@dataclass
-class RespondNode(ASTNode):
-    data: ASTNode
-
-@dataclass
-class ProgramNode(ASTNode):
-    statements: List[ASTNode]
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#                                   ПАРСЕР
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class Parser:
-    def __init__(self, tokens: List[Token]):
-        self.tokens = tokens
-        self.pos = 0
-    
-    def current(self) -> Token:
-        return self.tokens[self.pos]
-    
-    def peek(self, offset: int = 1) -> Token:
-        pos = self.pos + offset
-        if pos >= len(self.tokens):
-            return self.tokens[-1]
-        return self.tokens[pos]
-    
-    def advance(self) -> Token:
-        token = self.current()
-        self.pos += 1
-        return token
-    
-    def expect(self, type: TokenType) -> Token:
-        if self.current().type != type:
-            raise SyntaxError(f"Expected {type}, got {self.current().type} at line {self.current().line}")
-        return self.advance()
-    
-    def skip_newlines(self):
-        while self.current().type == TokenType.NEWLINE:
-            self.advance()
-    
-    def parse(self) -> ProgramNode:
-        statements = []
-        while self.current().type != TokenType.EOF:
-            self.skip_newlines()
-            if self.current().type == TokenType.EOF:
-                break
-            stmt = self.parse_statement()
-            if stmt:
-                statements.append(stmt)
-        return ProgramNode(statements)
-    
-    def parse_statement(self) -> Optional[ASTNode]:
-        self.skip_newlines()
-        token = self.current()
-        
-        if token.type == TokenType.LET:
-            return self.parse_variable_decl(False)
-        elif token.type == TokenType.CONST:
-            return self.parse_variable_decl(True)
-        elif token.type == TokenType.LIST:
-            return self.parse_list_decl()
-        elif token.type == TokenType.DICT:
-            return self.parse_dict_decl()
-        elif token.type == TokenType.SHOW:
-            return self.parse_show()
-        elif token.type == TokenType.INPUT:
-            return self.parse_input()
-        elif token.type == TokenType.WHEN:
-            return self.parse_when()
-        elif token.type == TokenType.LOOP:
-            return self.parse_loop()
-        elif token.type == TokenType.WHILE:
-            return self.parse_while()
-        elif token.type == TokenType.EACH:
-            return self.parse_each()
-        elif token.type == TokenType.FUNC:
-            return self.parse_func_def()
-        elif token.type == TokenType.CLASS:
-            return self.parse_class_def()
-        elif token.type == TokenType.RETURN:
-            return self.parse_return()
-        elif token.type == TokenType.BREAK:
-            self.advance()
-            return BreakNode()
-        elif token.type == TokenType.CONTINUE:
-            self.advance()
-            return ContinueNode()
-        elif token.type == TokenType.ROUTE:
-            return self.parse_route()
-        elif token.type == TokenType.API:
-            return self.parse_api()
-        elif token.type == TokenType.RENDER:
-            return self.parse_render()
-        elif token.type == TokenType.RESPOND:
-            return self.parse_respond()
-        elif token.type == TokenType.IDENTIFIER:
-            return self.parse_identifier_statement()
-        elif token.type == TokenType.SELF:
-            return self.parse_self_statement()
-        else:
-            return self.parse_expression()
-    
-    def parse_variable_decl(self, is_const: bool) -> AssignNode:
-        self.advance()  # let/const
-        name = self.expect(TokenType.IDENTIFIER).value
-        self.expect(TokenType.ASSIGN)
-        value = self.parse_expression()
-        return AssignNode(name, value, is_const)
-    
-    def parse_list_decl(self) -> AssignNode:
-        self.advance()  # list
-        name = self.expect(TokenType.IDENTIFIER).value
-        self.expect(TokenType.ASSIGN)
-        value = self.parse_expression()
-        return AssignNode(name, value, False)
-    
-    def parse_dict_decl(self) -> AssignNode:
-        self.advance()  # dict
-        name = self.expect(TokenType.IDENTIFIER).value
-        self.expect(TokenType.ASSIGN)
-        value = self.parse_expression()
-        return AssignNode(name, value, False)
-    
-    def parse_show(self) -> ShowNode:
-        self.advance()  # show
-        expressions = [self.parse_expression()]
-        while self.current().type == TokenType.COMMA:
-            self.advance()
-            expressions.append(self.parse_expression())
-        return ShowNode(expressions)
-    
-    def parse_input(self) -> InputNode:
-        self.advance()  # input
-        prompt = self.parse_expression()
-        self.expect(TokenType.ARROW)
-        variable = self.expect(TokenType.IDENTIFIER).value
-        return InputNode(prompt, variable)
-    
-    def parse_when(self) -> WhenNode:
-        self.advance()  # when
-        condition = self.parse_expression()
-        self.expect(TokenType.LBRACE_START)
-        then_block = self.parse_block()
-        self.expect(TokenType.RBRACE_END)
-        
-        else_block = None
-        self.skip_newlines()
-        if self.current().type == TokenType.OTHERWISE:
-            self.advance()
-            self.expect(TokenType.LBRACE_START)
-            else_block = self.parse_block()
-            self.expect(TokenType.RBRACE_END)
-        
-        return WhenNode(condition, then_block, else_block)
-    
-    def parse_loop(self) -> LoopNode:
-        self.advance()  # loop
-        variable = self.expect(TokenType.IDENTIFIER).value
-        self.expect(TokenType.FROM)
-        start = self.parse_expression()
-        self.expect(TokenType.TO)
-        end = self.parse_expression()
-        self.expect(TokenType.LBRACE_START)
-        body = self.parse_block()
-        self.expect(TokenType.RBRACE_END)
-        return LoopNode(variable, start, end, body)
-    
-    def parse_while(self) -> WhileNode:
-        self.advance()  # while
-        condition = self.parse_expression()
-        self.expect(TokenType.LBRACE_START)
-        body = self.parse_block()
-        self.expect(TokenType.RBRACE_END)
-        return WhileNode(condition, body)
-    
-    def parse_each(self) -> EachNode:
-        self.advance()  # each
-        variable = self.expect(TokenType.IDENTIFIER).value
-        self.expect(TokenType.IN)
-        iterable = self.parse_expression()
-        self.expect(TokenType.LBRACE_START)
-        body = self.parse_block()
-        self.expect(TokenType.RBRACE_END)
-        return EachNode(variable, iterable, body)
-    
-    def parse_func_def(self) -> FuncDefNode:
-        self.advance()  # func
-        name = self.expect(TokenType.IDENTIFIER).value
-        self.expect(TokenType.LPAREN)
-        
-        params = []
-        if self.current().type != TokenType.RPAREN:
-            params.append(self.expect(TokenType.IDENTIFIER).value)
-            while self.current().type == TokenType.COMMA:
-                self.advance()
-                params.append(self.expect(TokenType.IDENTIFIER).value)
-        
-        self.expect(TokenType.RPAREN)
-        self.expect(TokenType.LBRACE_START)
-        body = self.parse_block()
-        self.expect(TokenType.RBRACE_END)
-        
-        return FuncDefNode(name, params, body)
-    
-    def parse_class_def(self) -> ClassDefNode:
-        self.advance()  # class
-        name = self.expect(TokenType.IDENTIFIER).value
-        self.expect(TokenType.LBRACE_START)
-        
-        methods = []
-        self.skip_newlines()
-        while self.current().type != TokenType.RBRACE_END:
-            if self.current().type == TokenType.FUNC:
-                methods.append(self.parse_func_def())
-            self.skip_newlines()
-        
-        self.expect(TokenType.RBRACE_END)
-        return ClassDefNode(name, methods)
-    
-    def parse_return(self) -> ReturnNode:
-        self.advance()  # return
-        value = None
-        if self.current().type not in (TokenType.NEWLINE, TokenType.RBRACE_END, TokenType.EOF):
-            value = self.parse_expression()
-        return ReturnNode(value)
-    
-    def parse_route(self) -> RouteNode:
-        self.advance()  # route
-        path = self.expect(TokenType.STRING).value
-        self.expect(TokenType.LBRACE_START)
-        body = self.parse_block()
-        self.expect(TokenType.RBRACE_END)
-        return RouteNode(path, body)
-    
-    def parse_api(self) -> ApiNode:
-        self.advance()  # api
-        path = self.expect(TokenType.STRING).value
-        self.expect(TokenType.LBRACE_START)
-        body = self.parse_block()
-        self.expect(TokenType.RBRACE_END)
-        return ApiNode(path, body)
-    
-    def parse_render(self) -> RenderNode:
-        self.advance()  # render
-        template = self.parse_expression()
-        return RenderNode(template)
-    
-    def parse_respond(self) -> RespondNode:
-        self.advance()  # respond
-        data = self.parse_expression()
-        return RespondNode(data)
-    
-    def parse_identifier_statement(self) -> ASTNode:
-        name = self.advance().value
-        
-        if self.current().type == TokenType.ASSIGN:
-            self.advance()
-            value = self.parse_expression()
-            return AssignNode(name, value, False)
-        elif self.current().type == TokenType.LPAREN:
-            return self.parse_func_call(name)
-        elif self.current().type == TokenType.DOT:
-            return self.parse_member_access(IdentifierNode(name))
-        elif self.current().type == TokenType.LBRACKET:
-            return self.parse_index_access(IdentifierNode(name))
-        else:
-            return IdentifierNode(name)
-    
-    def parse_self_statement(self) -> ASTNode:
-        self.advance()  # self
-        self.expect(TokenType.DOT)
-        prop = self.expect(TokenType.IDENTIFIER).value
-        
-        if self.current().type == TokenType.ASSIGN:
-            self.advance()
-            value = self.parse_expression()
-            return AssignNode(f"self.{prop}", value, False)
-        
-        return SelfNode(prop)
-    
-    def parse_func_call(self, name: str) -> FuncCallNode:
-        self.expect(TokenType.LPAREN)
-        args = []
-        if self.current().type != TokenType.RPAREN:
-            args.append(self.parse_expression())
-            while self.current().type == TokenType.COMMA:
-                self.advance()
-                args.append(self.parse_expression())
-        self.expect(TokenType.RPAREN)
-        return FuncCallNode(name, args)
-    
-    def parse_member_access(self, obj: ASTNode) -> ASTNode:
-        while self.current().type == TokenType.DOT:
-            self.advance()
-            prop = self.expect(TokenType.IDENTIFIER).value
-            
-            if self.current().type == TokenType.LPAREN:
-                self.advance()
-                args = []
-                if self.current().type != TokenType.RPAREN:
-                    args.append(self.parse_expression())
-                    while self.current().type == TokenType.COMMA:
-                        self.advance()
-                        args.append(self.parse_expression())
-                self.expect(TokenType.RPAREN)
-                obj = MethodCallNode(obj, prop, args)
-            elif self.current().type == TokenType.ASSIGN:
-                self.advance()
-                value = self.parse_expression()
-                return AssignNode(f"{obj}.{prop}", value, False)
-            else:
-                obj = PropertyNode(obj, prop)
-        
-        return obj
-    
-    def parse_index_access(self, obj: ASTNode) -> ASTNode:
-        while self.current().type == TokenType.LBRACKET:
-            self.advance()
-            index = self.parse_expression()
-            self.expect(TokenType.RBRACKET)
-            obj = IndexNode(obj, index)
-        return obj
-    
-    def parse_block(self) -> BlockNode:
-        statements = []
-        self.skip_newlines()
-        while self.current().type != TokenType.RBRACE_END:
-            stmt = self.parse_statement()
-            if stmt:
-                statements.append(stmt)
-            self.skip_newlines()
-        return BlockNode(statements)
-    
-    def parse_expression(self) -> ASTNode:
-        return self.parse_or()
-    
-    def parse_or(self) -> ASTNode:
-        left = self.parse_and()
-        while self.current().type == TokenType.OR:
-            self.advance()
-            right = self.parse_and()
-            left = BinaryOpNode(left, TokenType.OR, right)
-        return left
-    
-    def parse_and(self) -> ASTNode:
-        left = self.parse_not()
-        while self.current().type == TokenType.AND:
-            self.advance()
-            right = self.parse_not()
-            left = BinaryOpNode(left, TokenType.AND, right)
-        return left
-    
-    def parse_not(self) -> ASTNode:
-        if self.current().type == TokenType.NOT:
-            self.advance()
-            return UnaryOpNode(TokenType.NOT, self.parse_not())
-        return self.parse_comparison()
-    
-    def parse_comparison(self) -> ASTNode:
-        left = self.parse_term()
-        while self.current().type in (TokenType.EQ, TokenType.NEQ, TokenType.LT, 
-                                       TokenType.GT, TokenType.LTE, TokenType.GTE):
-            op = self.advance().type
-            right = self.parse_term()
-            left = BinaryOpNode(left, op, right)
-        return left
-    
-    def parse_term(self) -> ASTNode:
-        left = self.parse_factor()
-        while self.current().type in (TokenType.PLUS, TokenType.MINUS):
-            op = self.advance().type
-            right = self.parse_factor()
-            left = BinaryOpNode(left, op, right)
-        return left
-    
-    def parse_factor(self) -> ASTNode:
-        left = self.parse_power()
-        while self.current().type in (TokenType.MULTIPLY, TokenType.DIVIDE, TokenType.MODULO):
-            op = self.advance().type
-            right = self.parse_power()
-            left = BinaryOpNode(left, op, right)
-        return left
-    
-    def parse_power(self) -> ASTNode:
-        left = self.parse_unary()
-        if self.current().type == TokenType.POWER:
-            self.advance()
-            right = self.parse_power()
-            return BinaryOpNode(left, TokenType.POWER, right)
-        return left
-    
-    def parse_unary(self) -> ASTNode:
-        if self.current().type == TokenType.MINUS:
-            self.advance()
-            return UnaryOpNode(TokenType.MINUS, self.parse_unary())
-        return self.parse_primary()
-    
-    def parse_primary(self) -> ASTNode:
-        token = self.current()
-        
-        if token.type == TokenType.NUMBER:
-            self.advance()
-            return NumberNode(token.value)
-        
-        if token.type == TokenType.STRING:
-            self.advance()
-            return StringNode(token.value)
-        
-        if token.type == TokenType.BOOLEAN:
-            self.advance()
-            return BooleanNode(token.value == 'true')
-        
-        if token.type == TokenType.NULL:
-            self.advance()
-            return NullNode()
-        
-        if token.type == TokenType.SELF:
-            self.advance()
-            self.expect(TokenType.DOT)
-            prop = self.expect(TokenType.IDENTIFIER).value
-            return SelfNode(prop)
-        
-        if token.type == TokenType.IDENTIFIER:
-            name = self.advance().value
-            
-            if self.current().type == TokenType.LPAREN:
-                node = self.parse_func_call(name)
-            else:
-                node = IdentifierNode(name)
-            
-            if self.current().type == TokenType.DOT:
-                node = self.parse_member_access(node)
-            
-            if self.current().type == TokenType.LBRACKET:
-                node = self.parse_index_access(node)
-            
-            return node
-        
-        if token.type == TokenType.LPAREN:
-            self.advance()
-            expr = self.parse_expression()
-            self.expect(TokenType.RPAREN)
-            return expr
-        
-        if token.type == TokenType.LBRACKET:
-            return self.parse_list()
-        
-        if token.type == TokenType.LDICT:
-            return self.parse_dict()
-        
-        raise SyntaxError(f"Unexpected token {token.type} at line {token.line}")
-    
-    def parse_list(self) -> ListNode:
-        self.expect(TokenType.LBRACKET)
-        elements = []
-        if self.current().type != TokenType.RBRACKET:
-            elements.append(self.parse_expression())
-            while self.current().type == TokenType.COMMA:
-                self.advance()
-                if self.current().type != TokenType.RBRACKET:
-                    elements.append(self.parse_expression())
-        self.expect(TokenType.RBRACKET)
-        return ListNode(elements)
-    
-    def parse_dict(self) -> DictNode:
-        self.expect(TokenType.LDICT)
-        pairs = []
-        if self.current().type != TokenType.RDICT:
-            key = self.expect(TokenType.IDENTIFIER).value
-            self.expect(TokenType.COLON)
-            value = self.parse_expression()
-            pairs.append((key, value))
-            while self.current().type == TokenType.COMMA:
-                self.advance()
-                if self.current().type != TokenType.RDICT:
-                    key = self.expect(TokenType.IDENTIFIER).value
-                    self.expect(TokenType.COLON)
-                    value = self.parse_expression()
-                    pairs.append((key, value))
-        self.expect(TokenType.RDICT)
-        return DictNode(pairs)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#                              ИНТЕРПРЕТАТОР
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class ReturnException(Exception):
-    def __init__(self, value):
-        self.value = value
-
-class BreakException(Exception):
-    pass
-
-class ContinueException(Exception):
-    pass
-
-
-class NovaClass:
-    def __init__(self, name: str, methods: Dict[str, FuncDefNode]):
-        self.name = name
-        self.methods = methods
-
-
-class NovaInstance:
-    def __init__(self, nova_class: NovaClass):
-        self.nova_class = nova_class
-        self.properties: Dict[str, Any] = {}
-
-
-class Environment:
-    def __init__(self, parent=None):
-        self.variables: Dict[str, Any] = {}
-        self.constants: set = set()
-        self.parent = parent
-    
-    def get(self, name: str) -> Any:
-        if name in self.variables:
-            return self.variables[name]
-        if self.parent:
-            return self.parent.get(name)
-        raise NameError(f"Undefined variable: {name}")
-    
-    def set(self, name: str, value: Any, is_const: bool = False):
-        if name in self.constants:
-            raise ValueError(f"Cannot reassign constant: {name}")
-        self.variables[name] = value
-        if is_const:
-            self.constants.add(name)
-    
-    def update(self, name: str, value: Any):
-        if name in self.constants:
-            raise ValueError(f"Cannot reassign constant: {name}")
-        if name in self.variables:
-            self.variables[name] = value
-        elif self.parent:
-            self.parent.update(name, value)
-        else:
-            self.variables[name] = value
-
-
-class Interpreter:
-    def __init__(self, output_callback=None, input_callback=None):
-        self.global_env = Environment()
-        self.current_env = self.global_env
-        self.output_callback = output_callback or print
-        self.input_callback = input_callback or input
-        self.routes: Dict[str, ASTNode] = {}
-        self.apis: Dict[str, ASTNode] = {}
-        self.current_instance = None
-        self._setup_builtins()
-    
-    def _setup_builtins(self):
-        # Встроенные функции
-        self.global_env.set('len', lambda x: len(x))
-        self.global_env.set('str', lambda x: str(x))
-        self.global_env.set('int', lambda x: int(x))
-        self.global_env.set('float', lambda x: float(x))
-        self.global_env.set('abs', lambda x: abs(x))
-        self.global_env.set('min', lambda *x: min(x))
-        self.global_env.set('max', lambda *x: max(x))
-        self.global_env.set('sum', lambda x: sum(x))
-        self.global_env.set('range', lambda *args: list(range(*args)))
-        self.global_env.set('sort', lambda x: sorted(x))
-        self.global_env.set('reverse', lambda x: list(reversed(x)))
-        self.global_env.set('push', lambda lst, item: lst.append(item) or lst)
-        self.global_env.set('pop', lambda lst: lst.pop())
-        self.global_env.set('join', lambda lst, sep: sep.join(str(x) for x in lst))
-        self.global_env.set('split', lambda s, sep: s.split(sep))
-        self.global_env.set('upper', lambda s: s.upper())
-        self.global_env.set('lower', lambda s: s.lower())
-        self.global_env.set('trim', lambda s: s.strip())
-        self.global_env.set('json', lambda x: json.dumps(x))
-        self.global_env.set('parse_json', lambda x: json.loads(x))
-        self.global_env.set('type', lambda x: type(x).__name__)
-        self.global_env.set('keys', lambda d: list(d.keys()))
-        self.global_env.set('values', lambda d: list(d.values()))
-        self.global_env.set('sqrt', lambda x: x ** 0.5)
-        self.global_env.set('round', lambda x, n=0: round(x, n))
-    
-    def execute(self, ast: ProgramNode) -> Any:
-        result = None
-        for stmt in ast.statements:
-            result = self.eval(stmt)
-        return result
-    
-    def eval(self, node: ASTNode) -> Any:
-        method_name = f'eval_{type(node).__name__}'
-        method = getattr(self, method_name, self.generic_eval)
-        return method(node)
-    
-    def generic_eval(self, node: ASTNode):
-        raise RuntimeError(f"No eval method for {type(node).__name__}")
-    
-    def eval_NumberNode(self, node: NumberNode) -> float:
-        return node.value
-    
-    def eval_StringNode(self, node: StringNode) -> str:
-        return node.value
-    
-    def eval_BooleanNode(self, node: BooleanNode) -> bool:
-        return node.value
-    
-    def eval_NullNode(self, node: NullNode) -> None:
-        return None
-    
-    def eval_IdentifierNode(self, node: IdentifierNode) -> Any:
-        return self.current_env.get(node.name)
-    
-    def eval_BinaryOpNode(self, node: BinaryOpNode) -> Any:
-        left = self.eval(node.left)
-        
-        # Короткое замыкание
-        if node.op == TokenType.AND:
-            return left and self.eval(node.right)
-        if node.op == TokenType.OR:
-            return left or self.eval(node.right)
-        
-        right = self.eval(node.right)
-        
-        ops = {
-            TokenType.PLUS: lambda: left + right,
-            TokenType.MINUS: lambda: left - right,
-            TokenType.MULTIPLY: lambda: left * right,
-            TokenType.DIVIDE: lambda: left / right,
-            TokenType.MODULO: lambda: left % right,
-            TokenType.POWER: lambda: left ** right,
-            TokenType.EQ: lambda: left == right,
-            TokenType.NEQ: lambda: left != right,
-            TokenType.LT: lambda: left < right,
-            TokenType.GT: lambda: left > right,
-            TokenType.LTE: lambda: left <= right,
-            TokenType.GTE: lambda: left >= right,
+package com.example.browser
+
+import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.graphics.Color
+import android.os.Bundle
+import android.view.Gravity
+import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.webkit.*
+import android.widget.*
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import java.text.SimpleDateFormat
+import java.util.*
+
+class MainActivity : AppCompatActivity() {
+
+    data class Tab(var id: String = UUID.randomUUID().toString(),
+                   var url: String = "https://www.google.com",
+                   var title: String = "Новая вкладка")
+    data class HistoryItem(val url: String, val title: String, val timestamp: Long = System.currentTimeMillis())
+    data class Bookmark(val url: String, val title: String, val timestamp: Long = System.currentTimeMillis())
+
+    private val tabs = mutableListOf<Tab>()
+    private val webViews = mutableMapOf<String, WebView>()
+    private var currentTabId: String? = null
+
+    private lateinit var container: LinearLayout
+    private lateinit var toolbar: LinearLayout
+    private lateinit var urlEdit: EditText
+    private lateinit var webContainer: FrameLayout
+    private lateinit var progressBar: ProgressBar
+    private lateinit var tabCountButton: Button
+
+    private val history = mutableListOf<HistoryItem>()
+    private val bookmarks = mutableListOf<Bookmark>()
+
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Создаем UI из кода
+        container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.parseColor("#1a1a2e"))
         }
-        
-        return ops[node.op]()
-    
-    def eval_UnaryOpNode(self, node: UnaryOpNode) -> Any:
-        operand = self.eval(node.operand)
-        if node.op == TokenType.MINUS:
-            return -operand
-        if node.op == TokenType.NOT:
-            return not operand
-    
-    def eval_AssignNode(self, node: AssignNode) -> Any:
-        value = self.eval(node.value)
-        
-        if '.' in node.name:
-            parts = node.name.split('.', 1)
-            if parts[0] == 'self' and self.current_instance:
-                self.current_instance.properties[parts[1]] = value
-            else:
-                obj = self.current_env.get(parts[0])
-                if isinstance(obj, NovaInstance):
-                    obj.properties[parts[1]] = value
-                elif isinstance(obj, dict):
-                    obj[parts[1]] = value
-        else:
-            self.current_env.set(node.name, value, node.is_const)
-        
-        return value
-    
-    def eval_ShowNode(self, node: ShowNode) -> None:
-        values = [self.eval(expr) for expr in node.expressions]
-        output = ' '.join(str(v) for v in values)
-        self.output_callback(output)
-    
-    def eval_InputNode(self, node: InputNode) -> str:
-        prompt = self.eval(node.prompt)
-        value = self.input_callback(prompt)
-        self.current_env.set(node.variable, value)
-        return value
-    
-    def eval_BlockNode(self, node: BlockNode) -> Any:
-        result = None
-        for stmt in node.statements:
-            result = self.eval(stmt)
-        return result
-    
-    def eval_WhenNode(self, node: WhenNode) -> Any:
-        condition = self.eval(node.condition)
-        if condition:
-            return self.eval(node.then_block)
-        elif node.else_block:
-            return self.eval(node.else_block)
-    
-    def eval_LoopNode(self, node: LoopNode) -> None:
-        start = int(self.eval(node.start))
-        end = int(self.eval(node.end))
-        
-        old_env = self.current_env
-        self.current_env = Environment(old_env)
-        
-        try:
-            for i in range(start, end + 1):
-                self.current_env.set(node.variable, i)
-                try:
-                    self.eval(node.body)
-                except ContinueException:
-                    continue
-                except BreakException:
-                    break
-        finally:
-            self.current_env = old_env
-    
-    def eval_WhileNode(self, node: WhileNode) -> None:
-        while self.eval(node.condition):
-            try:
-                self.eval(node.body)
-            except ContinueException:
-                continue
-            except BreakException:
-                break
-    
-    def eval_EachNode(self, node: EachNode) -> None:
-        iterable = self.eval(node.iterable)
-        
-        old_env = self.current_env
-        self.current_env = Environment(old_env)
-        
-        try:
-            for item in iterable:
-                self.current_env.set(node.variable, item)
-                try:
-                    self.eval(node.body)
-                except ContinueException:
-                    continue
-                except BreakException:
-                    break
-        finally:
-            self.current_env = old_env
-    
-    def eval_FuncDefNode(self, node: FuncDefNode) -> None:
-        self.current_env.set(node.name, node)
-    
-    def eval_FuncCallNode(self, node: FuncCallNode) -> Any:
-        func = self.current_env.get(node.name)
-        args = [self.eval(arg) for arg in node.args]
-        
-        if callable(func):
-            return func(*args)
-        
-        if isinstance(func, NovaClass):
-            instance = NovaInstance(func)
-            if 'init' in func.methods:
-                self._call_method(instance, 'init', args)
-            return instance
-        
-        if isinstance(func, FuncDefNode):
-            old_env = self.current_env
-            self.current_env = Environment(self.global_env)
-            
-            for param, arg in zip(func.params, args):
-                self.current_env.set(param, arg)
-            
-            try:
-                self.eval(func.body)
-            except ReturnException as e:
-                return e.value
-            finally:
-                self.current_env = old_env
-            
-            return None
-    
-    def _call_method(self, instance: NovaInstance, method_name: str, args: list) -> Any:
-        method = instance.nova_class.methods.get(method_name)
-        if not method:
-            raise RuntimeError(f"Method {method_name} not found")
-        
-        old_env = self.current_env
-        old_instance = self.current_instance
-        self.current_env = Environment(self.global_env)
-        self.current_instance = instance
-        
-        for param, arg in zip(method.params, args):
-            self.current_env.set(param, arg)
-        
-        try:
-            self.eval(method.body)
-        except ReturnException as e:
-            return e.value
-        finally:
-            self.current_env = old_env
-            self.current_instance = old_instance
-        
-        return None
-    
-    def eval_ReturnNode(self, node: ReturnNode):
-        value = self.eval(node.value) if node.value else None
-        raise ReturnException(value)
-    
-    def eval_BreakNode(self, node: BreakNode):
-        raise BreakException()
-    
-    def eval_ContinueNode(self, node: ContinueNode):
-        raise ContinueException()
-    
-    def eval_ListNode(self, node: ListNode) -> list:
-        return [self.eval(elem) for elem in node.elements]
-    
-    def eval_DictNode(self, node: DictNode) -> dict:
-        return {key: self.eval(value) for key, value in node.pairs}
-    
-    def eval_IndexNode(self, node: IndexNode) -> Any:
-        obj = self.eval(node.obj)
-        index = self.eval(node.index)
-        return obj[index]
-    
-    def eval_PropertyNode(self, node: PropertyNode) -> Any:
-        obj = self.eval(node.obj)
-        if isinstance(obj, NovaInstance):
-            return obj.properties.get(node.property)
-        if isinstance(obj, dict):
-            return obj.get(node.property)
-        return getattr(obj, node.property)
-    
-    def eval_ClassDefNode(self, node: ClassDefNode) -> None:
-        methods = {m.name: m for m in node.methods}
-        nova_class = NovaClass(node.name, methods)
-        self.current_env.set(node.name, nova_class)
-    
-    def eval_MethodCallNode(self, node: MethodCallNode) -> Any:
-        obj = self.eval(node.obj)
-        args = [self.eval(arg) for arg in node.args]
-        
-        if isinstance(obj, NovaInstance):
-            return self._call_method(obj, node.method, args)
-        
-        if isinstance(obj, list):
-            list_methods = {
-                'push': lambda item: obj.append(item),
-                'pop': lambda: obj.pop(),
-                'length': lambda: len(obj),
-                'join': lambda sep='': sep.join(str(x) for x in obj),
-                'reverse': lambda: list(reversed(obj)),
-                'sort': lambda: sorted(obj),
-            }
-            if node.method in list_methods:
-                return list_methods[node.method](*args)
-        
-        if isinstance(obj, str):
-            str_methods = {
-                'upper': lambda: obj.upper(),
-                'lower': lambda: obj.lower(),
-                'trim': lambda: obj.strip(),
-                'split': lambda sep=' ': obj.split(sep),
-                'replace': lambda old, new: obj.replace(old, new),
-                'length': lambda: len(obj),
-                'contains': lambda sub: sub in obj,
-            }
-            if node.method in str_methods:
-                return str_methods[node.method](*args)
-        
-        if isinstance(obj, dict):
-            dict_methods = {
-                'keys': lambda: list(obj.keys()),
-                'values': lambda: list(obj.values()),
-                'get': lambda k, default=None: obj.get(k, default),
-                'has': lambda k: k in obj,
-            }
-            if node.method in dict_methods:
-                return dict_methods[node.method](*args)
-        
-        return getattr(obj, node.method)(*args)
-    
-    def eval_SelfNode(self, node: SelfNode) -> Any:
-        if self.current_instance:
-            return self.current_instance.properties.get(node.property)
-        raise RuntimeError("self used outside of class method")
-    
-    def eval_RouteNode(self, node: RouteNode) -> None:
-        self.routes[node.path] = node.body
-    
-    def eval_ApiNode(self, node: ApiNode) -> None:
-        self.apis[node.path] = node.body
-    
-    def eval_RenderNode(self, node: RenderNode) -> str:
-        template = self.eval(node.template)
-        return f"<html><body>{template}</body></html>"
-    
-    def eval_RespondNode(self, node: RespondNode) -> str:
-        data = self.eval(node.data)
-        return json.dumps(data)
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#                           NOVA WEB FRAMEWORK
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class NovaWebServer:
-    def __init__(self, interpreter: Interpreter, port: int = 8080):
-        self.interpreter = interpreter
-        self.port = port
-        self.server = None
-    
-    def start(self):
-        class NovaHandler(http.server.SimpleHTTPRequestHandler):
-            interpreter = self.interpreter
-            
-            def do_GET(self):
-                path = self.path.split('?')[0]
-                
-                if path in self.interpreter.routes:
-                    self.send_response(200)
-                    self.send_header('Content-type', 'text/html')
-                    self.end_headers()
-                    result = self.interpreter.eval(self.interpreter.routes[path])
-                    self.wfile.write(str(result).encode())
-                elif path in self.interpreter.apis:
-                    self.send_response(200)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-                    result = self.interpreter.eval(self.interpreter.apis[path])
-                    self.wfile.write(str(result).encode())
-                else:
-                    self.send_response(404)
-                    self.end_headers()
-        
-        with socketserver.TCPServer(("", self.port), NovaHandler) as httpd:
-            self.server = httpd
-            httpd.serve_forever()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#                               NOVA IDE
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class NovaIDE:
-    def __init__(self):
-        self.root = tk.Tk()
-        self.root.title("🌟 Nova IDE - Интегрированная среда разработки")
-        self.root.geometry("1200x800")
-        self.root.configure(bg='#1e1e2e')
-        
-        self.current_file = None
-        self.interpreter = None
-        
-        self._setup_styles()
-        self._create_menu()
-        self._create_toolbar()
-        self._create_main_layout()
-        self._create_statusbar()
-        self._setup_syntax_highlighting()
-        self._bind_shortcuts()
-        
-        # Пример кода при запуске
-        self._load_example()
-    
-    def _setup_styles(self):
-        style = ttk.Style()
-        style.theme_use('clam')
-        
-        style.configure('Toolbar.TFrame', background='#2d2d3f')
-        style.configure('Status.TFrame', background='#1a1a2e')
-        style.configure('TButton', 
-                       background='#4a4a6a',
-                       foreground='white',
-                       padding=5)
-        style.map('TButton',
-                 background=[('active', '#5a5a7a')])
-    
-    def _create_menu(self):
-        menubar = tk.Menu(self.root, bg='#2d2d3f', fg='white')
-        self.root.config(menu=menubar)
-        
-        # Файл
-        file_menu = tk.Menu(menubar, tearoff=0, bg='#2d2d3f', fg='white')
-        menubar.add_cascade(label="📁 Файл", menu=file_menu)
-        file_menu.add_command(label="Новый файл", command=self._new_file, accelerator="Ctrl+N")
-        file_menu.add_command(label="Открыть...", command=self._open_file, accelerator="Ctrl+O")
-        file_menu.add_command(label="Сохранить", command=self._save_file, accelerator="Ctrl+S")
-        file_menu.add_command(label="Сохранить как...", command=self._save_as)
-        file_menu.add_separator()
-        file_menu.add_command(label="Выход", command=self.root.quit)
-        
-        # Выполнение
-        run_menu = tk.Menu(menubar, tearoff=0, bg='#2d2d3f', fg='white')
-        menubar.add_cascade(label="▶️ Выполнение", menu=run_menu)
-        run_menu.add_command(label="Запустить", command=self._run_code, accelerator="F5")
-        run_menu.add_command(label="Очистить консоль", command=self._clear_output)
-        
-        # Примеры
-        examples_menu = tk.Menu(menubar, tearoff=0, bg='#2d2d3f', fg='white')
-        menubar.add_cascade(label="📚 Примеры", menu=examples_menu)
-        examples_menu.add_command(label="Hello World", command=lambda: self._load_example('hello'))
-        examples_menu.add_command(label="Циклы и условия", command=lambda: self._load_example('loops'))
-        examples_menu.add_command(label="Функции", command=lambda: self._load_example('functions'))
-        examples_menu.add_command(label="Классы (ООП)", command=lambda: self._load_example('classes'))
-        examples_menu.add_command(label="Списки и словари", command=lambda: self._load_example('collections'))
-        examples_menu.add_command(label="Веб-сервер", command=lambda: self._load_example('web'))
-        examples_menu.add_command(label="Полный пример", command=lambda: self._load_example('full'))
-        
-        # Справка
-        help_menu = tk.Menu(menubar, tearoff=0, bg='#2d2d3f', fg='white')
-        menubar.add_cascade(label="❓ Справка", menu=help_menu)
-        help_menu.add_command(label="Документация Nova", command=self._show_docs)
-        help_menu.add_command(label="О программе", command=self._show_about)
-    
-    def _create_toolbar(self):
-        toolbar = ttk.Frame(self.root, style='Toolbar.TFrame')
-        toolbar.pack(fill=tk.X, padx=5, pady=2)
-        
-        buttons = [
-            ("📄 Новый", self._new_file),
-            ("📂 Открыть", self._open_file),
-            ("💾 Сохранить", self._save_file),
-            ("▶️ Запустить (F5)", self._run_code),
-            ("🧹 Очистить", self._clear_output),
-        ]
-        
-        for text, command in buttons:
-            btn = ttk.Button(toolbar, text=text, command=command)
-            btn.pack(side=tk.LEFT, padx=2)
-    
-    def _create_main_layout(self):
-        # Основной контейнер с панелями
-        paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Левая панель - редактор кода
-        editor_frame = ttk.Frame(paned)
-        paned.add(editor_frame, weight=3)
-        
-        # Заголовок редактора
-        editor_label = tk.Label(editor_frame, text="📝 Редактор кода Nova", 
-                               bg='#2d2d3f', fg='#89b4fa', font=('Consolas', 11, 'bold'))
-        editor_label.pack(fill=tk.X)
-        
-        # Редактор с номерами строк
-        editor_container = ttk.Frame(editor_frame)
-        editor_container.pack(fill=tk.BOTH, expand=True)
-        
-        # Номера строк
-        self.line_numbers = tk.Text(editor_container, width=4, padx=5, pady=5,
-                                    bg='#1a1a2e', fg='#6c7086', font=('Consolas', 12),
-                                    state='disabled', takefocus=0)
-        self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
-        
-        # Текстовый редактор
-        self.editor = scrolledtext.ScrolledText(editor_container, 
-                                                wrap=tk.NONE,
-                                                font=('Consolas', 12),
-                                                bg='#1e1e2e',
-                                                fg='#cdd6f4',
-                                                insertbackground='#f5e0dc',
-                                                selectbackground='#45475a',
-                                                padx=10,
-                                                pady=10)
-        self.editor.pack(fill=tk.BOTH, expand=True)
-        self.editor.bind('<KeyRelease>', self._on_editor_change)
-        self.editor.bind('<Return>', self._auto_indent)
-        
-        # Правая панель - вывод
-        output_frame = ttk.Frame(paned)
-        paned.add(output_frame, weight=1)
-        
-        # Заголовок консоли
-        output_label = tk.Label(output_frame, text="🖥️ Консоль вывода", 
-                               bg='#2d2d3f', fg='#a6e3a1', font=('Consolas', 11, 'bold'))
-        output_label.pack(fill=tk.X)
-        
-        # Консоль вывода
-        self.output = scrolledtext.ScrolledText(output_frame,
-                                               wrap=tk.WORD,
-                                               font=('Consolas', 11),
-                                               bg='#11111b',
-                                               fg='#a6e3a1',
-                                               state='disabled',
-                                               padx=10,
-                                               pady=10)
-        self.output.pack(fill=tk.BOTH, expand=True)
-        
-        # Поле ввода
-        input_frame = ttk.Frame(output_frame)
-        input_frame.pack(fill=tk.X)
-        
-        tk.Label(input_frame, text="Ввод:", bg='#2d2d3f', fg='white').pack(side=tk.LEFT)
-        self.input_entry = tk.Entry(input_frame, font=('Consolas', 11),
-                                   bg='#1e1e2e', fg='#cdd6f4', insertbackground='white')
-        self.input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        self.input_entry.bind('<Return>', self._submit_input)
-        
-        self.input_var = None
-        self.input_event = threading.Event()
-    
-    def _create_statusbar(self):
-        statusbar = ttk.Frame(self.root, style='Status.TFrame')
-        statusbar.pack(fill=tk.X)
-        
-        self.status_label = tk.Label(statusbar, text="Готов к работе | Nova Language v1.0",
-                                    bg='#1a1a2e', fg='#6c7086', anchor=tk.W, padx=10)
-        self.status_label.pack(fill=tk.X)
-    
-    def _setup_syntax_highlighting(self):
-        # Цвета для подсветки синтаксиса
-        self.editor.tag_configure('keyword', foreground='#cba6f7')  # Фиолетовый
-        self.editor.tag_configure('builtin', foreground='#89b4fa')  # Синий
-        self.editor.tag_configure('string', foreground='#a6e3a1')   # Зелёный
-        self.editor.tag_configure('number', foreground='#fab387')   # Оранжевый
-        self.editor.tag_configure('comment', foreground='#6c7086')  # Серый
-        self.editor.tag_configure('operator', foreground='#f38ba8') # Розовый
-        self.editor.tag_configure('decorator', foreground='#f9e2af') # Жёлтый
-        
-        self.keywords = ['let', 'const', 'func', 'return', 'when', 'otherwise', 
-                        'loop', 'from', 'to', 'while', 'each', 'in', 'class',
-                        'self', 'list', 'dict', 'show', 'input', 'and', 'or', 
-                        'not', 'true', 'false', 'null', 'break', 'continue',
-                        'render', 'respond']
-        
-        self.builtins = ['len', 'str', 'int', 'float', 'abs', 'min', 'max', 
-                        'sum', 'range', 'sort', 'reverse', 'push', 'pop',
-                        'join', 'split', 'upper', 'lower', 'trim', 'json',
-                        'parse_json', 'type', 'keys', 'values', 'sqrt', 'round']
-    
-    def _highlight_syntax(self):
-        # Удаляем все теги
-        for tag in ['keyword', 'builtin', 'string', 'number', 'comment', 'operator', 'decorator']:
-            self.editor.tag_remove(tag, '1.0', tk.END)
-        
-        text = self.editor.get('1.0', tk.END)
-        
-        # Комментарии
-        for match in re.finditer(r'--.*$', text, re.MULTILINE):
-            start = f"1.0+{match.start()}c"
-            end = f"1.0+{match.end()}c"
-            self.editor.tag_add('comment', start, end)
-        
-        # Строки
-        for match in re.finditer(r'"[^"]*"|\'[^\']*\'', text):
-            start = f"1.0+{match.start()}c"
-            end = f"1.0+{match.end()}c"
-            self.editor.tag_add('string', start, end)
-        
-        # Числа
-        for match in re.finditer(r'\b\d+\.?\d*\b', text):
-            start = f"1.0+{match.start()}c"
-            end = f"1.0+{match.end()}c"
-            self.editor.tag_add('number', start, end)
-        
-        # Ключевые слова
-        for keyword in self.keywords:
-            for match in re.finditer(rf'\b{keyword}\b', text):
-                start = f"1.0+{match.start()}c"
-                end = f"1.0+{match.end()}c"
-                self.editor.tag_add('keyword', start, end)
-        
-        # Встроенные функции
-        for builtin in self.builtins:
-            for match in re.finditer(rf'\b{builtin}\b', text):
-                start = f"1.0+{match.start()}c"
-                end = f"1.0+{match.end()}c"
-                self.editor.tag_add('builtin', start, end)
-        
-        # Декораторы
-        for match in re.finditer(r'@\w+', text):
-            start = f"1.0+{match.start()}c"
-            end = f"1.0+{match.end()}c"
-            self.editor.tag_add('decorator', start, end)
-        
-        # Операторы
-        for match in re.finditer(r':=|->|\{:|:\}|==|!=|<=|>=', text):
-            start = f"1.0+{match.start()}c"
-            end = f"1.0+{match.end()}c"
-            self.editor.tag_add('operator', start, end)
-    
-    def _update_line_numbers(self):
-        self.line_numbers.config(state='normal')
-        self.line_numbers.delete('1.0', tk.END)
-        
-        line_count = int(self.editor.index('end-1c').split('.')[0])
-        line_numbers_text = '\n'.join(str(i) for i in range(1, line_count + 1))
-        self.line_numbers.insert('1.0', line_numbers_text)
-        
-        self.line_numbers.config(state='disabled')
-    
-    def _on_editor_change(self, event=None):
-        self._highlight_syntax()
-        self._update_line_numbers()
-    
-    def _auto_indent(self, event):
-        # Получаем текущую строку
-        line = self.editor.get('insert linestart', 'insert')
-        # Считаем отступ
-        indent = len(line) - len(line.lstrip())
-        # Если строка заканчивается на {:, добавляем отступ
-        if line.rstrip().endswith('{:'):
-            indent += 4
-        
-        self.editor.insert('insert', '\n' + ' ' * indent)
-        return 'break'
-    
-    def _bind_shortcuts(self):
-        self.root.bind('<Control-n>', lambda e: self._new_file())
-        self.root.bind('<Control-o>', lambda e: self._open_file())
-        self.root.bind('<Control-s>', lambda e: self._save_file())
-        self.root.bind('<F5>', lambda e: self._run_code())
-    
-    def _new_file(self):
-        self.editor.delete('1.0', tk.END)
-        self.current_file = None
-        self.root.title("🌟 Nova IDE - Новый файл")
-    
-    def _open_file(self):
-        file_path = filedialog.askopenfilename(
-            filetypes=[("Nova files", "*.nova"), ("All files", "*.*")]
-        )
-        if file_path:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            self.editor.delete('1.0', tk.END)
-            self.editor.insert('1.0', content)
-            self.current_file = file_path
-            self.root.title(f"🌟 Nova IDE - {file_path}")
-            self._on_editor_change()
-    
-    def _save_file(self):
-        if self.current_file:
-            with open(self.current_file, 'w', encoding='utf-8') as f:
-                f.write(self.editor.get('1.0', tk.END))
-            self._update_status("Файл сохранён")
-        else:
-            self._save_as()
-    
-    def _save_as(self):
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".nova",
-            filetypes=[("Nova files", "*.nova"), ("All files", "*.*")]
-        )
-        if file_path:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(self.editor.get('1.0', tk.END))
-            self.current_file = file_path
-            self.root.title(f"🌟 Nova IDE - {file_path}")
-            self._update_status("Файл сохранён")
-    
-    def _run_code(self):
-        code = self.editor.get('1.0', tk.END)
-        self._clear_output()
-        self._update_status("Выполнение...")
-        
-        def output_callback(text):
-            self.output.config(state='normal')
-            self.output.insert(tk.END, str(text) + '\n')
-            self.output.config(state='disabled')
-            self.output.see(tk.END)
-        
-        def input_callback(prompt):
-            output_callback(prompt)
-            self.input_event.clear()
-            self.input_event.wait()
-            return self.input_var
-        
-        try:
-            lexer = Lexer(code)
-            tokens = lexer.tokenize()
-            
-            parser = Parser(tokens)
-            ast = parser.parse()
-            
-            self.interpreter = Interpreter(output_callback, input_callback)
-            self.interpreter.execute(ast)
-            
-            self._update_status("✅ Выполнено успешно")
-            
-        except Exception as e:
-            output_callback(f"❌ Ошибка: {e}")
-            self._update_status(f"❌ Ошибка: {type(e).__name__}")
-    
-    def _submit_input(self, event):
-        self.input_var = self.input_entry.get()
-        self.input_entry.delete(0, tk.END)
-        self.input_event.set()
-    
-    def _clear_output(self):
-        self.output.config(state='normal')
-        self.output.delete('1.0', tk.END)
-        self.output.config(state='disabled')
-    
-    def _update_status(self, text):
-        self.status_label.config(text=f"{text} | Nova Language v1.0")
-    
-    def _load_example(self, example_type='full'):
-        examples = {
-            'hello': """-- Привет, мир на языке Nova!
-show "🌟 Привет, Nova!"
-show "Добро пожаловать в мир программирования!"
-""",
-            'loops': """-- Примеры циклов и условий в Nova
-
--- Цикл loop (аналог for)
-show "=== Цикл loop ==="
-loop i from 1 to 5 {:
-    show "Итерация:", i
-:}
-
--- Условия when/otherwise
-show "\n=== Условия ==="
-let score := 85
-when score >= 90 {:
-    show "Оценка: Отлично!"
-:} otherwise {:
-    when score >= 70 {:
-        show "Оценка: Хорошо!"
-    :} otherwise {:
-        show "Оценка: Нужно поработать"
-    :}
-:}
-
--- Цикл while
-show "\n=== Цикл while ==="
-let countdown := 5
-while countdown > 0 {:
-    show "Осталось:", countdown
-    let countdown := countdown - 1
-:}
-show "🚀 Пуск!"
-
--- Цикл each
-show "\n=== Цикл each ==="
-list fruits := ["🍎 яблоко", "🍌 банан", "🍊 апельсин"]
-each fruit in fruits {:
-    show "Фрукт:", fruit
-:}
-""",
-            'functions': """-- Функции в Nova
-
--- Простая функция
-func greet(name) {:
-    show "Привет,", name, "!"
-:}
-
-greet("Мир")
-
--- Функция с возвратом значения
-func add(a, b) {:
-    return a + b
-:}
-
-let result := add(5, 3)
-show "5 + 3 =", result
-
--- Рекурсивная функция (факториал)
-func factorial(n) {:
-    when n <= 1 {:
-        return 1
-    :}
-    return n * factorial(n - 1)
-:}
-
-show "Факториал 5 =", factorial(5)
-
--- Функция Фибоначчи
-func fib(n) {:
-    when n <= 1 {:
-        return n
-    :}
-    return fib(n - 1) + fib(n - 2)
-:}
-
-show "\nПервые 10 чисел Фибоначчи:"
-loop i from 0 to 9 {:
-    show fib(i)
-:}
-""",
-            'classes': """-- Объектно-ориентированное программирование в Nova
-
--- Определение класса
-class Animal {:
-    func init(name, sound) {:
-        self.name := name
-        self.sound := sound
-    :}
-    
-    func speak() {:
-        show self.name, "говорит:", self.sound
-    :}
-    
-    func info() {:
-        show "Это животное:", self.name
-    :}
-:}
-
--- Создание объектов
-let dog := Animal("Собака", "Гав-гав!")
-let cat := Animal("Кошка", "Мяу!")
-let cow := Animal("Корова", "Муу!")
-
--- Вызов методов
-dog.speak()
-cat.speak()
-cow.speak()
-
-show "\n--- Информация ---"
-dog.info()
-cat.info()
-
--- Класс Calculator
-class Calculator {:
-    func init() {:
-        self.result := 0
-    :}
-    
-    func add(x) {:
-        self.result := self.result + x
-        return self.result
-    :}
-    
-    func subtract(x) {:
-        self.result := self.result - x
-        return self.result
-    :}
-    
-    func getResult() {:
-        return self.result
-    :}
-:}
-
-show "\n--- Калькулятор ---"
-let calc := Calculator()
-calc.add(10)
-calc.add(5)
-calc.subtract(3)
-show "Результат:", calc.getResult()
-""",
-            'collections': """-- Списки и словари в Nova
-
--- Работа со списками
-show "=== Списки ==="
-list numbers := [1, 2, 3, 4, 5]
-show "Исходный список:", numbers
-
--- Методы списков
-show "Длина:", len(numbers)
-show "Сумма:", sum(numbers)
-show "Макс:", max(numbers)
-show "Мин:", min(numbers)
-
--- Добавление элемента
-push(numbers, 6)
-show "После push(6):", numbers
-
--- Математические операции со списком
-list squares := []
-each n in numbers {:
-    push(squares, n * n)
-:}
-show "Квадраты:", squares
-
--- Работа со словарями
-show "\n=== Словари ==="
-dict person := {
-    name: "Алекс",
-    age: 25,
-    city: "Москва"
-}
-
-show "Имя:", person.name
-show "Возраст:", person.age
-show "Город:", person.city
-
--- Изменение словаря
-let person.job := "Программист"
-show "Профессия:", person.job
-
--- Вложенные структуры
-dict company := {
-    name: "TechCorp",
-    employees: 100
-}
-
-list team := [person, company]
-show "\nКоманда:", team
-""",
-            'web': """-- Nova Web Framework - Веб-сервер
-
--- Определение маршрутов
-@route "/" {:
-    render "<h1>🌟 Добро пожаловать в Nova Web!</h1><p>Это главная страница</p>"
-:}
-
-@route "/about" {:
-    render "<h1>О нас</h1><p>Nova - современный язык программирования</p>"
-:}
-
--- API endpoints
-@api "/api/users" {:
-    list users := [
-        {name: "Алекс", age: 25},
-        {name: "Мария", age: 30},
-        {name: "Иван", age: 28}
-    ]
-    respond json(users)
-:}
-
-@api "/api/status" {:
-    dict status := {
-        status: "ok",
-        version: "1.0",
-        server: "Nova Web Server"
-    }
-    respond json(status)
-:}
-
-show "🌐 Веб-маршруты определены!"
-show "Маршруты: /, /about"
-show "API: /api/users, /api/status"
-""",
-            'full': """-- ╔═══════════════════════════════════════════════════════════════════╗
--- ║           🌟 ПОЛНЫЙ ПРИМЕР НА ЯЗЫКЕ NOVA 🌟                       ║
--- ║     Демонстрация всех возможностей языка программирования        ║
--- ╚═══════════════════════════════════════════════════════════════════╝
-
--- === ПЕРЕМЕННЫЕ И КОНСТАНТЫ ===
-show "\n📦 Переменные и константы:"
-let name := "Nova"
-const VERSION := "1.0"
-let pi := 3.14159
-
-show "Язык:", name, "| Версия:", VERSION
-
--- === АРИФМЕТИКА ===
-show "\n🔢 Арифметические операции:"
-let a := 10
-let b := 3
-
-show "a =", a, "| b =", b
-show "a + b =", a + b
-show "a - b =", a - b
-show "a * b =", a * b
-show "a / b =", a / b
-show "a % b =", a % b
-show "a ^ b =", a ^ b
-
--- === СПИСКИ ===
-show "\n📋 Работа со списками:"
-list colors := ["красный", "зелёный", "синий"]
-show "Цвета:", colors
-show "Первый цвет:", colors[0]
-push(colors, "жёлтый")
-show "После добавления:", colors
-
--- === СЛОВАРИ ===
-show "\n📖 Работа со словарями:"
-dict user := {
-    name: "Алекс",
-    age: 25,
-    skills: ["Nova", "Python", "JS"]
-}
-show "Пользователь:", user.name
-show "Возраст:", user.age
-show "Навыки:", user.skills
-
--- === ФУНКЦИИ ===
-show "\n⚡ Функции:"
-
-func square(x) {:
-    return x * x
-:}
-
-func isPrime(n) {:
-    when n < 2 {:
-        return false
-    :}
-    loop i from 2 to n - 1 {:
-        when n % i == 0 {:
-            return false
-        :}
-    :}
-    return true
-:}
-
-show "Квадрат 7:", square(7)
-show "7 - простое число?", isPrime(7)
-show "8 - простое число?", isPrime(8)
-
--- === КЛАССЫ (ООП) ===
-show "\n🏛️ Объектно-ориентированное программирование:"
-
-class Rectangle {:
-    func init(width, height) {:
-        self.width := width
-        self.height := height
-    :}
-    
-    func area() {:
-        return self.width * self.height
-    :}
-    
-    func perimeter() {:
-        return 2 * (self.width + self.height)
-    :}
-    
-    func describe() {:
-        show "Прямоугольник", self.width, "x", self.height
-        show "Площадь:", self.area()
-        show "Периметр:", self.perimeter()
-    :}
-:}
-
-let rect := Rectangle(5, 3)
-rect.describe()
-
--- === УСЛОВИЯ И ЦИКЛЫ ===
-show "\n🔄 Условия и циклы:"
-
--- Поиск простых чисел
-show "Простые числа от 1 до 20:"
-list primes := []
-loop num from 2 to 20 {:
-    when isPrime(num) {:
-        push(primes, num)
-    :}
-:}
-show primes
-
--- === РАБОТА СО СТРОКАМИ ===
-show "\n📝 Работа со строками:"
-let text := "  Hello, Nova!  "
-show "Оригинал: '" + text + "'"
-show "trim(): '" + trim(text) + "'"
-show "upper():", upper(text)
-show "lower():", lower(text)
-
--- === МАТЕМАТИКА ===
-show "\n📐 Математические функции:"
-show "sqrt(16) =", sqrt(16)
-show "abs(-42) =", abs(-42)
-show "round(3.7) =", round(3.7)
-show "min(5, 3, 8) =", min(5, 3, 8)
-show "max(5, 3, 8) =", max(5, 3, 8)
-
--- === ФИНАЛ ===
-show "\n" + "═" * 50
-show "✨ Демонстрация завершена!"
-show "🌟 Добро пожаловать в мир Nova!"
-show "═" * 50
-"""
+        // Toolbar
+        toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(Color.parseColor("#16213e"))
+            setPadding(4,4,4,4)
         }
-        
-        code = examples.get(example_type, examples['full'])
-        self.editor.delete('1.0', tk.END)
-        self.editor.insert('1.0', code)
-        self._on_editor_change()
-    
-    def _show_docs(self):
-        docs = """
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║                        ДОКУМЕНТАЦИЯ ЯЗЫКА NOVA v1.0                           ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
 
-📌 БАЗОВЫЙ СИНТАКСИС:
-─────────────────────
-• Комментарии:        -- это комментарий
-• Переменные:         let x := 10
-• Константы:          const PI := 3.14
-• Вывод:              show "Hello", variable
-• Ввод:               input "Prompt" -> variable
+        // Создаем кнопки для навигации
+        val btnBack = Button(this).apply { text = "←"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
+        val btnForward = Button(this).apply { text = "→"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
+        val btnReload = Button(this).apply { text = "⟳"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
+        val btnHome = Button(this).apply { text = "⌂"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
 
-📌 ТИПЫ ДАННЫХ:
-───────────────
-• Числа:              42, 3.14
-• Строки:             "текст" или 'текст'
-• Логические:         true, false
-• Null:               null
-• Списки:             list items := [1, 2, 3]
-• Словари:            dict obj := {key: "value"}
+        // Адресная строка
+        urlEdit = EditText(this).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
+                marginStart=4; marginEnd=4
+            }
+            setBackgroundColor(Color.parseColor("#0f3460"))
+            setTextColor(Color.WHITE)
+            hint = "Введите URL или поисковый запрос"
+            setPadding(12,8,12,8)
+            isSingleLine = true
+            imeOptions = EditorInfo.IME_ACTION_GO
+            setOnEditorActionListener { _, actionId, event ->
+                if (actionId == EditorInfo.IME_ACTION_GO || (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                    processUrlInput(text.toString())
+                    hideKeyboard()
+                    true
+                } else false
+            }
+        }
 
-📌 ОПЕРАТОРЫ:
-─────────────
-• Арифметика:         + - * / % ^ (степень)
-• Сравнение:          == != < > <= >=
-• Логические:         and or not
-• Присваивание:       :=
+        // вкладки
+        tabCountButton = Button(this).apply { text="1"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
 
-📌 УСЛОВИЯ:
-───────────
-when condition {:
-    -- код
-:} otherwise {:
-    -- альтернатива
-:}
+        // Меню
+        val menuBtn = Button(this).apply { text="⋮"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
 
-📌 ЦИКЛЫ:
-─────────
-loop i from 1 to 10 {:        -- for-цикл
-    show i
-:}
+        // Добавляем кнопки на панель
+        toolbar.apply {
+            addView(btnBack)
+            addView(btnForward)
+            addView(btnReload)
+            addView(btnHome)
+            addView(urlEdit)
+            addView(tabCountButton)
+            addView(menuBtn)
+        }
 
-while condition {:             -- while-цикл
-    -- код
-:}
+        // прогресс
+        progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 3)
+            max=100; progress=0; visibility=View.GONE
+        }
 
-each item in list {:           -- foreach-цикл
-    show item
-:}
+        // WebView контейнер
+        webContainer = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0,1f)
+        }
 
-📌 ФУНКЦИИ:
-───────────
-func name(param1, param2) {:
-    return result
-:}
+        container.apply {
+            addView(toolbar)
+            addView(progressBar)
+            addView(webContainer)
+        }
 
-📌 КЛАССЫ:
-──────────
-class ClassName {:
-    func init(params) {:
-        self.property := value
-    :}
-    
-    func method() {:
-        return self.property
-    :}
-:}
+        setContentView(container)
 
-📌 ВСТРОЕННЫЕ ФУНКЦИИ:
-──────────────────────
-len(), str(), int(), float(), abs(), min(), max(), sum(),
-range(), sort(), reverse(), push(), pop(), join(), split(),
-upper(), lower(), trim(), json(), parse_json(), type(),
-keys(), values(), sqrt(), round()
+        // Создаем первую вкладку
+        createNewTab()
 
-📌 ВЕБ-ФРЕЙМВОРК:
-─────────────────
-@route "/path" {:
-    render "HTML content"
-:}
+        // Обработчики
+        btnBack.setOnClickListener { webViews[currentTabId]?.goBack() }
+        btnForward.setOnClickListener { webViews[currentTabId]?.goForward() }
+        btnReload.setOnClickListener { webViews[currentTabId]?.reload() }
+        btnHome.setOnClickListener { loadUrl("https://www.google.com") }
 
-@api "/api/path" {:
-    respond json(data)
-:}
-"""
-        messagebox.showinfo("Документация Nova", docs)
-    
-    def _show_about(self):
-        about = """
-🌟 NOVA Programming Language v1.0 🌟
+        tabCountButton.setOnClickListener { showTabsDialog() }
+        menuBtn.setOnClickListener { showMainMenu() }
+    }
 
-Современный язык программирования с уникальным синтаксисом,
-разработанный для обучения и быстрой разработки.
+    // Создает новую вкладку
+    private fun createNewTab(url: String = "https://www.google.com") {
+        val tab = Tab()
+        tabs.add(tab)
+        val webView = createWebView()
+        webViews[tab.id] = webView
+        showTab(tab.id)
+        loadUrl(url)
+        updateTabCount()
+    }
 
-Особенности:
-• Чистый и понятный синтаксис
-• Поддержка ООП
-• Встроенный веб-фреймворк
-• Богатая стандартная библиотека
+    // Переключение вкладки
+    private fun showTab(id:String){
+        currentTabId = id
+        webContainer.removeAllViews()
+        webViews[id]?.let { webView ->
+            webContainer.addView(webView)
+            urlEdit.setText(tabs.find { it.id==id }?.url ?: "")
+        }
+    }
 
-© 2025 Nova Language Project
-"""
-        messagebox.showinfo("О программе", about)
-    
-    def run(self):
-        self.root.mainloop()
+    // Закрыть вкладку
+    private fun closeTab(id:String){
+        val idx = tabs.indexOfFirst { it.id==id }
+        if (idx==-1) return
+        tabs.removeAt(idx)
+        webViews[id]?.destroy()
+        webViews.remove(id)
+        if (tabs.isEmpty()) createNewTab()
+        else showTab(tabs[if(idx>0) idx-1 else 0].id)
+        updateTabCount()
+    }
 
+    // Обновление количества вкладок
+    private fun updateTabCount(){ tabCountButton.text=tabs.size.toString() }
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#                              ТОЧКА ВХОДА
-# ═══════════════════════════════════════════════════════════════════════════════
+    // Создаем WebView
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun createWebView(): WebView {
+        val webView = WebView(this)
+        webView.layoutParams= FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        webView.settings.apply{
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            loadWithOverviewMode = true
+            useWideViewPort = true
+        }
 
-def run_file(filename: str):
-    """Запуск .nova файла из командной строки"""
-    with open(filename, 'r', encoding='utf-8') as f:
-        code = f.read()
-    
-    lexer = Lexer(code)
-    tokens = lexer.tokenize()
-    
-    parser = Parser(tokens)
-    ast = parser.parse()
-    
-    interpreter = Interpreter()
-    interpreter.execute(ast)
+        webView.webViewClient=object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                progressBar.visibility=View.VISIBLE
+                url?.let { urlEdit.setText(it) }
+            }
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                progressBar.visibility=View.GONE
+                val tabId=currentTabId ?: return
+                tabs.find { it.id==tabId }?.let {
+                    it.url=url ?: "https://www.google.com"
+                    it.title=view?.title ?: "Новая вкладка"
+                }
+                // История
+                url?.let { u-> view?.title?.let { t->
+                    addToHistory(u,t)
+                }}
+            }
+        }
 
+        webView.webChromeClient=object: WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                progressBar.progress=newProgress
+                if (newProgress==100) progressBar.visibility=View.GONE
+            }
+            override fun onReceivedTitle(view: WebView?, title: String?) {
+                super.onReceivedTitle(view, title)
+                // Можно обновлять название вкладки
+            }
+        }
+        return webView
+    }
 
-def run_repl():
-    """Интерактивный режим REPL"""
-    print("🌟 Nova REPL v1.0 - Введите 'exit' для выхода")
-    print("=" * 50)
-    
-    interpreter = Interpreter()
-    
-    while True:
-        try:
-            code = input("nova> ")
-            if code.strip().lower() == 'exit':
-                break
-            
-            lexer = Lexer(code)
-            tokens = lexer.tokenize()
-            
-            parser = Parser(tokens)
-            ast = parser.parse()
-            
-            result = interpreter.execute(ast)
-            if result is not None:
-                print(result)
-                
-        except Exception as e:
-            print(f"Ошибка: {e}")
+    private fun loadUrl(url: String) {
+        currentTabId?.let {
+            webViews[it]?.loadUrl(url)
+            tabs.find { it.id==it }?.url= url
+        }
+    }
 
+    private fun processUrlInput(input:String){
+        val url = if (input.startsWith("http")) input
+        else if (input.contains("."))"https://input"
+        else "https://www.google.com/search?q=${input.replace(" ","+")}"
+        loadUrl(url)
+    }
 
-def main():
-    """Главная функция"""
-    if len(sys.argv) > 1:
-        if sys.argv[1] == '--repl':
-            run_repl()
-        else:
-            run_file(sys.argv[1])
-    else:
-        # Запуск IDE
-        ide = NovaIDE()
-        ide.run()
+    private fun showTabsDialog() {
+        val layout=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(16,16,16,16)
+            setBackgroundColor(Color.parseColor("#16213e"))
+        }
+        val title=TextView(this).apply {
+            text="Вкладки (${tabs.size})"
+            textSize=20f
+            setTextColor(Color.WHITE)
+        }
+        val btnNew=Button(this).apply {
+            text="+"
+            setBackgroundColor(Color.parseColor("#e94560"))
+            setTextColor(Color.WHITE)
+        }
 
+        layout.addView(title)
+        layout.addView(btnNew)
 
-if __name__ == "__main__":
-    main()
+        val scroll=new ScrollView(this)
+        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        tabs.forEach { tab ->
+            val item=LinearLayout(this).apply {
+                orientation=LinearLayout.HORIZONTAL
+                setPadding(12,12,12,12)
+                setBackgroundColor(if (tab.id==currentTabId) Color.parseColor("#0f3460") else Color.parseColor("#1a1a2e"))
+                layoutParams=LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin=8 }
+                gravity=Gravity.CENTER_VERTICAL
+            }
+            val name=TextView(this).apply {
+                text= tab.title.take(30)
+                setTextColor(Color.WHITE)
+                layoutParams=LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT,1f)
+            }
+            val btnClose=Button(this).apply {
+                text="✕"
+                setTextColor(Color.WHITE)
+                background= null
+            }
+            item.addView(name)
+            item.addView(btnClose)
+            list.addView(item)
+            item.setOnClickListener {
+                showTab(tab.id); alert.dismiss()
+            }
+            btnClose.setOnClickListener {
+                closeTab(tab.id); alert.dismiss()
+            }
+        }
+        scroll.addView(list)
+        layout.addView(scroll)
+        val alert=AlertDialog.Builder(this).setView(layout).show()
+        btnNew.setOnClickListener {
+            alert.dismiss()
+            createNewTab()
+        }
+    }
+
+    private fun showMainMenu() {
+        val items=arrayOf("Добавить в закладки","Закладки","История","Копировать URL","Поделиться","Найти на странице","Режим ПК","Очистить историю","О браузере")
+        AlertDialog.Builder(this).setItems(items){ _, i->
+            when(i){
+                0->addBookmark()
+                1->showBookmarks()
+                2->showHistory()
+                3->copyUrl()
+                4->shareUrl()
+                5->findOnPage()
+                6->toggleDesktop()
+                7->clearHistory()
+                8->showAbout()
+            }
+        }.show()
+    }
+
+    private fun addBookmark() {
+        currentTabId?.let {
+            val tab= tabs.find { it.id==it } ?:return
+            if (bookmarks.any { it.url==tab.url }) {
+                Toast.makeText(this,"Уже добавлено",Toast.LENGTH_SHORT).show()
+                return
+            }
+            bookmarks.add(Bookmark(tab.url,tab.title))
+        }
+    }
+    private fun showBookmarks() {
+        if (bookmarks.isEmpty()) {
+            Toast.makeText(this,"Закладок нет",Toast.LENGTH_SHORT).show()
+            return
+        }
+        val layout=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(16,16,16,16)
+            setBackgroundColor(Color.parseColor("#16213e"))
+        }
+        val title=TextView(this).apply{
+            text="Закладки"
+            textSize=20f
+            setTextColor(Color.WHITE)
+        }
+        layout.addView(title)
+        val scroll=new ScrollView(this)
+        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        bookmarks.forEach {
+            val item=LinearLayout(this).apply {
+                orientation=LinearLayout.VERTICAL
+                setPadding(12,12,12,12)
+                setBackgroundColor(Color.parseColor("#1a1a2e"))
+                layoutParams=LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin=8 }
+            }
+            val tTitle=TextView(this).apply { text= it.title.take(40); setTextColor(Color.WHITE) }
+            val tUrl=TextView(this).apply { text= it.url.take(50); setTextColor(Color.GRAY) }
+            item.addView(tTitle)
+            item.addView(tUrl)
+            item.setOnClickListener { loadUrl(it.tag as String); alert.dismiss() }
+            item.tag= it.url
+            list.addView(item)
+        }
+        scroll.addView(list)
+        layout.addView(scroll)
+        val alert=AlertDialog.Builder(this).setView(layout).show()
+    }
+
+    private fun showHistory() {
+        if (history.isEmpty()) {
+            Toast.makeText(this,"История пуста",Toast.LENGTH_SHORT).show()
+            return
+        }
+        val layout=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(16,16,16,16)
+            setBackgroundColor(Color.parseColor("#16213e"))
+        }
+        val title=TextView(this).apply { text="История"; textSize=20f; setTextColor(Color.WHITE) }
+        layout.addView(title)
+        val scroll=new ScrollView(this)
+        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        val df=SimpleDateFormat("dd.MM HH:mm",Locale.getDefault())
+        history.take(50).forEach {
+            val item=LinearLayout(this).apply {
+                orientation=LinearLayout.VERTICAL
+                setPadding(12,12,12,12)
+                setBackgroundColor(Color.parseColor("#1a1a2e"))
+                layoutParams=LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin=8 }
+            }
+            val tTitle=TextView(this).apply { text= it.title.take(40); setTextColor(Color.WHITE) }
+            val tUrl=TextView(this).apply { text= it.url.take(50); setTextColor(Color.GRAY) }
+            val tDate=TextView(this).apply { text=df.format(Date(it.timestamp)); setTextColor=Color.LTGRAY }
+            item.addView(tTitle)
+            item.addView(tUrl)
+            item.addView(tDate)
+            item.setOnClickListener { loadUrl(it.tag as String); alert.dismiss() }
+            it.tag= it.url
+            list.addView(item)
+        }
+        scroll.addView(list)
+        layout.addView(scroll)
+        val alert=AlertDialog.Builder(this).setView(layout).show()
+    }
+
+    private fun copyUrl() {
+        currentTabId?.let {
+            val url= tabs.find { it.id==it }?.url ?: return
+            val cm= getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("URL", url))
+            Toast.makeText(this,"URL скопирован", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun shareUrl() {
+        currentTabId?.let {
+            val url= tabs.find { it.id==it }?.url ?: return
+            val intent= android.content.Intent().apply {
+                action= android.content.Intent.ACTION_SEND
+                type= "text/plain"
+                putExtra(android.content.Intent.EXTRA_TEXT, url)
+            }
+            startActivity(android.content.Intent.createChooser(intent, "Поделиться"))
+        }
+    }
+
+    private fun toggleDesktop() {
+        // Реализуйте переключение userAgent
+        Toast.makeText(this, "Режим ПК временно не реализован", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun findOnPage() {
+        val et= EditText(this).apply { hint="Что искать?" }
+        AlertDialog.Builder(this).setTitle("Найти на странице").setView(et)
+            .setPositiveButton("Найти") { _, _ ->
+                val query= et.text.toString()
+                currentTabId?.let { webViews[it]?.findAllAsync(query) }
+            }
+            .setNegativeButton("Отмена", null).show()
+    }
+
+    private fun showAbout() {
+        AlertDialog.Builder(this)
+            .setTitle("О браузере")
+            .setMessage("Просто браузер на Kotlin.
+2026")
+            .setPositiveButton("OK", null).show()
+    }
+
+    private fun showTabsDialog() {
+        // А тут отрисуйте список вкладок
+    }
+
+    private fun hideKeyboard() {
+        val imm= getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(urlEdit.windowToken, 0)
+    }
+
+    private fun addToHistory(url:String, title:String){
+        history.removeAll { it.url==url }
+        history.add(0, HistoryItem(url, title))
+        if (history.size>500) history.removeAt(history.lastIndex)
+    }
+}
