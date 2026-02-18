@@ -1,107 +1,433 @@
-> Task :app:compileDebugKotlin
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:17:17 Unresolved reference 'appcompat'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:18:17 Unresolved reference 'appcompat'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:22:22 Unresolved reference 'AppCompatActivity'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:45:5 'onCreate' overrides nothing.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:46:9 Unresolved reference 'AppCompatActivity'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:46:15 Unresolved reference 'onCreate'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:49:34 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:55:32 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:62:30 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:63:33 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:64:32 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:65:30 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:68:28 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:88:33 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:91:30 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:105:35 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:111:36 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:121:9 Unresolved reference 'setContentView'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:132:45 Overload resolution ambiguity between candidates:
-fun showTabsDialog(): Unit
-fun showTabsDialog(): Unit
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:175:31 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:221:25 Operator '==' cannot be applied to 'kotlin.String' and 'com.example.browser.MainActivity.Tab'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:232:5 Conflicting overloads:
-fun showTabsDialog(): Unit
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:233:33 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:238:28 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:243:27 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:252:20 Unresolved reference 'new'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:253:31 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:255:35 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:262:31 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:267:33 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:276:34 Unresolved reference 'alert'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:279:35 Unresolved reference 'alert'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:284:19 Unresolved reference 'AlertDialog'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:293:9 Unresolved reference 'AlertDialog'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:293:52 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:293:55 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:302:20 Unresolved reference 'clearHistory'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:310:34 Operator '==' cannot be applied to 'kotlin.String' and 'com.example.browser.MainActivity.Tab'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:312:23 None of the following candidates is applicable:
-static fun makeText(p0: Context!, p1: CharSequence!, p2: Int): Toast!
-static fun makeText(p0: Context!, p1: Int, p2: Int): Toast!
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:312:73 Unresolved reference 'show'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:320:19 None of the following candidates is applicable:
-static fun makeText(p0: Context!, p1: CharSequence!, p2: Int): Toast!
-static fun makeText(p0: Context!, p1: Int, p2: Int): Toast!
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:320:68 Unresolved reference 'show'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:323:33 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:328:28 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:334:20 Unresolved reference 'new'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:335:31 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:337:35 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:343:33 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:344:31 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:347:66 Unresolved reference 'alert'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:353:19 Unresolved reference 'AlertDialog'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:358:19 None of the following candidates is applicable:
-static fun makeText(p0: Context!, p1: CharSequence!, p2: Int): Toast!
-static fun makeText(p0: Context!, p1: Int, p2: Int): Toast!
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:358:69 Unresolved reference 'show'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:361:33 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:366:28 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:368:20 Unresolved reference 'new'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:369:31 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:372:35 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:378:33 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:379:31 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:380:32 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:380:82 Function invocation 'setTextColor(...)' expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:380:82 Variable expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:384:66 Unresolved reference 'alert'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:385:16 Unresolved reference 'tag'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:390:19 Unresolved reference 'AlertDialog'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:395:34 Operator '==' cannot be applied to 'kotlin.String' and 'com.example.browser.MainActivity.Tab'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:396:21 Unresolved reference 'getSystemService'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:398:19 None of the following candidates is applicable:
-static fun makeText(p0: Context!, p1: CharSequence!, p2: Int): Toast!
-static fun makeText(p0: Context!, p1: Int, p2: Int): Toast!
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:398:71 Unresolved reference 'show'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:404:34 Operator '==' cannot be applied to 'kotlin.String' and 'com.example.browser.MainActivity.Tab'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:410:13 Unresolved reference 'startActivity'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:416:15 None of the following candidates is applicable:
-static fun makeText(p0: Context!, p1: CharSequence!, p2: Int): Toast!
-static fun makeText(p0: Context!, p1: Int, p2: Int): Toast!
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:416:85 Unresolved reference 'show'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:420:26 Argument type mismatch: actual type is 'com.example.browser.MainActivity', but 'android.content.Context!' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:421:9 Unresolved reference 'AlertDialog'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:422:43 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:422:46 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:430:9 Unresolved reference 'AlertDialog'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:432:51 Syntax error: Expecting '"'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:432:51 Syntax error: Expecting ','.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:432:51 Syntax error: Incorrect template entry: .
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:433:21 Syntax error: Expecting ','.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:433:23 Syntax error: Expecting '"'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:433:23 Syntax error: Incorrect template entry: .
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:434:22 Unresolved reference 'setPositiveButton'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:434:58 Syntax error: Expecting ')'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:437:5 Conflicting overloads:
-fun showTabsDialog(): Unit
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication14/app/src/main/java/com/example/myapplication/MainActivity.kt:442:18 Unresolved reference 'getSystemService'.
+package com.example.browser
 
-> Task :app:compileDebugKotlin FAILED
+import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.graphics.Color
+import android.os.Bundle
+import android.view.Gravity
+import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.webkit.*
+import android.widget.*
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import java.text.SimpleDateFormat
+import java.util.*
 
+class MainActivity : AppCompatActivity() {
+
+    data class Tab(var id: String = UUID.randomUUID().toString(),
+                   var url: String = "https://www.google.com",
+                   var title: String = "Новая вкладка")
+    data class HistoryItem(val url: String, val title: String, val timestamp: Long = System.currentTimeMillis())
+    data class Bookmark(val url: String, val title: String, val timestamp: Long = System.currentTimeMillis())
+
+    private val tabs = mutableListOf<Tab>()
+    private val webViews = mutableMapOf<String, WebView>()
+    private var currentTabId: String? = null
+
+    private lateinit var container: LinearLayout
+    private lateinit var toolbar: LinearLayout
+    private lateinit var urlEdit: EditText
+    private lateinit var webContainer: FrameLayout
+    private lateinit var progressBar: ProgressBar
+    private lateinit var tabCountButton: Button
+
+    private val history = mutableListOf<HistoryItem>()
+    private val bookmarks = mutableListOf<Bookmark>()
+
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Создаем UI с помощью кода
+        container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.parseColor("#1a1a2e"))
+        }
+
+        // Toolbar
+        toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(Color.parseColor("#16213e"))
+            setPadding(4,4,4,4)
+        }
+
+        // Навигационные кнопки
+        val btnBack = Button(this).apply { text = "←"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
+        val btnForward = Button(this).apply { text = "→"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
+        val btnReload = Button(this).apply { text = "⟳"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
+        val btnHome = Button(this).apply { text = "⌂"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
+
+        // Адресная строка
+        urlEdit = EditText(this).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
+                marginStart=4; marginEnd=4
+            }
+            setBackgroundColor(Color.parseColor("#0f3460"))
+            setTextColor(Color.WHITE)
+            hint = "Введите URL или поисковый запрос"
+            setPadding(12,8,12,8)
+            isSingleLine = true
+            imeOptions = EditorInfo.IME_ACTION_GO
+            setOnEditorActionListener { _, actionId, event ->
+                if (actionId == EditorInfo.IME_ACTION_GO || (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                    processUrlInput(text.toString())
+                    hideKeyboard()
+                    true
+                } else false
+            }
+        }
+
+        // Вкладки и меню
+        tabCountButton = Button(this).apply { text="1"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
+        val menuBtn = Button(this).apply { text="⋮"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
+
+        // Добавление элементов в панель
+        toolbar.apply {
+            addView(btnBack)
+            addView(btnForward)
+            addView(btnReload)
+            addView(btnHome)
+            addView(urlEdit)
+            addView(tabCountButton)
+            addView(menuBtn)
+        }
+
+        // Прогрессбар
+        progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 3)
+            max=100; progress=0; visibility=View.GONE
+        }
+
+        // Контейнер WebView
+        webContainer = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0,1f)
+        }
+
+        // Основной контейнер
+        container.apply {
+            addView(toolbar)
+            addView(progressBar)
+            addView(webContainer)
+        }
+
+        setContentView(container)
+        // Создаем первую вкладку
+        createNewTab()
+
+        // Обработка кликов
+        btnBack.setOnClickListener { webViews[currentTabId]?.goBack() }
+        btnForward.setOnClickListener { webViews[currentTabId]?.goForward() }
+        btnReload.setOnClickListener { webViews[currentTabId]?.reload() }
+        btnHome.setOnClickListener { loadUrl("https://www.google.com") }
+        tabCountButton.setOnClickListener { showTabsDialog() }
+        menuBtn.setOnClickListener { showMainMenu() }
+    }
+
+    private fun createNewTab(url: String = "https://www.google.com") {
+        val tab = Tab()
+        tabs.add(tab)
+        val webView = createWebView()
+        webViews[tab.id]=webView
+        showTab(tab.id)
+        loadUrl(url)
+        updateTabCount()
+    }
+
+    private fun showTab(id: String){
+        currentTabId = id
+        webContainer.removeAllViews()
+        webViews[id]?.let {
+            webContainer.addView(it)
+            val tab = tabs.find { it.id==id }
+            urlEdit.setText(tab?.url ?: "")
+        }
+    }
+
+    private fun closeTab(id:String){
+        val idx= tabs.indexOfFirst { it.id==id }
+        if (idx==-1) return
+        tabs.removeAt(idx); webViews[id]?.destroy(); webViews.remove(id)
+        if (tabs.isEmpty()) createNewTab()
+        else showTab(tabs[if(idx>0) idx-1 else 0].id)
+        updateTabCount()
+    }
+
+    private fun updateTabCount(){ tabCountButton.text= tabs.size.toString() }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun createWebView(): WebView {
+        val webView= WebView(this)
+        webView.layoutParams= FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        webView.settings.apply{
+            javaScriptEnabled=true
+            domStorageEnabled=true
+            loadWithOverviewMode=true
+            useWideViewPort=true
+        }
+        webView.webViewClient=object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                progressBar.visibility=View.VISIBLE
+                url?.let { urlEdit.setText(it) }
+            }
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                progressBar.visibility=View.GONE
+                val tabId=currentTabId ?: return
+                tabs.find { it.id==tabId }?.apply {
+                    this.url = url ?: "https://www.google.com"
+                    this.title=view?.title ?: "Новая вкладка"
+                }
+                // История
+                url?.let { u-> view?.title?.let { t->
+                    addToHistory(u,t)
+                }}
+            }
+        }
+        webView.webChromeClient=object: WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                progressBar.progress=newProgress
+                if (newProgress==100) progressBar.visibility=View.GONE
+            }
+        }
+        return webView
+    }
+
+    private fun loadUrl(url: String) {
+        currentTabId?.let {
+            webViews[it]?.loadUrl(url)
+            tabs.find { it.id==it }?.url= url
+        }
+    }
+
+    private fun processUrlInput(input:String){
+        val url= if (input.startsWith("http")) input
+        else if (input.contains(".")) "https://input"
+        else "https://www.google.com/search?q=${input.replace(" ","+")}"
+        loadUrl(url)
+    }
+
+    private fun showTabsDialog() {
+        val layout=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(16,16,16,16)
+            setBackgroundColor(Color.parseColor("#16213e"))
+        }
+        val title=TextView(this).apply {
+            text="Вкладки (${tabs.size})"
+            textSize=20f
+            setTextColor(Color.WHITE)
+        }
+        val btnNew=Button(this).apply {
+            text="+"
+            setBackgroundColor(Color.parseColor("#e94560"))
+            setTextColor(Color.WHITE)
+        }
+
+        layout.addView(title)
+        layout.addView(btnNew)
+
+        val scroll=new ScrollView(this)
+        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        tabs.forEach { tab ->
+            val item=LinearLayout(this).apply {
+                orientation=LinearLayout.HORIZONTAL
+                setPadding(12,12,12,12)
+                setBackgroundColor(if (tab.id==currentTabId) Color.parseColor("#0f3460") else Color.parseColor("#1a1a2e"))
+                layoutParams=LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin=8 }
+                gravity=Gravity.CENTER_VERTICAL
+            }
+            val name=TextView(this).apply {
+                text= tab.title.take(30)
+                setTextColor(Color.WHITE)
+                layoutParams=LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT,1f)
+            }
+            val btnClose=Button(this).apply {
+                text="✕"
+                setTextColor(Color.WHITE)
+                background= null
+            }
+            item.addView(name)
+            item.addView(btnClose)
+            list.addView(item)
+            item.setOnClickListener {
+                showTab(tab.id); alert.dismiss()
+            }
+            btnClose.setOnClickListener {
+                closeTab(tab.id); alert.dismiss()
+            }
+        }
+        scroll.addView(list)
+        layout.addView(scroll)
+        val alert=AlertDialog.Builder(this).setView(layout).show()
+        btnNew.setOnClickListener {
+            alert.dismiss()
+            createNewTab()
+        }
+    }
+
+    private fun showMainMenu() {
+        val items=arrayOf("Добавить в закладки","Закладки","История","Копировать URL","Поделиться","Найти на странице","Режим ПК","Очистить историю","О браузере")
+        AlertDialog.Builder(this).setItems(items){ _, i->
+            when(i){
+                0->addBookmark()
+                1->showBookmarks()
+                2->showHistory()
+                3->copyUrl()
+                4->shareUrl()
+                5->findOnPage()
+                6->toggleDesktop()
+                7->clearHistory()
+                8->showAbout()
+            }
+        }.show()
+    }
+
+    private fun addBookmark() {
+        currentTabId?.let {
+            val tab= tabs.find { it.id==it } ?:return
+            if (bookmarks.any { it.url==tab.url }) {
+                Toast.makeText(this,"Уже добавлено",Toast.LENGTH_SHORT).show()
+                return
+            }
+            bookmarks.add(Bookmark(tab.url,tab.title))
+        }
+    }
+    private fun showBookmarks() {
+        if (bookmarks.isEmpty()) {
+            Toast.makeText(this,"Закладок нет",Toast.LENGTH_SHORT).show()
+            return
+        }
+        val layout=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(16,16,16,16)
+            setBackgroundColor(Color.parseColor("#16213e"))
+        }
+        val title=TextView(this).apply{
+            text="Закладки"
+            textSize=20f
+            setTextColor(Color.WHITE)
+        }
+        layout.addView(title)
+        val scroll=new ScrollView(this)
+        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        bookmarks.forEach {
+            val item=LinearLayout(this).apply {
+                orientation=LinearLayout.VERTICAL
+                setPadding(12,12,12,12)
+                setBackgroundColor(Color.parseColor("#1a1a2e"))
+                layoutParams=LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin=8 }
+            }
+            val tTitle=TextView(this).apply { text= it.title.take(40); setTextColor(Color.WHITE) }
+            val tUrl=TextView(this).apply { text= it.url.take(50); setTextColor(Color.GRAY) }
+            item.addView(tTitle)
+            item.addView(tUrl)
+            item.setOnClickListener { loadUrl(it.tag as String); alert.dismiss() }
+            item.tag= it.url
+            list.addView(item)
+        }
+        scroll.addView(list)
+        layout.addView(scroll)
+        val alert=AlertDialog.Builder(this).setView(layout).show()
+    }
+
+    private fun showHistory() {
+        if (history.isEmpty()) {
+            Toast.makeText(this,"История пуста",Toast.LENGTH_SHORT).show()
+            return
+        }
+        val layout=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(16,16,16,16)
+            setBackgroundColor(Color.parseColor("#16213e"))
+        }
+        val title=TextView(this).apply { text="История"; textSize=20f; setTextColor(Color.WHITE) }
+        layout.addView(title)
+        val scroll=new ScrollView(this)
+        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        val df=SimpleDateFormat("dd.MM HH:mm",Locale.getDefault())
+        history.take(50).forEach {
+            val item=LinearLayout(this).apply {
+                orientation=LinearLayout.VERTICAL
+                setPadding(12,12,12,12)
+                setBackgroundColor(Color.parseColor("#1a1a2e"))
+                layoutParams=LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin=8 }
+            }
+            val tTitle=TextView(this).apply { text= it.title.take(40); setTextColor(Color.WHITE) }
+            val tUrl=TextView(this).apply { text= it.url.take(50); setTextColor(Color.GRAY) }
+            val tDate=TextView(this).apply { text=df.format(Date(it.timestamp)); setTextColor=Color.LTGRAY }
+            item.addView(tTitle)
+            item.addView(tUrl)
+            item.addView(tDate)
+            item.setOnClickListener { loadUrl(it.tag as String); alert.dismiss() }
+            it.tag= it.url
+            list.addView(item)
+        }
+        scroll.addView(list)
+        layout.addView(scroll)
+        val alert=AlertDialog.Builder(this).setView(layout).show()
+    }
+
+    private fun copyUrl() {
+        currentTabId?.let {
+            val url= tabs.find { it.id==it }?.url ?: return
+            val cm= getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("URL", url))
+            Toast.makeText(this,"URL скопирован", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun shareUrl() {
+        currentTabId?.let {
+            val url= tabs.find { it.id==it }?.url ?: return
+            val intent= android.content.Intent().apply {
+                action= android.content.Intent.ACTION_SEND
+                type= "text/plain"
+                putExtra(android.content.Intent.EXTRA_TEXT, url)
+            }
+            startActivity(android.content.Intent.createChooser(intent, "Поделиться"))
+        }
+    }
+
+    private fun toggleDesktop() {
+        // Временно не реализовано
+        Toast.makeText(this, "Режим ПК временно не реализован", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun findOnPage() {
+        val et= EditText(this).apply { hint="Что искать?" }
+        AlertDialog.Builder(this).setTitle("Найти на странице").setView(et)
+            .setPositiveButton("Найти") { _, _ ->
+                val query= et.text.toString()
+                currentTabId?.let { webViews[it]?.findAllAsync(query) }
+            }
+            .setNegativeButton("Отмена", null).show()
+    }
+
+    private fun showAbout() {
+        AlertDialog.Builder(this)
+            .setTitle("О браузере")
+            .setMessage("Просто браузер на Kotlin.
+2026")
+            .setPositiveButton("OK", null).show()
+    }
+
+    private fun showTabsDialog() { /* Тут можно реализовать список вкладок */ }
+
+    private fun hideKeyboard() {
+        val imm= getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(urlEdit.windowToken, 0)
+    }
+
+    private fun addToHistory(url:String, title:String){
+        history.removeAll { it.url==url }
+        history.add(0, HistoryItem(url, title))
+        if (history.size>500) history.removeAt(history.lastIndex)
+    }
+}
