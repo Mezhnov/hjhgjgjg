@@ -1,433 +1,303 @@
-package com.example.browser
+package com.example.myapplication
 
-import android.annotation.SuppressLint
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.graphics.Color
+import android.graphics.Bitmap
 import android.os.Bundle
-import android.view.Gravity
-import android.view.KeyEvent
-import android.view.View
-import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
-import android.webkit.*
-import android.widget.*
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import java.text.SimpleDateFormat
-import java.util.*
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.LinearLayout
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
+import com.example.myapplication.ui.theme.MyApplicationTheme
 
-class MainActivity : AppCompatActivity() {
-
-    data class Tab(var id: String = UUID.randomUUID().toString(),
-                   var url: String = "https://www.google.com",
-                   var title: String = "Новая вкладка")
-    data class HistoryItem(val url: String, val title: String, val timestamp: Long = System.currentTimeMillis())
-    data class Bookmark(val url: String, val title: String, val timestamp: Long = System.currentTimeMillis())
-
-    private val tabs = mutableListOf<Tab>()
-    private val webViews = mutableMapOf<String, WebView>()
-    private var currentTabId: String? = null
-
-    private lateinit var container: LinearLayout
-    private lateinit var toolbar: LinearLayout
-    private lateinit var urlEdit: EditText
-    private lateinit var webContainer: FrameLayout
-    private lateinit var progressBar: ProgressBar
-    private lateinit var tabCountButton: Button
-
-    private val history = mutableListOf<HistoryItem>()
-    private val bookmarks = mutableListOf<Bookmark>()
-
-    @SuppressLint("SetJavaScriptEnabled")
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Создаем UI с помощью кода
-        container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#1a1a2e"))
-        }
-
-        // Toolbar
-        toolbar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.parseColor("#16213e"))
-            setPadding(4,4,4,4)
-        }
-
-        // Навигационные кнопки
-        val btnBack = Button(this).apply { text = "←"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
-        val btnForward = Button(this).apply { text = "→"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
-        val btnReload = Button(this).apply { text = "⟳"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
-        val btnHome = Button(this).apply { text = "⌂"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
-
-        // Адресная строка
-        urlEdit = EditText(this).apply {
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
-                marginStart=4; marginEnd=4
-            }
-            setBackgroundColor(Color.parseColor("#0f3460"))
-            setTextColor(Color.WHITE)
-            hint = "Введите URL или поисковый запрос"
-            setPadding(12,8,12,8)
-            isSingleLine = true
-            imeOptions = EditorInfo.IME_ACTION_GO
-            setOnEditorActionListener { _, actionId, event ->
-                if (actionId == EditorInfo.IME_ACTION_GO || (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
-                    processUrlInput(text.toString())
-                    hideKeyboard()
-                    true
-                } else false
-            }
-        }
-
-        // Вкладки и меню
-        tabCountButton = Button(this).apply { text="1"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
-        val menuBtn = Button(this).apply { text="⋮"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.WHITE) }
-
-        // Добавление элементов в панель
-        toolbar.apply {
-            addView(btnBack)
-            addView(btnForward)
-            addView(btnReload)
-            addView(btnHome)
-            addView(urlEdit)
-            addView(tabCountButton)
-            addView(menuBtn)
-        }
-
-        // Прогрессбар
-        progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 3)
-            max=100; progress=0; visibility=View.GONE
-        }
-
-        // Контейнер WebView
-        webContainer = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0,1f)
-        }
-
-        // Основной контейнер
-        container.apply {
-            addView(toolbar)
-            addView(progressBar)
-            addView(webContainer)
-        }
-
-        setContentView(container)
-        // Создаем первую вкладку
-        createNewTab()
-
-        // Обработка кликов
-        btnBack.setOnClickListener { webViews[currentTabId]?.goBack() }
-        btnForward.setOnClickListener { webViews[currentTabId]?.goForward() }
-        btnReload.setOnClickListener { webViews[currentTabId]?.reload() }
-        btnHome.setOnClickListener { loadUrl("https://www.google.com") }
-        tabCountButton.setOnClickListener { showTabsDialog() }
-        menuBtn.setOnClickListener { showMainMenu() }
-    }
-
-    private fun createNewTab(url: String = "https://www.google.com") {
-        val tab = Tab()
-        tabs.add(tab)
-        val webView = createWebView()
-        webViews[tab.id]=webView
-        showTab(tab.id)
-        loadUrl(url)
-        updateTabCount()
-    }
-
-    private fun showTab(id: String){
-        currentTabId = id
-        webContainer.removeAllViews()
-        webViews[id]?.let {
-            webContainer.addView(it)
-            val tab = tabs.find { it.id==id }
-            urlEdit.setText(tab?.url ?: "")
-        }
-    }
-
-    private fun closeTab(id:String){
-        val idx= tabs.indexOfFirst { it.id==id }
-        if (idx==-1) return
-        tabs.removeAt(idx); webViews[id]?.destroy(); webViews.remove(id)
-        if (tabs.isEmpty()) createNewTab()
-        else showTab(tabs[if(idx>0) idx-1 else 0].id)
-        updateTabCount()
-    }
-
-    private fun updateTabCount(){ tabCountButton.text= tabs.size.toString() }
-
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun createWebView(): WebView {
-        val webView= WebView(this)
-        webView.layoutParams= FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        webView.settings.apply{
-            javaScriptEnabled=true
-            domStorageEnabled=true
-            loadWithOverviewMode=true
-            useWideViewPort=true
-        }
-        webView.webViewClient=object : WebViewClient() {
-            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                super.onPageStarted(view, url, favicon)
-                progressBar.visibility=View.VISIBLE
-                url?.let { urlEdit.setText(it) }
-            }
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                progressBar.visibility=View.GONE
-                val tabId=currentTabId ?: return
-                tabs.find { it.id==tabId }?.apply {
-                    this.url = url ?: "https://www.google.com"
-                    this.title=view?.title ?: "Новая вкладка"
+        setContent {
+            MyApplicationTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.White
+                ) {
+                    EdgeBrowser()
                 }
-                // История
-                url?.let { u-> view?.title?.let { t->
-                    addToHistory(u,t)
-                }}
             }
         }
-        webView.webChromeClient=object: WebChromeClient() {
-            override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                progressBar.progress=newProgress
-                if (newProgress==100) progressBar.visibility=View.GONE
-            }
-        }
-        return webView
-    }
-
-    private fun loadUrl(url: String) {
-        currentTabId?.let {
-            webViews[it]?.loadUrl(url)
-            tabs.find { it.id==it }?.url= url
-        }
-    }
-
-    private fun processUrlInput(input:String){
-        val url= if (input.startsWith("http")) input
-        else if (input.contains(".")) "https://input"
-        else "https://www.google.com/search?q=${input.replace(" ","+")}"
-        loadUrl(url)
-    }
-
-    private fun showTabsDialog() {
-        val layout=LinearLayout(this).apply {
-            orientation=LinearLayout.VERTICAL
-            setPadding(16,16,16,16)
-            setBackgroundColor(Color.parseColor("#16213e"))
-        }
-        val title=TextView(this).apply {
-            text="Вкладки (${tabs.size})"
-            textSize=20f
-            setTextColor(Color.WHITE)
-        }
-        val btnNew=Button(this).apply {
-            text="+"
-            setBackgroundColor(Color.parseColor("#e94560"))
-            setTextColor(Color.WHITE)
-        }
-
-        layout.addView(title)
-        layout.addView(btnNew)
-
-        val scroll=new ScrollView(this)
-        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-        tabs.forEach { tab ->
-            val item=LinearLayout(this).apply {
-                orientation=LinearLayout.HORIZONTAL
-                setPadding(12,12,12,12)
-                setBackgroundColor(if (tab.id==currentTabId) Color.parseColor("#0f3460") else Color.parseColor("#1a1a2e"))
-                layoutParams=LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin=8 }
-                gravity=Gravity.CENTER_VERTICAL
-            }
-            val name=TextView(this).apply {
-                text= tab.title.take(30)
-                setTextColor(Color.WHITE)
-                layoutParams=LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT,1f)
-            }
-            val btnClose=Button(this).apply {
-                text="✕"
-                setTextColor(Color.WHITE)
-                background= null
-            }
-            item.addView(name)
-            item.addView(btnClose)
-            list.addView(item)
-            item.setOnClickListener {
-                showTab(tab.id); alert.dismiss()
-            }
-            btnClose.setOnClickListener {
-                closeTab(tab.id); alert.dismiss()
-            }
-        }
-        scroll.addView(list)
-        layout.addView(scroll)
-        val alert=AlertDialog.Builder(this).setView(layout).show()
-        btnNew.setOnClickListener {
-            alert.dismiss()
-            createNewTab()
-        }
-    }
-
-    private fun showMainMenu() {
-        val items=arrayOf("Добавить в закладки","Закладки","История","Копировать URL","Поделиться","Найти на странице","Режим ПК","Очистить историю","О браузере")
-        AlertDialog.Builder(this).setItems(items){ _, i->
-            when(i){
-                0->addBookmark()
-                1->showBookmarks()
-                2->showHistory()
-                3->copyUrl()
-                4->shareUrl()
-                5->findOnPage()
-                6->toggleDesktop()
-                7->clearHistory()
-                8->showAbout()
-            }
-        }.show()
-    }
-
-    private fun addBookmark() {
-        currentTabId?.let {
-            val tab= tabs.find { it.id==it } ?:return
-            if (bookmarks.any { it.url==tab.url }) {
-                Toast.makeText(this,"Уже добавлено",Toast.LENGTH_SHORT).show()
-                return
-            }
-            bookmarks.add(Bookmark(tab.url,tab.title))
-        }
-    }
-    private fun showBookmarks() {
-        if (bookmarks.isEmpty()) {
-            Toast.makeText(this,"Закладок нет",Toast.LENGTH_SHORT).show()
-            return
-        }
-        val layout=LinearLayout(this).apply {
-            orientation=LinearLayout.VERTICAL
-            setPadding(16,16,16,16)
-            setBackgroundColor(Color.parseColor("#16213e"))
-        }
-        val title=TextView(this).apply{
-            text="Закладки"
-            textSize=20f
-            setTextColor(Color.WHITE)
-        }
-        layout.addView(title)
-        val scroll=new ScrollView(this)
-        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-        bookmarks.forEach {
-            val item=LinearLayout(this).apply {
-                orientation=LinearLayout.VERTICAL
-                setPadding(12,12,12,12)
-                setBackgroundColor(Color.parseColor("#1a1a2e"))
-                layoutParams=LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin=8 }
-            }
-            val tTitle=TextView(this).apply { text= it.title.take(40); setTextColor(Color.WHITE) }
-            val tUrl=TextView(this).apply { text= it.url.take(50); setTextColor(Color.GRAY) }
-            item.addView(tTitle)
-            item.addView(tUrl)
-            item.setOnClickListener { loadUrl(it.tag as String); alert.dismiss() }
-            item.tag= it.url
-            list.addView(item)
-        }
-        scroll.addView(list)
-        layout.addView(scroll)
-        val alert=AlertDialog.Builder(this).setView(layout).show()
-    }
-
-    private fun showHistory() {
-        if (history.isEmpty()) {
-            Toast.makeText(this,"История пуста",Toast.LENGTH_SHORT).show()
-            return
-        }
-        val layout=LinearLayout(this).apply {
-            orientation=LinearLayout.VERTICAL
-            setPadding(16,16,16,16)
-            setBackgroundColor(Color.parseColor("#16213e"))
-        }
-        val title=TextView(this).apply { text="История"; textSize=20f; setTextColor(Color.WHITE) }
-        layout.addView(title)
-        val scroll=new ScrollView(this)
-        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-        val df=SimpleDateFormat("dd.MM HH:mm",Locale.getDefault())
-        history.take(50).forEach {
-            val item=LinearLayout(this).apply {
-                orientation=LinearLayout.VERTICAL
-                setPadding(12,12,12,12)
-                setBackgroundColor(Color.parseColor("#1a1a2e"))
-                layoutParams=LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin=8 }
-            }
-            val tTitle=TextView(this).apply { text= it.title.take(40); setTextColor(Color.WHITE) }
-            val tUrl=TextView(this).apply { text= it.url.take(50); setTextColor(Color.GRAY) }
-            val tDate=TextView(this).apply { text=df.format(Date(it.timestamp)); setTextColor=Color.LTGRAY }
-            item.addView(tTitle)
-            item.addView(tUrl)
-            item.addView(tDate)
-            item.setOnClickListener { loadUrl(it.tag as String); alert.dismiss() }
-            it.tag= it.url
-            list.addView(item)
-        }
-        scroll.addView(list)
-        layout.addView(scroll)
-        val alert=AlertDialog.Builder(this).setView(layout).show()
-    }
-
-    private fun copyUrl() {
-        currentTabId?.let {
-            val url= tabs.find { it.id==it }?.url ?: return
-            val cm= getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            cm.setPrimaryClip(ClipData.newPlainText("URL", url))
-            Toast.makeText(this,"URL скопирован", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun shareUrl() {
-        currentTabId?.let {
-            val url= tabs.find { it.id==it }?.url ?: return
-            val intent= android.content.Intent().apply {
-                action= android.content.Intent.ACTION_SEND
-                type= "text/plain"
-                putExtra(android.content.Intent.EXTRA_TEXT, url)
-            }
-            startActivity(android.content.Intent.createChooser(intent, "Поделиться"))
-        }
-    }
-
-    private fun toggleDesktop() {
-        // Временно не реализовано
-        Toast.makeText(this, "Режим ПК временно не реализован", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun findOnPage() {
-        val et= EditText(this).apply { hint="Что искать?" }
-        AlertDialog.Builder(this).setTitle("Найти на странице").setView(et)
-            .setPositiveButton("Найти") { _, _ ->
-                val query= et.text.toString()
-                currentTabId?.let { webViews[it]?.findAllAsync(query) }
-            }
-            .setNegativeButton("Отмена", null).show()
-    }
-
-    private fun showAbout() {
-        AlertDialog.Builder(this)
-            .setTitle("О браузере")
-            .setMessage("Просто браузер на Kotlin.
-2026")
-            .setPositiveButton("OK", null).show()
-    }
-
-    private fun showTabsDialog() { /* Тут можно реализовать список вкладок */ }
-
-    private fun hideKeyboard() {
-        val imm= getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.hideSoftInputFromWindow(urlEdit.windowToken, 0)
-    }
-
-    private fun addToHistory(url:String, title:String){
-        history.removeAll { it.url==url }
-        history.add(0, HistoryItem(url, title))
-        if (history.size>500) history.removeAt(history.lastIndex)
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EdgeBrowser() {
+    var url by remember { mutableStateOf("https://www.google.com") }
+    var currentUrl by remember { mutableStateOf("https://www.google.com") }
+    var isLoading by remember { mutableStateOf(false) }
+    var canGoBack by remember { mutableStateOf(false) }
+    var canGoForward by remember { mutableStateOf(false) }
+    var tabCount by remember { mutableStateOf(1) }
+
+    var webView: WebView? by remember { mutableStateOf(null) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+
+        // 1. ВЕРХНЯЯ ПАНЕЛЬ
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+                .background(Color(0xFFF1F3F4), RoundedCornerShape(24.dp))
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Кнопка Назад
+            IconButton(
+                onClick = { webView?.goBack() },
+                enabled = canGoBack
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = if (canGoBack) Color.DarkGray else Color.LightGray,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(4.dp))
+
+            // Замочек
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = "Secure",
+                tint = Color(0xFF5F6368),
+                modifier = Modifier.size(18.dp)
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Поле ввода URL
+            TextField(
+                value = url,
+                onValueChange = { url = it },
+                modifier = Modifier.weight(1f),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.DarkGray
+                ),
+                textStyle = LocalTextStyle.current.copy(color = Color.Black),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(
+                    onGo = {
+                        currentUrl = if (url.startsWith("http")) url else "https://$url"
+                        webView?.loadUrl(currentUrl)
+                    }
+                ),
+                singleLine = true
+            )
+
+            // Кнопка Переход
+            IconButton(
+                onClick = {
+                    currentUrl = if (url.startsWith("http")) url else "https://$url"
+                    webView?.loadUrl(currentUrl)
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "Go",
+                    tint = Color.DarkGray,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            // КНОПКА ВКЛАДОК (Счетчик)
+            BadgedBox(
+                badge = {
+                    Badge(
+                        containerColor = Color(0xFF1A73E8),
+                        contentColor = Color.White
+                    ) {
+                        Text(text = tabCount.toString(), style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            ) {
+                IconButton(
+                    onClick = {
+                        tabCount++
+                    }
+                ) {
+
+                }
+            }
+        }
+
+        // 2. ОСНОВНАЯ ОБЛАСТЬ (WebView)
+        Box(modifier = Modifier.weight(1f)) {
+            AndroidView(
+                factory = { context ->
+                    WebView(context).apply {
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.MATCH_PARENT
+                        )
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.loadWithOverviewMode = true
+                        settings.useWideViewPort = true
+                        setBackgroundColor(Color.White.hashCode())
+
+                        webViewClient = object : WebViewClient() {
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                isLoading = true
+                                if (url != null) {
+                                    currentUrl = url
+                                }
+                            }
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                isLoading = false
+                                canGoBack = view?.canGoBack() ?: false
+                                canGoForward = view?.canGoForward() ?: false
+                                if (url != null) {
+                                    currentUrl = url
+                                }
+                            }
+                        }
+
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onProgressChanged(view: WebView?, newProgress: Int) {}
+                        }
+
+                        webView = this
+                        loadUrl("https://www.google.com")
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Индикатор загрузки
+            if (isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .zIndex(1f),
+                    color = Color(0xFF1A73E8)
+                )
+            }
+        }
+
+        // 3. НИЖНЯЯ ПАНЕЛЬ
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFF1F3F4))
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = { webView?.goBack() },
+                enabled = canGoBack
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = if (canGoBack) Color.DarkGray else Color.LightGray,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            IconButton(
+                onClick = { webView?.goForward() },
+                enabled = canGoForward
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "Forward",
+                    tint = if (canGoForward) Color.DarkGray else Color.LightGray,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            IconButton(
+                onClick = { webView?.reload() }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Reload",
+                    tint = Color.DarkGray,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            IconButton(
+                onClick = {
+                    url = "https://www.google.com"
+                    currentUrl = "https://www.google.com"
+                    webView?.loadUrl(url)
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Home,
+                    contentDescription = "Home",
+                    tint = Color.DarkGray,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- РАЗРЕШЕНИЕ НА ДОСТУП В ИНТЕРНЕТ -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MyApplication"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.MyApplication">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>
