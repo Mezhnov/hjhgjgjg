@@ -1,3 +1,620 @@
-package com.example.myapplication  import android.graphics.Bitmap import android.os.Bundle import android.webkit.WebChromeClient import android.webkit.WebView import android.webkit.WebViewClient import android.widget.LinearLayout import androidx.activity.ComponentActivity import androidx.activity.compose.setContent import androidx.compose.foundation.background import androidx.compose.foundation.layout.* import androidx.compose.foundation.shape.RoundedCornerShape import androidx.compose.foundation.text.KeyboardActions import androidx.compose.foundation.text.KeyboardOptions import androidx.compose.material.icons.Icons import androidx.compose.material.icons.filled.* import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.graphics.Color import androidx.compose.ui.platform.LocalContext import androidx.compose.ui.text.input.ImeAction import androidx.compose.ui.unit.dp import androidx.compose.ui.viewinterop.AndroidView import androidx.compose.ui.zIndex import com.example.myapplication.ui.theme.MyApplicationTheme  class MainActivity : ComponentActivity() {     override fun onCreate(savedInstanceState: Bundle?) {         super.onCreate(savedInstanceState)         setContent {             MyApplicationTheme {                 Surface(                     modifier = Modifier.fillMaxSize(),                     color = Color.White                 ) {                     EdgeBrowser()                 }             }         }     } }  @OptIn(ExperimentalMaterial3Api::class) @Composable fun EdgeBrowser() {     var url by remember { mutableStateOf("https://www.google.com") }     var currentUrl by remember { mutableStateOf("https://www.google.com") }     var isLoading by remember { mutableStateOf(false) }     var canGoBack by remember { mutableStateOf(false) }     var canGoForward by remember { mutableStateOf(false) }     var tabCount by remember { mutableStateOf(1) }      var webView: WebView? by remember { mutableStateOf(null) }      Column(modifier = Modifier.fillMaxSize()) {          // 1. ВЕРХНЯЯ ПАНЕЛЬ         Row(             modifier = Modifier                 .fillMaxWidth()                 .padding(12.dp)                 .background(Color(0xFFF1F3F4), RoundedCornerShape(24.dp))                 .padding(horizontal = 4.dp, vertical = 4.dp),             verticalAlignment = Alignment.CenterVertically         ) {             // Кнопка Назад             IconButton(                 onClick = { webView?.goBack() },                 enabled = canGoBack             ) {                 Icon(                     imageVector = Icons.Default.ArrowBack,                     contentDescription = "Back",                     tint = if (canGoBack) Color.DarkGray else Color.LightGray,                     modifier = Modifier.size(24.dp)                 )             }              Spacer(modifier = Modifier.width(4.dp))              // Замочек             Icon(                 imageVector = Icons.Default.Lock,                 contentDescription = "Secure",                 tint = Color(0xFF5F6368),                 modifier = Modifier.size(18.dp)             )              Spacer(modifier = Modifier.width(8.dp))              // Поле ввода URL             TextField(                 value = url,                 onValueChange = { url = it },                 modifier = Modifier.weight(1f),                 colors = TextFieldDefaults.colors(                     focusedContainerColor = Color.Transparent,                     unfocusedContainerColor = Color.Transparent,                     focusedIndicatorColor = Color.Transparent,                     unfocusedIndicatorColor = Color.Transparent,                     focusedTextColor = Color.Black,                     unfocusedTextColor = Color.DarkGray                 ),                 textStyle = LocalTextStyle.current.copy(color = Color.Black),                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),                 keyboardActions = KeyboardActions(                     onGo = {                         currentUrl = if (url.startsWith("http")) url else "https://$url"                         webView?.loadUrl(currentUrl)                     }                 ),                 singleLine = true             )              // Кнопка Переход             IconButton(                 onClick = {                     currentUrl = if (url.startsWith("http")) url else "https://$url"                     webView?.loadUrl(currentUrl)                 }             ) {                 Icon(                     imageVector = Icons.Default.ArrowForward,                     contentDescription = "Go",                     tint = Color.DarkGray,                     modifier = Modifier.size(24.dp)                 )             }              // КНОПКА ВКЛАДОК (Счетчик)             BadgedBox(                 badge = {                     Badge(                         containerColor = Color(0xFF1A73E8),                         contentColor = Color.White                     ) {                         Text(text = tabCount.toString(), style = MaterialTheme.typography.labelSmall)                     }                 }             ) {                 IconButton(                     onClick = {                         tabCount++                     }                 ) {                  }             }         }          // 2. ОСНОВНАЯ ОБЛАСТЬ (WebView)         Box(modifier = Modifier.weight(1f)) {             AndroidView(                 factory = { context ->                     WebView(context).apply {                         layoutParams = LinearLayout.LayoutParams(                             LinearLayout.LayoutParams.MATCH_PARENT,                             LinearLayout.LayoutParams.MATCH_PARENT                         )                         settings.javaScriptEnabled = true                         settings.domStorageEnabled = true                         settings.loadWithOverviewMode = true                         settings.useWideViewPort = true                         setBackgroundColor(Color.White.hashCode())                          webViewClient = object : WebViewClient() {                             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {                                 isLoading = true                                 if (url != null) {                                     currentUrl = url                                 }                             }                             override fun onPageFinished(view: WebView?, url: String?) {                                 isLoading = false                                 canGoBack = view?.canGoBack() ?: false                                 canGoForward = view?.canGoForward() ?: false                                 if (url != null) {                                     currentUrl = url                                 }                             }                         }                          webChromeClient = object : WebChromeClient() {                             override fun onProgressChanged(view: WebView?, newProgress: Int) {}                         }                          webView = this                         loadUrl("https://www.google.com")                     }                 },                 modifier = Modifier.fillMaxSize()             )              // Индикатор загрузки             if (isLoading) {                 LinearProgressIndicator(                     modifier = Modifier                         .fillMaxWidth()                         .zIndex(1f),                     color = Color(0xFF1A73E8)                 )             }         }          // 3. НИЖНЯЯ ПАНЕЛЬ         Row(             modifier = Modifier                 .fillMaxWidth()                 .background(Color(0xFFF1F3F4))                 .padding(vertical = 12.dp),             horizontalArrangement = Arrangement.SpaceEvenly,             verticalAlignment = Alignment.CenterVertically         ) {             IconButton(                 onClick = { webView?.goBack() },                 enabled = canGoBack             ) {                 Icon(                     imageVector = Icons.Default.ArrowBack,                     contentDescription = "Back",                     tint = if (canGoBack) Color.DarkGray else Color.LightGray,                     modifier = Modifier.size(24.dp)                 )             }              IconButton(                 onClick = { webView?.goForward() },                 enabled = canGoForward             ) {                 Icon(                     imageVector = Icons.Default.ArrowForward,                     contentDescription = "Forward",                     tint = if (canGoForward) Color.DarkGray else Color.LightGray,                     modifier = Modifier.size(24.dp)                 )             }              IconButton(                 onClick = { webView?.reload() }             ) {                 Icon(                     imageVector = Icons.Default.Refresh,                     contentDescription = "Reload",                     tint = Color.DarkGray,                     modifier = Modifier.size(24.dp)                 )             }              IconButton(                 onClick = {                     url = "https://www.google.com"                     currentUrl = "https://www.google.com"                     webView?.loadUrl(url)                 }             ) {                 Icon(                     imageVector = Icons.Default.Home,                     contentDescription = "Home",                     tint = Color.DarkGray,                     modifier = Modifier.size(24.dp)                 )             }         }     } }    <?xml version="1.0" encoding="utf-8"?> <manifest xmlns:android="http://schemas.android.com/apk/res/android"     xmlns:tools="http://schemas.android.com/tools">      <!-- РАЗРЕШЕНИЕ НА ДОСТУП В ИНТЕРНЕТ -->     <uses-permission android:name="android.permission.INTERNET" />      <application         android:allowBackup="true"         android:dataExtractionRules="@xml/data_extraction_rules"         android:fullBackupContent="@xml/backup_rules"         android:icon="@mipmap/ic_launcher"         android:label="@string/app_name"         android:roundIcon="@mipmap/ic_launcher_round"         android:supportsRtl="true"         android:theme="@style/Theme.MyApplication"         tools:targetApi="31">          <activity             android:name=".MainActivity"             android:exported="true"             android:label="@string/app_name"             android:theme="@style/Theme.MyApplication">             <intent-filter>                 <action android:name="android.intent.action.MAIN" />                 <category android:name="android.intent.category.LAUNCHER" />             </intent-filter>         </activity>      </application>  </manifest>
+package com.example.myapplication
 
-обнови только два эти файла нужно обновить браузер до уровня chrome или яндекса кароче до уровня совеременности обновляем только эти два файла остальные не трогаем ф
+import android.graphics.Bitmap
+import android.os.Bundle
+import android.view.ViewGroup
+import android.webkit.*
+import android.widget.FrameLayout
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.myapplication.ui.theme.MyApplicationTheme
+
+data class Tab(
+    val id: Int,
+    var url: String = "https://www.google.com",
+    var title: String = "Новая вкладка",
+    var webView: WebView? = null
+)
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MyApplicationTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color(0xFF202124)
+                ) {
+                    ModernBrowser()
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ModernBrowser() {
+    // ── состояние вкладок ──────────────────────────────────────────────────
+    var tabs by remember { mutableStateOf(listOf(Tab(id = 0))) }
+    var activeTabId by remember { mutableStateOf(0) }
+    var tabCounter by remember { mutableIntStateOf(1) }
+
+    val activeTab = tabs.find { it.id == activeTabId } ?: tabs.first()
+
+    // ── состояние UI ───────────────────────────────────────────────────────
+    var urlInput by remember { mutableStateOf(activeTab.url) }
+    var isLoading by remember { mutableStateOf(false) }
+    var progress by remember { mutableIntStateOf(0) }
+    var canGoBack by remember { mutableStateOf(false) }
+    var canGoForward by remember { mutableStateOf(false) }
+    var pageTitle by remember { mutableStateOf("") }
+    var isSecure by remember { mutableStateOf(true) }
+
+    var showTabsPanel by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
+    var isUrlFocused by remember { mutableStateOf(false) }
+    var showSuggestions by remember { mutableStateOf(false) }
+
+    val focusManager = LocalFocusManager.current
+
+    // синхронизируем urlInput при смене вкладки
+    LaunchedEffect(activeTabId) {
+        urlInput = activeTab.url
+    }
+
+    // ── вспомогательные функции ────────────────────────────────────────────
+    fun formatUrl(raw: String): String {
+        val trimmed = raw.trim()
+        return when {
+            trimmed.startsWith("http://") || trimmed.startsWith("https://") -> trimmed
+            trimmed.contains(" ") || !trimmed.contains(".") ->
+                "https://www.google.com/search?q=${trimmed.replace(" ", "+")}"
+            else -> "https://$trimmed"
+        }
+    }
+
+    fun displayUrl(full: String): String =
+        full.removePrefix("https://").removePrefix("http://")
+            .removePrefix("www.").trimEnd('/')
+
+    fun navigate(raw: String) {
+        val finalUrl = formatUrl(raw)
+        activeTab.webView?.loadUrl(finalUrl)
+        showSuggestions = false
+        focusManager.clearFocus()
+    }
+
+    fun addTab() {
+        val newTab = Tab(id = tabCounter++)
+        tabs = tabs + newTab
+        activeTabId = newTab.id
+        urlInput = newTab.url
+        showTabsPanel = false
+    }
+
+    fun closeTab(tabId: Int) {
+        if (tabs.size == 1) { addTab(); return }
+        val remaining = tabs.filter { it.id != tabId }
+        tabs = remaining
+        if (activeTabId == tabId) {
+            activeTabId = remaining.last().id
+            urlInput = remaining.last().url
+        }
+    }
+
+    // ── BackHandler ────────────────────────────────────────────────────────
+    BackHandler {
+        when {
+            showTabsPanel -> showTabsPanel = false
+            showMenu -> showMenu = false
+            isUrlFocused -> focusManager.clearFocus()
+            canGoBack -> activeTab.webView?.goBack()
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        Column(modifier = Modifier.fillMaxSize()) {
+
+            // ── ВЕРХНЯЯ ПАНЕЛЬ ─────────────────────────────────────────────
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF303134))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Кнопка назад
+                    IconButton(
+                        onClick = { activeTab.webView?.goBack() },
+                        enabled = canGoBack,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack, "Назад",
+                            tint = if (canGoBack) Color.White else Color(0xFF5F6368),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    // Адресная строка
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFF404144))
+                                .padding(horizontal = 12.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (isSecure) Icons.Default.Lock else Icons.Default.Warning,
+                                "Безопасность",
+                                tint = if (isSecure) Color(0xFF81C995) else Color(0xFFFDD663),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            TextField(
+                                value = if (isUrlFocused) urlInput else displayUrl(urlInput),
+                                onValueChange = {
+                                    urlInput = it
+                                    showSuggestions = it.isNotEmpty()
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .onFocusChanged { state ->
+                                        isUrlFocused = state.isFocused
+                                        if (state.isFocused) {
+                                            urlInput = activeTab.url
+                                            showSuggestions = false
+                                        }
+                                    },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color(0xFFBDC1C6),
+                                    cursorColor = Color(0xFF8AB4F8)
+                                ),
+                                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                                keyboardActions = KeyboardActions(onGo = { navigate(urlInput) }),
+                                singleLine = true
+                            )
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color(0xFF8AB4F8),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                IconButton(
+                                    onClick = { activeTab.webView?.reload() },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Refresh, "Обновить",
+                                        tint = Color(0xFFBDC1C6),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Вкладки
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Transparent)
+                            .clickable { showTabsPanel = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color.Transparent),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Tab, "Вкладки",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Text(
+                                text = tabs.size.toString(),
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.offset(y = 1.dp)
+                            )
+                        }
+                    }
+
+                    // Меню
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.MoreVert, "Меню",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                // Прогресс-бар
+                if (isLoading) {
+                    LinearProgressIndicator(
+                        progress = { progress / 100f },
+                        modifier = Modifier.fillMaxWidth().height(2.dp),
+                        color = Color(0xFF8AB4F8),
+                        trackColor = Color.Transparent
+                    )
+                }
+            }
+
+            // ── WEBVIEW ────────────────────────────────────────────────────
+            Box(modifier = Modifier.weight(1f)) {
+                tabs.forEach { tab ->
+                    key(tab.id) {
+                        val isActive = tab.id == activeTabId
+                        AndroidView(
+                            factory = { ctx ->
+                                WebView(ctx).apply {
+                                    layoutParams = FrameLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
+                                    setBackgroundColor(Color(0xFF202124).toArgb())
+
+                                    settings.apply {
+                                        javaScriptEnabled = true
+                                        domStorageEnabled = true
+                                        loadWithOverviewMode = true
+                                        useWideViewPort = true
+                                        setSupportZoom(true)
+                                        builtInZoomControls = true
+                                        displayZoomControls = false
+                                        mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                                        cacheMode = WebSettings.LOAD_DEFAULT
+                                        allowFileAccess = true
+                                        databaseEnabled = true
+                                        mediaPlaybackRequiresUserGesture = false
+                                        userAgentString = "Mozilla/5.0 (Linux; Android 13) " +
+                                                "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                                                "Chrome/120.0.0.0 Mobile Safari/537.36"
+                                    }
+
+                                    webViewClient = object : WebViewClient() {
+                                        override fun onPageStarted(v: WebView?, u: String?, f: Bitmap?) {
+                                            if (isActive) {
+                                                isLoading = true
+                                                isSecure = u?.startsWith("https") == true
+                                                u?.let {
+                                                    tab.url = it
+                                                    urlInput = it
+                                                }
+                                            }
+                                        }
+                                        override fun onPageFinished(v: WebView?, u: String?) {
+                                            if (isActive) {
+                                                isLoading = false
+                                                canGoBack = v?.canGoBack() ?: false
+                                                canGoForward = v?.canGoForward() ?: false
+                                                u?.let {
+                                                    tab.url = it
+                                                    urlInput = it
+                                                }
+                                            }
+                                        }
+                                        override fun shouldOverrideUrlLoading(
+                                            view: WebView?, request: WebResourceRequest?
+                                        ): Boolean = false
+                                    }
+
+                                    webChromeClient = object : WebChromeClient() {
+                                        override fun onProgressChanged(v: WebView?, p: Int) {
+                                            if (isActive) progress = p
+                                        }
+                                        override fun onReceivedTitle(v: WebView?, t: String?) {
+                                            t?.let {
+                                                tab.title = it
+                                                if (isActive) pageTitle = it
+                                            }
+                                        }
+                                    }
+
+                                    tab.webView = this
+                                    loadUrl(tab.url)
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(if (isActive) Modifier else Modifier.size(0.dp))
+                        )
+                    }
+                }
+
+                // Обновляем состояние при смене активной вкладки
+                LaunchedEffect(activeTabId) {
+                    val t = tabs.find { it.id == activeTabId }
+                    if (t != null) {
+                        canGoBack = t.webView?.canGoBack() ?: false
+                        canGoForward = t.webView?.canGoForward() ?: false
+                        urlInput = t.url
+                        pageTitle = t.title
+                        isLoading = false
+                    }
+                }
+            }
+
+            // ── НИЖНЯЯ ПАНЕЛЬ ──────────────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF303134))
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { activeTab.webView?.goBack() },
+                    enabled = canGoBack
+                ) {
+                    Icon(
+                        Icons.Default.ArrowBack, "Назад",
+                        tint = if (canGoBack) Color.White else Color(0xFF5F6368),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(
+                    onClick = { activeTab.webView?.goForward() },
+                    enabled = canGoForward
+                ) {
+                    Icon(
+                        Icons.Default.ArrowForward, "Вперёд",
+                        tint = if (canGoForward) Color.White else Color(0xFF5F6368),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = {
+                    urlInput = "https://www.google.com"
+                    activeTab.webView?.loadUrl("https://www.google.com")
+                }) {
+                    Icon(
+                        Icons.Default.Home, "Домой",
+                        tint = Color.White, modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = { /* закладки */ }) {
+                    Icon(
+                        Icons.Default.BookmarkBorder, "Закладки",
+                        tint = Color.White, modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        Icons.Default.MoreVert, "Меню",
+                        tint = Color.White, modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+
+        // ── ПАНЕЛЬ ВКЛАДОК ─────────────────────────────────────────────────
+        if (showTabsPanel) {
+            Dialog(
+                onDismissRequest = { showTabsPanel = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF202124))
+                ) {
+                    // Заголовок
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Вкладки (${tabs.size})",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Row {
+                            IconButton(onClick = { addTab() }) {
+                                Icon(Icons.Default.Add, "Новая вкладка", tint = Color.White)
+                            }
+                            IconButton(onClick = { showTabsPanel = false }) {
+                                Icon(Icons.Default.Close, "Закрыть", tint = Color.White)
+                            }
+                        }
+                    }
+
+                    // Список вкладок
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(tabs, key = { it.id }) { tab ->
+                            val isActive = tab.id == activeTabId
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        activeTabId = tab.id
+                                        showTabsPanel = false
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isActive)
+                                        Color(0xFF3C4043) else Color(0xFF2D2F31)
+                                ),
+                                border = if (isActive)
+                                    androidx.compose.foundation.BorderStroke(
+                                        1.5.dp, Color(0xFF8AB4F8)
+                                    ) else null
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Favicon-заглушка
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF5F6368)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Language, null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = tab.title.ifEmpty { "Новая вкладка" },
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = displayUrl(tab.url),
+                                            color = Color(0xFF9AA0A6),
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { closeTab(tab.id) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close, "Закрыть вкладку",
+                                            tint = Color(0xFF9AA0A6),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Кнопка новой вкладки
+                    Button(
+                        onClick = { addTab() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF8AB4F8)
+                        ),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Icon(Icons.Default.Add, null, tint = Color(0xFF202124))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Новая вкладка", color = Color(0xFF202124), fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+
+        // ── МЕНЮ ───────────────────────────────────────────────────────────
+        if (showMenu) {
+            Dialog(onDismissRequest = { showMenu = false }) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF303134))
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        listOf(
+                            Triple(Icons.Default.Refresh, "Обновить") {
+                                activeTab.webView?.reload(); showMenu = false
+                            },
+                            Triple(Icons.Default.Add, "Новая вкладка") {
+                                addTab(); showMenu = false
+                            },
+                            Triple(Icons.Default.Bookmark, "Закладки") { showMenu = false },
+                            Triple(Icons.Default.History, "История") { showMenu = false },
+                            Triple(Icons.Default.Download, "Загрузки") { showMenu = false },
+                            Triple(Icons.Default.Settings, "Настройки") { showMenu = false }
+                        ).forEach { (icon, label, action) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { action() }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(icon, label, tint = Color(0xFFBDC1C6), modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(16.dp))
+                                Text(label, color = Color.White, fontSize = 15.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
