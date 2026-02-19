@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="4dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp">
+
+    <ImageView
+        android:id="@+id/ivScreenshot"
+        android:layout_width="180dp"
+        android:layout_height="320dp"
+        android:scaleType="centerCrop"
+        android:background="@drawable/bg_screenshot" />
+
+</androidx.cardview.widget.CardView>

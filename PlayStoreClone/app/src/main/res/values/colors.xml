@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors -->
+    <color name="primary">#01875F</color>
+    <color name="primary_dark">#016847</color>
+    <color name="primary_light">#E8F5E9</color>
+    
+    <!-- Accent Colors -->
+    <color name="accent">#01875F</color>
+    <color name="accent_light">#4CAF50</color>
+    
+    <!-- Background Colors -->
+    <color name="background">#FFFFFF</color>
+    <color name="background_secondary">#F8F9FA</color>
+    <color name="surface">#FFFFFF</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary">#202124</color>
+    <color name="text_secondary">#5F6368</color>
+    <color name="text_hint">#9AA0A6</color>
+    <color name="text_on_primary">#FFFFFF</color>
+    
+    <!-- Rating Colors -->
+    <color name="rating_star">#FFC107</color>
+    <color name="rating_star_empty">#E0E0E0</color>
+    
+    <!-- Category Colors -->
+    <color name="category_games">#4285F4</color>
+    <color name="category_apps">#EA4335</color>
+    <color name="category_movies">#FBBC04</color>
+    <color name="category_books">#34A853</color>
+    
+    <!-- Button Colors -->
+    <color name="button_install">#01875F</color>
+    <color name="button_open">#01875F</color>
+    <color name="button_update">#4285F4</color>
+    
+    <!-- Divider -->
+    <color name="divider">#E8EAED</color>
+    
+    <!-- Search Bar -->
+    <color name="search_background">#F1F3F4</color>
+    <color name="search_text">#202124</color>
+    
+    <!-- Chip Colors -->
+    <color name="chip_background">#E8F5E9</color>
+    <color name="chip_text">#01875F</color>
+    
+    <!-- Status Colors -->
+    <color name="status_bar">#FFFFFF</color>
+    <color name="navigation_bar">#FFFFFF</color>
+</resources>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Margins and Paddings -->
+    <dimen name="margin_small">8dp</dimen>
+    <dimen name="margin_medium">16dp</dimen>
+    <dimen name="margin_large">24dp</dimen>
+    
+    <!-- App Icon Sizes -->
+    <dimen name="app_icon_small">48dp</dimen>
+    <dimen name="app_icon_medium">64dp</dimen>
+    <dimen name="app_icon_large">96dp</dimen>
+    
+    <!-- Card Dimensions -->
+    <dimen name="card_corner_radius">12dp</dimen>
+    <dimen name="card_elevation">2dp</dimen>
+    
+    <!-- Search Bar -->
+    <dimen name="search_bar_height">48dp</dimen>
+    <dimen name="search_bar_corner_radius">24dp</dimen>
+    
+    <!-- Banner -->
+    <dimen name="banner_height">180dp</dimen>
+    <dimen name="banner_corner_radius">16dp</dimen>
+    
+    <!-- Bottom Navigation -->
+    <dimen name="bottom_nav_height">56dp</dimen>
+    
+    <!-- Screenshot -->
+    <dimen name="screenshot_width">180dp</dimen>
+    <dimen name="screenshot_height">320dp</dimen>
+    <dimen name="screenshot_corner_radius">8dp</dimen>
+</resources>

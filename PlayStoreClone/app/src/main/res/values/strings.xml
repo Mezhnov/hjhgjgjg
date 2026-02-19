@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Play Store</string>
+    
+    <!-- Navigation -->
+    <string name="nav_games">Games</string>
+    <string name="nav_apps">Apps</string>
+    <string name="nav_movies">Movies</string>
+    <string name="nav_books">Books</string>
+    
+    <!-- Search -->
+    <string name="search_hint">Search for apps &amp; games</string>
+    
+    <!-- Buttons -->
+    <string name="install">Install</string>
+    <string name="open">Open</string>
+    <string name="update">Update</string>
+    <string name="uninstall">Uninstall</string>
+    
+    <!-- Sections -->
+    <string name="recommended_for_you">Recommended for you</string>
+    <string name="top_charts">Top charts</string>
+    <string name="categories">Categories</string>
+    <string name="editors_choice">Editor's Choice</string>
+    <string name="new_releases">New releases</string>
+    <string name="top_free">Top free</string>
+    <string name="top_paid">Top paid</string>
+    <string name="top_grossing">Top grossing</string>
+    
+    <!-- App Detail -->
+    <string name="about_this_app">About this app</string>
+    <string name="whats_new">What's new</string>
+    <string name="ratings_reviews">Ratings and reviews</string>
+    <string name="data_safety">Data safety</string>
+    <string name="similar_apps">Similar apps</string>
+    
+    <!-- Ratings -->
+    <string name="reviews">reviews</string>
+    <string name="downloads">downloads</string>
+    <string name="rated_for">Rated for</string>
+    
+    <!-- Actions -->
+    <string name="see_more">See more</string>
+    <string name="see_all">See all</string>
+    <string name="share">Share</string>
+    <string name="add_to_wishlist">Add to wishlist</string>
+</resources>
