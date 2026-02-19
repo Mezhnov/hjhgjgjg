@@ -1,779 +1,616 @@
-Executing tasks: [:app:assembleDebug] in project C:\Users\User\AndroidStudioProjects\MyApplication15
+package com.example.myapplication
 
-> Task :app:preBuild UP-TO-DATE
-> Task :app:preDebugBuild UP-TO-DATE
-> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
-> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:dataBindingMergeDependencyArtifactsDebug UP-TO-DATE
-> Task :app:generateDebugResValues UP-TO-DATE
-> Task :app:generateDebugResources UP-TO-DATE
-> Task :app:packageDebugResources
-> Task :app:parseDebugLocalResources UP-TO-DATE
-> Task :app:checkDebugAarMetadata
-> Task :app:mapDebugSourceSetPaths
-> Task :app:createDebugCompatibleScreenManifests
-> Task :app:extractDeepLinksDebug UP-TO-DATE
-> Task :app:processDebugMainManifest
-> Task :app:processDebugManifest
-> Task :app:mergeDebugResources
-> Task :app:dataBindingGenBaseClassesDebug
-> Task :app:javaPreCompileDebug UP-TO-DATE
-> Task :app:mergeDebugShaders UP-TO-DATE
-> Task :app:compileDebugShaders NO-SOURCE
-> Task :app:generateDebugAssets UP-TO-DATE
-> Task :app:mergeDebugAssets UP-TO-DATE
-> Task :app:compressDebugAssets UP-TO-DATE
-> Task :app:desugarDebugFileDependencies UP-TO-DATE
-> Task :app:mergeDebugJniLibFolders UP-TO-DATE
-> Task :app:mergeDebugNativeLibs NO-SOURCE
-> Task :app:stripDebugDebugSymbols NO-SOURCE
-> Task :app:validateSigningDebug UP-TO-DATE
-> Task :app:checkDebugDuplicateClasses
-> Task :app:writeDebugAppMetadata UP-TO-DATE
-> Task :app:mergeLibDexDebug UP-TO-DATE
-> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
-> Task :app:processDebugManifestForPackage
-> Task :app:mergeExtDexDebug
-> Task :app:processDebugResources
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
 
-> Task :app:compileDebugKotlin FAILED
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:10:35 Unresolved reference 'databinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:11:35 Unresolved reference 'models'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:15:35 Unresolved reference 'ActivityAppDetailBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:19:19 Unresolved reference 'ActivityAppDetailBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:20:9 None of the following candidates is applicable:
-fun setContentView(@LayoutRes() p0: Int): Unit
-fun setContentView(p0: View!): Unit
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:20:32 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:30:17 Unresolved reference 'toolbar'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:44:17 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-@InlineOnly() fun <T> T.apply(block: T.() -> Unit): T
-    [R|Contract description]
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:44:23 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:45:13 Unresolved reference 'tvAppName'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:46:13 Unresolved reference 'tvDeveloper'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:47:13 Unresolved reference 'tvRating'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:48:13 Unresolved reference 'tvBigRating'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:49:13 Unresolved reference 'tvDescription'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:50:13 Unresolved reference 'tvReviewCount'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:51:13 Unresolved reference 'tvDownloads'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:52:13 Unresolved reference 'tvAgeRating'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:53:13 Unresolved reference 'tvWhatsNew'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:54:13 Unresolved reference 'tvTotalReviews'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:55:13 Unresolved reference 'ratingBar'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:60:18 Overload resolution ambiguity between candidates:
-@NonNull() @CheckResult() fun placeholder(@Nullable() p0: Drawable?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun placeholder(@DrawableRes() p0: Int): RequestBuilder<Drawable!>
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:60:30 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:61:18 Unresolved reference 'transform'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:62:23 Unresolved reference 'ivAppIcon'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:79:17 Unresolved reference 'rvScreenshots'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:84:13 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:84:13 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:98:13 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:112:13 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:126:13 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:142:59 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:144:50 Unresolved reference 'name'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:146:17 Unresolved reference 'rvSimilarApps'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:150:17 Unresolved reference 'btnInstall'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:152:21 Unresolved reference 'btnInstall'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:153:21 Unresolved reference 'btnInstall'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:156:21 Unresolved reference 'btnInstall'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:157:25 Unresolved reference 'btnInstall'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:157:53 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/AppDetailActivity.kt:158:25 Unresolved reference 'btnInstall'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:5:34 Unresolved reference 'adapters'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:6:34 Unresolved reference 'databinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:11:35 Unresolved reference 'ActivityMainBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:12:44 Unresolved reference 'ViewPagerAdapter'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:16:19 Unresolved reference 'ActivityMainBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:17:9 None of the following candidates is applicable:
-fun setContentView(@LayoutRes() p0: Int): Unit
-fun setContentView(p0: View!): Unit
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:17:32 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:24:28 Unresolved reference 'ViewPagerAdapter'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:25:17 Unresolved reference 'viewPager'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:27:35 Unresolved reference 'tabLayout'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:27:54 Unresolved reference 'viewPager'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:28:41 Unresolved reference 'getTabTitle'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:33:17 Unresolved reference 'bottomNavigation'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:33:62 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:34:24 Unresolved reference 'itemId'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:35:19 Unresolved reference 'id'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:39:19 Unresolved reference 'id'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:43:19 Unresolved reference 'id'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:47:19 Unresolved reference 'id'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:54:17 Unresolved reference 'bottomNavigation'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:54:53 Unresolved reference 'id'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/MainActivity.kt:58:17 Unresolved reference 'viewPager'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:8:35 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:9:35 Unresolved reference 'databinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:10:35 Unresolved reference 'models'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:13:28 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:14:30 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:17:49 Unresolved reference 'ItemAppHorizontalBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:18:33 Argument type mismatch: actual type is 'java.io.File', but 'android.view.View' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:18:41 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:20:23 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:21:21 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-@InlineOnly() fun <T> T.apply(block: T.() -> Unit): T
-    [R|Contract description]
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:21:27 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:22:17 Unresolved reference 'tvAppName'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:22:38 Unresolved reference 'name'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:23:17 Unresolved reference 'tvRating'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:23:37 Unresolved reference 'rating'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:27:22 Overload resolution ambiguity between candidates:
-@NonNull() @CheckResult() fun load(@Nullable() p0: Bitmap?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Drawable?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: String?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Uri?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: File?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@RawRes() @DrawableRes() @Nullable() p0: Int?): RequestBuilder<Drawable!>
-@Deprecated(...) @CheckResult() fun load(@Nullable() p0: URL?): RequestBuilder<Drawable!>!
-@NonNull() @CheckResult() fun load(@Nullable() p0: ByteArray?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Any?): RequestBuilder<Drawable!>
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:27:31 Unresolved reference 'iconUrl'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:28:22 Unresolved reference 'placeholder'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:28:34 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:30:27 Unresolved reference 'ivAppIcon'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:32:17 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:32:22 Unresolved reference 'setOnClickListener'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppHorizontalAdapter.kt:38:23 Unresolved reference 'ItemAppHorizontalBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:8:35 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:9:35 Unresolved reference 'databinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:10:35 Unresolved reference 'models'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:13:28 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:14:30 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:17:49 Unresolved reference 'ItemAppLargeBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:18:33 Argument type mismatch: actual type is 'java.io.File', but 'android.view.View' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:18:41 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:20:23 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:21:21 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-@InlineOnly() fun <T> T.apply(block: T.() -> Unit): T
-    [R|Contract description]
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:21:27 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:22:17 Unresolved reference 'tvAppName'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:22:38 Unresolved reference 'name'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:23:17 Unresolved reference 'tvCategory'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:23:60 Unresolved reference 'rating'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:27:31 Unresolved reference 'featuredImageUrl'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:27:48 Not enough information to infer type argument for 'T'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:27:62 Unresolved reference 'iconUrl'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:28:22 Overload resolution ambiguity between candidates:
-@NonNull() @CheckResult() fun placeholder(@Nullable() p0: Drawable?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun placeholder(@DrawableRes() p0: Int): RequestBuilder<Drawable!>
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:28:34 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:29:22 Unresolved reference 'into'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:29:27 Unresolved reference 'ivFeaturedImage'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:33:22 Overload resolution ambiguity between candidates:
-@NonNull() @CheckResult() fun load(@Nullable() p0: Bitmap?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Drawable?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: String?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Uri?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: File?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@RawRes() @DrawableRes() @Nullable() p0: Int?): RequestBuilder<Drawable!>
-@Deprecated(...) @CheckResult() fun load(@Nullable() p0: URL?): RequestBuilder<Drawable!>!
-@NonNull() @CheckResult() fun load(@Nullable() p0: ByteArray?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Any?): RequestBuilder<Drawable!>
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:33:31 Unresolved reference 'iconUrl'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:34:22 Unresolved reference 'placeholder'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:34:34 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:36:27 Unresolved reference 'ivAppIcon'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:38:17 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:38:22 Unresolved reference 'setOnClickListener'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppLargeAdapter.kt:44:23 Unresolved reference 'ItemAppLargeBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:8:35 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:9:35 Unresolved reference 'databinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:10:35 Unresolved reference 'models'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:13:28 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:14:30 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:17:49 Unresolved reference 'ItemAppListBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:18:33 Argument type mismatch: actual type is 'java.io.File', but 'android.view.View' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:18:41 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:20:23 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:21:21 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-@InlineOnly() fun <T> T.apply(block: T.() -> Unit): T
-    [R|Contract description]
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:21:27 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:22:17 Unresolved reference 'tvPosition'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:23:17 Unresolved reference 'tvAppName'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:23:38 Unresolved reference 'name'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:24:17 Unresolved reference 'tvCategory'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:25:17 Unresolved reference 'tvRating'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:25:37 Unresolved reference 'rating'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:26:17 Unresolved reference 'tvSize'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:26:35 Unresolved reference 'size'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:29:22 Overload resolution ambiguity between candidates:
-@NonNull() @CheckResult() fun load(@Nullable() p0: Bitmap?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Drawable?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: String?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Uri?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: File?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@RawRes() @DrawableRes() @Nullable() p0: Int?): RequestBuilder<Drawable!>
-@Deprecated(...) @CheckResult() fun load(@Nullable() p0: URL?): RequestBuilder<Drawable!>!
-@NonNull() @CheckResult() fun load(@Nullable() p0: ByteArray?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Any?): RequestBuilder<Drawable!>
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:29:31 Unresolved reference 'iconUrl'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:30:22 Unresolved reference 'placeholder'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:30:34 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:32:27 Unresolved reference 'ivAppIcon'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:34:17 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:34:22 Unresolved reference 'setOnClickListener'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/AppListAdapter.kt:40:23 Unresolved reference 'ItemAppListBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:8:35 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:9:35 Unresolved reference 'databinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:10:35 Unresolved reference 'models'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:13:31 Unresolved reference 'BannerModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:14:33 Unresolved reference 'BannerModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:17:49 Unresolved reference 'ItemBannerBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:18:33 Argument type mismatch: actual type is 'java.io.File', but 'android.view.View' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:18:41 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:20:26 Unresolved reference 'BannerModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:21:21 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-@InlineOnly() fun <T> T.apply(block: T.() -> Unit): T
-    [R|Contract description]
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:21:27 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:22:17 Unresolved reference 'tvBannerTitle'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:22:45 Unresolved reference 'title'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:23:17 Unresolved reference 'tvBannerSubtitle'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:23:48 Unresolved reference 'subtitle'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:27:22 Overload resolution ambiguity between candidates:
-@NonNull() @CheckResult() fun load(@Nullable() p0: Bitmap?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Drawable?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: String?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Uri?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: File?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@RawRes() @DrawableRes() @Nullable() p0: Int?): RequestBuilder<Drawable!>
-@Deprecated(...) @CheckResult() fun load(@Nullable() p0: URL?): RequestBuilder<Drawable!>!
-@NonNull() @CheckResult() fun load(@Nullable() p0: ByteArray?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Any?): RequestBuilder<Drawable!>
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:27:34 Unresolved reference 'imageUrl'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:28:22 Unresolved reference 'placeholder'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:28:34 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:30:27 Unresolved reference 'ivBannerImage'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:34:22 Overload resolution ambiguity between candidates:
-@NonNull() @CheckResult() fun load(@Nullable() p0: Bitmap?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Drawable?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: String?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Uri?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: File?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@RawRes() @DrawableRes() @Nullable() p0: Int?): RequestBuilder<Drawable!>
-@Deprecated(...) @CheckResult() fun load(@Nullable() p0: URL?): RequestBuilder<Drawable!>!
-@NonNull() @CheckResult() fun load(@Nullable() p0: ByteArray?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun load(@Nullable() p0: Any?): RequestBuilder<Drawable!>
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:34:34 Unresolved reference 'appIconUrl'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:35:22 Unresolved reference 'placeholder'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:35:34 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:37:27 Unresolved reference 'ivAppIcon'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:39:17 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:39:22 Unresolved reference 'setOnClickListener'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/BannerAdapter.kt:45:23 Unresolved reference 'ItemBannerBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:7:35 Unresolved reference 'databinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:8:35 Unresolved reference 'models'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:11:34 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:12:35 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:15:49 Unresolved reference 'ItemCategoryBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:16:33 Argument type mismatch: actual type is 'java.io.File', but 'android.view.View' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:16:41 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:18:28 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:19:21 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-@InlineOnly() fun <T> T.apply(block: T.() -> Unit): T
-    [R|Contract description]
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:19:27 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:20:17 Unresolved reference 'tvCategoryName'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:20:48 Unresolved reference 'name'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:21:17 Unresolved reference 'ivCategoryIcon'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:21:58 Unresolved reference 'iconResId'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:22:17 Unresolved reference 'ivCategoryIcon'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:23:71 Unresolved reference 'color'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:26:17 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:26:22 Unresolved reference 'setOnClickListener'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/CategoryAdapter.kt:32:23 Unresolved reference 'ItemCategoryBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:8:35 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:9:35 Unresolved reference 'databinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:16:49 Unresolved reference 'ItemScreenshotBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:17:33 Argument type mismatch: actual type is 'java.io.File', but 'android.view.View' was expected.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:17:41 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:22:18 Overload resolution ambiguity between candidates:
-@NonNull() @CheckResult() fun placeholder(@Nullable() p0: Drawable?): RequestBuilder<Drawable!>
-@NonNull() @CheckResult() fun placeholder(@DrawableRes() p0: Int): RequestBuilder<Drawable!>
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:22:30 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:23:18 Unresolved reference 'transform'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:24:31 Unresolved reference 'ivScreenshot'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:26:21 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:26:26 Unresolved reference 'setOnClickListener'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/adapters/ScreenshotAdapter.kt:31:23 Unresolved reference 'ItemScreenshotBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:10:35 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:12:35 Unresolved reference 'databinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:13:35 Unresolved reference 'models'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:14:35 Unresolved reference 'models'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:15:35 Unresolved reference 'models'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:20:27 Unresolved reference 'FragmentHomeBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:49:20 Unresolved reference 'FragmentHomeBinding'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:50:16 Return type mismatch: expected 'android.view.View', actual 'java.io.File'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:50:24 Cannot access 'val File.root: File': it is internal in file.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:64:48 Unresolved reference 'BannerModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:67:17 Unresolved reference 'bannerViewPager'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:70:35 Unresolved reference 'bannerIndicator'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:70:60 Unresolved reference 'bannerViewPager'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:75:52 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:78:17 Unresolved reference 'rvRecommended'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:82:36 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T> Iterable<T>.take(n: Int): List<T>
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:83:46 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:86:17 Unresolved reference 'rvTopCharts'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:91:53 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:94:17 Unresolved reference 'rvCategories'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:99:47 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:102:17 Unresolved reference 'rvEditorsChoice'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:105:42 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:107:13 Overload resolution ambiguity between candidates:
-@NonNull() fun putExtra(p0: String!, p1: Boolean): Intent
-@NonNull() fun putExtra(p0: String!, p1: Byte): Intent
-@NonNull() fun putExtra(p0: String!, p1: Char): Intent
-@NonNull() fun putExtra(p0: String!, p1: Short): Intent
-@NonNull() fun putExtra(p0: String!, p1: Int): Intent
-@NonNull() fun putExtra(p0: String!, p1: Long): Intent
-@NonNull() fun putExtra(p0: String!, p1: Float): Intent
-@NonNull() fun putExtra(p0: String!, p1: Double): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: String?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharSequence?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Parcelable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<Parcelable!>?..Array<out Parcelable!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Serializable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: BooleanArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ByteArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ShortArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: IntArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: LongArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: FloatArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: DoubleArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<String!>?..Array<out String!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<CharSequence!>?..Array<out CharSequence!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Bundle?): Intent
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:107:36 Unresolved reference 'id'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:108:13 Overload resolution ambiguity between candidates:
-@NonNull() fun putExtra(p0: String!, p1: Boolean): Intent
-@NonNull() fun putExtra(p0: String!, p1: Byte): Intent
-@NonNull() fun putExtra(p0: String!, p1: Char): Intent
-@NonNull() fun putExtra(p0: String!, p1: Short): Intent
-@NonNull() fun putExtra(p0: String!, p1: Int): Intent
-@NonNull() fun putExtra(p0: String!, p1: Long): Intent
-@NonNull() fun putExtra(p0: String!, p1: Float): Intent
-@NonNull() fun putExtra(p0: String!, p1: Double): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: String?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharSequence?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Parcelable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<Parcelable!>?..Array<out Parcelable!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Serializable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: BooleanArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ByteArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ShortArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: IntArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: LongArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: FloatArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: DoubleArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<String!>?..Array<out String!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<CharSequence!>?..Array<out CharSequence!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Bundle?): Intent
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:108:38 Unresolved reference 'name'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:109:13 Overload resolution ambiguity between candidates:
-@NonNull() fun putExtra(p0: String!, p1: Boolean): Intent
-@NonNull() fun putExtra(p0: String!, p1: Byte): Intent
-@NonNull() fun putExtra(p0: String!, p1: Char): Intent
-@NonNull() fun putExtra(p0: String!, p1: Short): Intent
-@NonNull() fun putExtra(p0: String!, p1: Int): Intent
-@NonNull() fun putExtra(p0: String!, p1: Long): Intent
-@NonNull() fun putExtra(p0: String!, p1: Float): Intent
-@NonNull() fun putExtra(p0: String!, p1: Double): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: String?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharSequence?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Parcelable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<Parcelable!>?..Array<out Parcelable!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Serializable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: BooleanArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ByteArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ShortArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: IntArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: LongArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: FloatArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: DoubleArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<String!>?..Array<out String!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<CharSequence!>?..Array<out CharSequence!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Bundle?): Intent
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:109:43 Unresolved reference 'developer'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:110:13 Overload resolution ambiguity between candidates:
-@NonNull() fun putExtra(p0: String!, p1: Boolean): Intent
-@NonNull() fun putExtra(p0: String!, p1: Byte): Intent
-@NonNull() fun putExtra(p0: String!, p1: Char): Intent
-@NonNull() fun putExtra(p0: String!, p1: Short): Intent
-@NonNull() fun putExtra(p0: String!, p1: Int): Intent
-@NonNull() fun putExtra(p0: String!, p1: Long): Intent
-@NonNull() fun putExtra(p0: String!, p1: Float): Intent
-@NonNull() fun putExtra(p0: String!, p1: Double): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: String?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharSequence?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Parcelable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<Parcelable!>?..Array<out Parcelable!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Serializable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: BooleanArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ByteArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ShortArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: IntArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: LongArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: FloatArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: DoubleArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<String!>?..Array<out String!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<CharSequence!>?..Array<out CharSequence!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Bundle?): Intent
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:110:38 Unresolved reference 'iconUrl'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:111:13 Overload resolution ambiguity between candidates:
-@NonNull() fun putExtra(p0: String!, p1: Boolean): Intent
-@NonNull() fun putExtra(p0: String!, p1: Byte): Intent
-@NonNull() fun putExtra(p0: String!, p1: Char): Intent
-@NonNull() fun putExtra(p0: String!, p1: Short): Intent
-@NonNull() fun putExtra(p0: String!, p1: Int): Intent
-@NonNull() fun putExtra(p0: String!, p1: Long): Intent
-@NonNull() fun putExtra(p0: String!, p1: Float): Intent
-@NonNull() fun putExtra(p0: String!, p1: Double): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: String?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharSequence?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Parcelable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<Parcelable!>?..Array<out Parcelable!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Serializable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: BooleanArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ByteArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ShortArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: IntArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: LongArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: FloatArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: DoubleArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<String!>?..Array<out String!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<CharSequence!>?..Array<out CharSequence!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Bundle?): Intent
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:111:40 Unresolved reference 'rating'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:112:13 Overload resolution ambiguity between candidates:
-@NonNull() fun putExtra(p0: String!, p1: Boolean): Intent
-@NonNull() fun putExtra(p0: String!, p1: Byte): Intent
-@NonNull() fun putExtra(p0: String!, p1: Char): Intent
-@NonNull() fun putExtra(p0: String!, p1: Short): Intent
-@NonNull() fun putExtra(p0: String!, p1: Int): Intent
-@NonNull() fun putExtra(p0: String!, p1: Long): Intent
-@NonNull() fun putExtra(p0: String!, p1: Float): Intent
-@NonNull() fun putExtra(p0: String!, p1: Double): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: String?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharSequence?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Parcelable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<Parcelable!>?..Array<out Parcelable!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Serializable?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: BooleanArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ByteArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: ShortArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: CharArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: IntArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: LongArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: FloatArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: DoubleArray?): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<String!>?..Array<out String!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: (Array<CharSequence!>?..Array<out CharSequence!>?)): Intent
-@NonNull() fun putExtra(p0: String!, @Nullable() p1: Bundle?): Intent
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:112:45 Unresolved reference 'description'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:118:42 Unresolved reference 'BannerModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:120:13 Unresolved reference 'BannerModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:120:13 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:128:13 Unresolved reference 'BannerModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:136:13 Unresolved reference 'BannerModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:147:39 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:149:13 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:149:13 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:172:13 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:187:13 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:202:13 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:217:13 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:232:13 Unresolved reference 'AppModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:251:45 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:253:13 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:253:13 Cannot infer type for this parameter. Please specify it explicitly.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:253:42 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:253:63 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:254:13 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:254:42 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:254:63 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:255:13 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:255:42 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:255:63 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:256:13 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:256:44 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:256:65 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:257:13 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:257:42 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:257:63 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:258:13 Unresolved reference 'CategoryModel'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:258:39 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/fragments/HomeFragment.kt:258:60 Unresolved reference 'R'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Color.kt:3:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Color.kt:5:16 Unresolved reference 'Color'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Color.kt:6:20 Unresolved reference 'Color'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Color.kt:7:14 Unresolved reference 'Color'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Color.kt:9:16 Unresolved reference 'Color'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Color.kt:10:20 Unresolved reference 'Color'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Color.kt:11:14 Unresolved reference 'Color'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:5:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:6:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:7:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:8:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:9:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:10:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:11:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:12:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:14:31 Unresolved reference 'darkColorScheme'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:20:32 Unresolved reference 'lightColorScheme'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:36:2 Unresolved reference 'Composable'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:38:26 Unresolved reference 'isSystemInDarkTheme'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:41:15 Unresolved reference 'Composable'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:45:27 Unresolved reference 'LocalContext'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:46:28 Unresolved reference 'dynamicDarkColorScheme'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:46:65 Unresolved reference 'dynamicLightColorScheme'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Theme.kt:53:5 Unresolved reference 'MaterialTheme'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:3:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:4:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:5:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:6:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:7:17 Unresolved reference 'compose'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:10:18 Unresolved reference 'Typography'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:11:17 Unresolved reference 'TextStyle'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:12:22 Unresolved reference 'FontFamily'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:13:22 Unresolved reference 'FontWeight'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:14:23 Unresolved reference 'sp'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:15:25 Unresolved reference 'sp'.
-e: file:///C:/Users/User/AndroidStudioProjects/MyApplication15/app/src/main/java/com/example/myapplication/ui/theme/Type.kt:16:29 Unresolved reference 'sp'.
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MyApplicationTheme {
+                TelegramChatApp()
+            }
+        }
+    }
+}
 
-FAILURE: Build failed with an exception.
+// Модель данных для чата
+data class Chat(
+    val id: Int,
+    val name: String,
+    val lastMessage: String,
+    val time: String,
+    val unreadCount: Int = 0,
+    val isOnline: Boolean = false,
+    val avatarColor: Color
+)
 
-* What went wrong:
-Execution failed for task ':app:compileDebugKotlin'.
-> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
-   > Compilation error. See log for more details
+// Модель данных для сообщения
+data class Message(
+    val id: Int,
+    val text: String,
+    val time: String,
+    val isFromMe: Boolean
+)
 
-* Try:
-> Run with --info or --debug option to get more log output.
-> Run with --scan to get full insights.
-> Get more help at https://help.gradle.org.
+// Пункты меню боковой панели
+data class DrawerMenuItem(
+    val icon: ImageVector,
+    val title: String
+)
 
-* Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:compileDebugKotlin'.
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:130)
-	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:293)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:128)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
-	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
-	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
-	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
-	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
-	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
-	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
-	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
-Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
-	at org.gradle.workers.internal.DefaultWorkerExecutor$WorkItemExecution.waitForCompletion(DefaultWorkerExecutor.java:287)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$2(DefaultAsyncWorkTracker.java:130)
-	at org.gradle.internal.Factories$1.create(Factories.java:31)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:339)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:322)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLock(DefaultWorkerLeaseService.java:327)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:126)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:92)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForAll(DefaultAsyncWorkTracker.java:78)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForCompletion(DefaultAsyncWorkTracker.java:66)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:252)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:29)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:26)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:47)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:229)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:212)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:195)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:162)
-	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:105)
-	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:44)
-	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:59)
-	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:56)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:56)
-	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:44)
-	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:42)
-	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:75)
-	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
-	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:50)
-	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:28)
-	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:67)
-	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:37)
-	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:61)
-	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:26)
-	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:69)
-	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:46)
-	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:40)
-	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:29)
-	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:189)
-	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$1(BuildCacheStep.java:75)
-	at org.gradle.internal.Either$Right.fold(Either.java:175)
-	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:62)
-	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:73)
-	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:48)
-	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:46)
-	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:35)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
-	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingStateStep.java:49)
-	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingStateStep.java:27)
-	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:71)
-	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:39)
-	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:65)
-	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:105)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:54)
-	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:64)
-	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:43)
-	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.executeWithNonEmptySources(AbstractSkipEmptyWorkStep.java:125)
-	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:61)
-	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:36)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:36)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:23)
-	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:75)
-	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:41)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$execute$0(AssignMutableWorkspaceStep.java:35)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:289)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:31)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:22)
-	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
-	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:48)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:35)
-	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:61)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:127)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
-	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
-	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
-	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
-	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
-	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
-	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
-	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
-Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
-	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
-	at org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork.run(GradleKotlinCompilerWork.kt:119)
-	at org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction.execute(GradleCompilerRunnerWithWorkers.kt:76)
-	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:63)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:66)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:62)
-	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:100)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:62)
-	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
-	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:59)
-	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:174)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:195)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:128)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:170)
-	at org.gradle.internal.Factories$1.create(Factories.java:31)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:267)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:131)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:136)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:165)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:134)
-	... 2 more
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TelegramChatApp() {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var selectedChat by remember { mutableStateOf<Chat?>(null) }
+    
+    // Список чатов
+    val chats = remember {
+        listOf(
+            Chat(1, "Алексей Петров", "Привет! Как дела?", "12:45", 2, true, Color(0xFF5C6BC0)),
+            Chat(2, "Команда проекта", "Встреча в 15:00", "11:30", 5, false, Color(0xFF26A69A)),
+            Chat(3, "Мария Иванова", "Спасибо за помощь!", "10:15", 0, true, Color(0xFFEF5350)),
+            Chat(4, "Техподдержка", "Ваш запрос обработан", "Вчера", 0, false, Color(0xFFFF7043)),
+            Chat(5, "Дмитрий Сидоров", "Документы отправил", "Вчера", 1, false, Color(0xFF42A5F5)),
+            Chat(6, "Анна Козлова", "Отличная идея!", "Пн", 0, true, Color(0xFFAB47BC)),
+            Chat(7, "Работа", "Отчет готов к отправке", "Пн", 3, false, Color(0xFF66BB6A)),
+            Chat(8, "Семья", "Фото с праздника 📷", "Вс", 0, false, Color(0xFFFFCA28))
+        )
+    }
+    
+    // Пункты меню
+    val menuItems = listOf(
+        DrawerMenuItem(Icons.Filled.Person, "Мой профиль"),
+        DrawerMenuItem(Icons.Filled.Group, "Новая группа"),
+        DrawerMenuItem(Icons.Filled.Call, "Звонки"),
+        DrawerMenuItem(Icons.Filled.Bookmark, "Избранное"),
+        DrawerMenuItem(Icons.Filled.Settings, "Настройки"),
+        DrawerMenuItem(Icons.Filled.Help, "Помощь")
+    )
+    
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                modifier = Modifier.width(300.dp),
+                drawerContainerColor = Color(0xFF1E1E2E)
+            ) {
+                DrawerContent(menuItems)
+            }
+        }
+    ) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            // Список чатов слева
+            ChatListPanel(
+                chats = chats,
+                selectedChat = selectedChat,
+                onChatSelected = { selectedChat = it },
+                onMenuClick = { scope.launch { drawerState.open() } },
+                modifier = Modifier.weight(0.35f)
+            )
+            
+            // Экран чата справа
+            if (selectedChat != null) {
+                ChatScreen(
+                    chat = selectedChat!!,
+                    modifier = Modifier.weight(0.65f)
+                )
+            } else {
+                EmptyChatScreen(modifier = Modifier.weight(0.65f))
+            }
+        }
+    }
+}
+
+@Composable
+fun DrawerContent(menuItems: List<DrawerMenuItem>) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Шапка с профилем
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .background(Color(0xFF5B8DEF))
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.align(Alignment.BottomStart)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF3D5AFE)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "ИП",
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Иван Петров",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "+7 999 123-45-67",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Пункты меню
+        menuItems.forEach { item ->
+            NavigationDrawerItem(
+                icon = { Icon(item.icon, contentDescription = null, tint = Color.White) },
+                label = { Text(item.title, color = Color.White) },
+                selected = false,
+                onClick = { },
+                colors = NavigationDrawerItemDefaults.colors(
+                    unselectedContainerColor = Color.Transparent
+                ),
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // Версия приложения
+        Text(
+            text = "Telegram Clone v1.0",
+            color = Color.Gray,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatListPanel(
+    chats: List<Chat>,
+    selectedChat: Chat?,
+    onChatSelected: (Chat) -> Unit,
+    onMenuClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .background(Color(0xFF17212B))
+    ) {
+        // Верхняя панель
+        TopAppBar(
+            title = {
+                Text(
+                    "Telegram",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            navigationIcon = {
+                IconButton(onClick = onMenuClick) {
+                    Icon(
+                        Icons.Filled.Menu,
+                        contentDescription = "Menu",
+                        tint = Color.White
+                    )
+                }
+            },
+            actions = {
+                IconButton(onClick = { }) {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = "Search",
+                        tint = Color.White
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color(0xFF232E3C)
+            )
+        )
+        
+        // Список чатов
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(chats) { chat ->
+                ChatListItem(
+                    chat = chat,
+                    isSelected = chat == selectedChat,
+                    onClick = { onChatSelected(chat) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatListItem(
+    chat: Chat,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (isSelected) Color(0xFF2B5278) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Аватар
+        Box(contentAlignment = Alignment.BottomEnd) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(chat.avatarColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = chat.name.take(2).uppercase(),
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            if (chat.isOnline) {
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF17212B))
+                        .padding(2.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(Color(0xFF4CAF50))
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.width(12.dp))
+        
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = chat.name,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = chat.time,
+                    color = if (chat.unreadCount > 0) Color(0xFF5B8DEF) else Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = chat.lastMessage,
+                    color = Color.Gray,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (chat.unreadCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF5B8DEF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = chat.unreadCount.toString(),
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatScreen(
+    chat: Chat,
+    modifier: Modifier = Modifier
+) {
+    val messages = remember {
+        listOf(
+            Message(1, "Привет! Как дела?", "12:30", false),
+            Message(2, "Привет! Все отлично, спасибо!", "12:32", true),
+            Message(3, "Что нового?", "12:33", false),
+            Message(4, "Работаю над новым проектом. Очень интересно!", "12:35", true),
+            Message(5, "Звучит здорово! Расскажи подробнее", "12:40", false),
+            Message(6, "Это приложение-мессенджер в стиле Telegram 😊", "12:42", true),
+            Message(7, "Вау, круто! Покажешь когда закончишь?", "12:45", false)
+        )
+    }
+    
+    var messageText by remember { mutableStateOf("") }
+    
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .background(Color(0xFF0E1621))
+    ) {
+        // Шапка чата
+        TopAppBar(
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(chat.avatarColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = chat.name.take(2).uppercase(),
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = chat.name,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = if (chat.isOnline) "в сети" else "был(а) недавно",
+                            color = if (chat.isOnline) Color(0xFF4CAF50) else Color.Gray,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            },
+            actions = {
+                IconButton(onClick = { }) {
+                    Icon(Icons.Filled.Call, contentDescription = "Call", tint = Color.White)
+                }
+                IconButton(onClick = { }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = Color.White)
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color(0xFF17212B)
+            )
+        )
+        
+        // Сообщения
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            reverseLayout = true
+        ) {
+            items(messages.reversed()) { message ->
+                MessageBubble(message = message)
+            }
+        }
+        
+        // Поле ввода
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF17212B))
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { }) {
+                Icon(Icons.Filled.AttachFile, contentDescription = "Attach", tint = Color.Gray)
+            }
+            
+            TextField(
+                value = messageText,
+                onValueChange = { messageText = it },
+                placeholder = { Text("Сообщение", color = Color.Gray) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF242F3D),
+                    unfocusedContainerColor = Color(0xFF242F3D),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color(0xFF5B8DEF),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+            )
+            
+            IconButton(onClick = { }) {
+                Icon(Icons.Filled.EmojiEmotions, contentDescription = "Emoji", tint = Color.Gray)
+            }
+            
+            IconButton(onClick = { }) {
+                Icon(
+                    if (messageText.isNotEmpty()) Icons.Filled.Send else Icons.Filled.Mic,
+                    contentDescription = "Send",
+                    tint = Color(0xFF5B8DEF)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun MessageBubble(message: Message) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        contentAlignment = if (message.isFromMe) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .clip(RoundedCornerShape(
+                    topStart = 16.dp,
+                    topEnd = 16.dp,
+                    bottomStart = if (message.isFromMe) 16.dp else 4.dp,
+                    bottomEnd = if (message.isFromMe) 4.dp else 16.dp
+                ))
+                .background(
+                    if (message.isFromMe) Color(0xFF2B5278) else Color(0xFF182533)
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Column {
+                Text(
+                    text = message.text,
+                    color = Color.White,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = message.time,
+                    color = Color.Gray,
+                    fontSize = 11.sp,
+                    modifier = Modifier.align(Alignment.End)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyChatScreen(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .background(Color(0xFF0E1621)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                Icons.Filled.Chat,
+                contentDescription = null,
+                tint = Color.Gray,
+                modifier = Modifier.size(80.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Выберите чат",
+                color = Color.Gray,
+                fontSize = 18.sp
+            )
+            Text(
+                text = "чтобы начать общение",
+                color = Color.Gray.copy(alpha = 0.7f),
+                fontSize = 14.sp
+            )
+        }
+    }
+}
+package com.example.myapplication.ui.theme
+
+import android.app.Activity
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+
+val TelegramBlue = Color(0xFF5B8DEF)
+val TelegramDarkBg = Color(0xFF17212B)
+val TelegramDarkSurface = Color(0xFF232E3C)
+
+private val DarkColorScheme = darkColorScheme(
+    primary = TelegramBlue,
+    onPrimary = Color.White,
+    secondary = Color(0xFF4CAF50),
+    background = TelegramDarkBg,
+    surface = TelegramDarkSurface,
+    onBackground = Color.White,
+    onSurface = Color.White
+)
+
+@Composable
+fun MyApplicationTheme(
+    content: @Composable () -> Unit
+) {
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = TelegramDarkSurface.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+        }
+    }
+
+    MaterialTheme(
+        colorScheme = DarkColorScheme,
+        content = content
+    )
+}
 
 
-BUILD FAILED in 9s
-28 actionable tasks: 13 executed, 15 up-to-date
+
+		
