@@ -1,89 +1,631 @@
-import sqlite3
-import os
-import shutil
+package com.example.myapplication
 
-CORRUPTED_DB = 'bot_database_corrupted_20260219_213016.db'
-NEW_DB = 'bot_database.db'
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
 
-def recover():
-    print("🔧 Начало восстановления...")
-    
-    # 1. Если есть старая база - удаляем её
-    if os.path.exists(NEW_DB):
-        os.remove(NEW_DB)
-        print(f"🗑️ Удалена старая {NEW_DB}")
-    
-    # 2. Создаём чистую базу
-    conn = sqlite3.connect(NEW_DB)
-    cursor = conn.cursor()
-    cursor.execute("""CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        first_name TEXT,
-        last_name TEXT,
-        password TEXT,
-        is_logged_in INTEGER DEFAULT 0,
-        user_group TEXT DEFAULT '',
-        group_id INTEGER DEFAULT 0
-    )""")
-    conn.commit()
-    print("✅ Создана чистая база данных")
-    
-    # 3. Пытаемся вытащить данные из битой копии
-    if not os.path.exists(CORRUPTED_DB):
-        print(f"❌ Файл {CORRUPTED_DB} не найден!")
-        conn.close()
-        return
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MyApplicationTheme {
+                TelegramChatApp()
+            }
+        }
+    }
+}
 
-    data = []
-    try:
-        # Пробуем прочитать напрямую с игнорированием ошибок
-        conn_backup = sqlite3.connect(CORRUPTED_DB)
-        conn_backup.execute("PRAGMA journal_mode=OFF")
-        conn_backup.execute("PRAGMA ignore_check_constraints=ON")
-        cur = conn_backup.cursor()
-        
-        # Читаем по одной записи, чтобы не упасть на ошибке
-        try:
-            cur.execute("SELECT user_id, first_name, last_name, password, is_logged_in, user_group, group_id FROM users")
-            data = cur.fetchall()
-            print(f"📦 Извлечено записей: {len(data)}")
-        except sqlite3.DatabaseError as e:
-            print(f"⚠️ Ошибка чтения: {e}")
-            print("Пытаемся альтернативный метод...")
-            # Если не вышло - пробуем читать по ID (если они известны)
-            # Для простоты - пробуем другой подход
-            pass
-        conn_backup.close()
-    except Exception as e:
-        print(f"❌ Не удалось открыть резервную копию: {e}")
-    
-    # 4. Записываем данные в новую базу
-    if data:
-        for row in data:
-            try:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO users 
-                    (user_id, first_name, last_name, password, is_logged_in, user_group, group_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, row)
-            except Exception as e:
-                print(f"⚠️ Пропущена запись: {e}")
-        conn.commit()
-        print("✅ Данные успешно записаны!")
-    else:
-        print("⚠️ Данные не найдены в резервной копии.")
-    
-    conn.close()
-    
-    # 5. Проверка
-    conn_check = sqlite3.connect(NEW_DB)
-    cur_check = conn_check.cursor()
-    cur_check.execute("SELECT COUNT(*) FROM users")
-    count = cur_check.fetchone()[0]
-    conn_check.close()
-    
-    print(f"📊 Итого в базе: {count} пользователей")
-    print("🚀 ГОТОВО. Теперь запускай бота (112.py)")
+// Модель данных для чата
+data class Chat(
+    val id: Int,
+    val name: String,
+    val lastMessage: String,
+    val time: String,
+    val unreadCount: Int = 0,
+    val isOnline: Boolean = false,
+    val avatarColor: Color
+)
 
-if __name__ == "__main__":
-    recover()
+// Модель данных для сообщения
+data class Message(
+    val id: Int,
+    val text: String,
+    val time: String,
+    val isFromMe: Boolean
+)
+
+// Пункты меню боковой панели
+data class DrawerMenuItem(
+    val icon: ImageVector,
+    val title: String
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TelegramChatApp() {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var selectedChat by remember { mutableStateOf<Chat?>(null) }
+
+    // Список чатов
+    val chats = remember {
+        listOf(
+            Chat(1, "Алексей Петров", "Привет! Как дела?", "12:45", 2, true, Color(0xFF5C6BC0)),
+            Chat(2, "Команда проекта", "Встреча в 15:00", "11:30", 5, false, Color(0xFF26A69A)),
+            Chat(3, "Мария Иванова", "Спасибо за помощь!", "10:15", 0, true, Color(0xFFEF5350)),
+            Chat(4, "Техподдержка", "Ваш запрос обработан", "Вчера", 0, false, Color(0xFFFF7043)),
+            Chat(5, "Дмитрий Сидоров", "Документы отправил", "Вчера", 1, false, Color(0xFF42A5F5)),
+            Chat(6, "Анна Козлова", "Отличная идея!", "Пн", 0, true, Color(0xFFAB47BC)),
+            Chat(7, "Работа", "Отчет готов к отправке", "Пн", 3, false, Color(0xFF66BB6A)),
+            Chat(8, "Семья", "Фото с праздника 📷", "Вс", 0, false, Color(0xFFFFCA28))
+        )
+    }
+
+    // Пункты меню
+    val menuItems = listOf(
+        DrawerMenuItem(Icons.Filled.Person, "Мой профиль"),
+        DrawerMenuItem(Icons.Filled.Group, "Новая группа"),
+        DrawerMenuItem(Icons.Filled.Call, "Звонки"),
+        DrawerMenuItem(Icons.Filled.Bookmark, "Избранное"),
+        DrawerMenuItem(Icons.Filled.Settings, "Настройки"),
+        DrawerMenuItem(Icons.Filled.Help, "Помощь")
+    )
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                modifier = Modifier.width(300.dp),
+                drawerContainerColor = Color(0xFF1E1E2E)
+            ) {
+                DrawerContent(menuItems)
+            }
+        }
+    ) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            // Список чатов слева
+            ChatListPanel(
+                chats = chats,
+                selectedChat = selectedChat,
+                onChatSelected = { selectedChat = it },
+                onMenuClick = { scope.launch { drawerState.open() } },
+                modifier = Modifier.weight(0.35f)
+            )
+
+            // Экран чата справа
+            if (selectedChat != null) {
+                ChatScreen(
+                    chat = selectedChat!!,
+                    modifier = Modifier.weight(0.65f)
+                )
+            } else {
+                EmptyChatScreen(modifier = Modifier.weight(0.65f))
+            }
+        }
+    }
+}
+
+@Composable
+fun DrawerContent(menuItems: List<DrawerMenuItem>) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Шапка с профилем
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .background(Color(0xFF5B8DEF))
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.align(Alignment.BottomStart)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF3D5AFE)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "ИП",
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Иван Петров",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "+7 999 123-45-67",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Пункты меню
+        menuItems.forEach { item ->
+            NavigationDrawerItem(
+                icon = { Icon(item.icon, contentDescription = null, tint = Color.White) },
+                label = { Text(item.title, color = Color.White) },
+                selected = false,
+                onClick = { },
+                colors = NavigationDrawerItemDefaults.colors(
+                    unselectedContainerColor = Color.Transparent
+                ),
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Версия приложения
+        Text(
+            text = "Telegram Clone v1.0",
+            color = Color.Gray,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatListPanel(
+    chats: List<Chat>,
+    selectedChat: Chat?,
+    onChatSelected: (Chat) -> Unit,
+    onMenuClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .background(Color(0xFF17212B))
+    ) {
+        // Верхняя панель
+        TopAppBar(
+            title = {
+                Text(
+                    "Telegram",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            navigationIcon = {
+                IconButton(onClick = onMenuClick) {
+                    Icon(
+                        Icons.Filled.Menu,
+                        contentDescription = "Menu",
+                        tint = Color.White
+                    )
+                }
+            },
+            actions = {
+                IconButton(onClick = { }) {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = "Search",
+                        tint = Color.White
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color(0xFF232E3C)
+            )
+        )
+
+        // Список чатов
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(chats) { chat ->
+                ChatListItem(
+                    chat = chat,
+                    isSelected = chat == selectedChat,
+                    onClick = { onChatSelected(chat) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatListItem(
+    chat: Chat,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (isSelected) Color(0xFF2B5278) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Аватар
+        Box(contentAlignment = Alignment.BottomEnd) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(chat.avatarColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = chat.name.take(2).uppercase(),
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            if (chat.isOnline) {
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF17212B))
+                        .padding(2.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(Color(0xFF4CAF50))
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = chat.name,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = chat.time,
+                    color = if (chat.unreadCount > 0) Color(0xFF5B8DEF) else Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = chat.lastMessage,
+                    color = Color.Gray,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (chat.unreadCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF5B8DEF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = chat.unreadCount.toString(),
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatScreen(
+    chat: Chat,
+    modifier: Modifier = Modifier
+) {
+    val messages = remember {
+        listOf(
+            Message(1, "Привет! Как дела?", "12:30", false),
+            Message(2, "Привет! Все отлично, спасибо!", "12:32", true),
+            Message(3, "Что нового?", "12:33", false),
+            Message(4, "Работаю над новым проектом. Очень интересно!", "12:35", true),
+            Message(5, "Звучит здорово! Расскажи подробнее", "12:40", false),
+            Message(6, "Это приложение-мессенджер в стиле Telegram 😊", "12:42", true),
+            Message(7, "Вау, круто! Покажешь когда закончишь?", "12:45", false)
+        )
+    }
+
+    var messageText by remember { mutableStateOf("") }
+
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .background(Color(0xFF0E1621))
+    ) {
+        // Шапка чата
+        TopAppBar(
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(chat.avatarColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = chat.name.take(2).uppercase(),
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = chat.name,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = if (chat.isOnline) "в сети" else "был(а) недавно",
+                            color = if (chat.isOnline) Color(0xFF4CAF50) else Color.Gray,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            },
+            actions = {
+                IconButton(onClick = { }) {
+                    Icon(Icons.Filled.Call, contentDescription = "Call", tint = Color.White)
+                }
+                IconButton(onClick = { }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = Color.White)
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color(0xFF17212B)
+            )
+        )
+
+        // Сообщения
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            reverseLayout = true
+        ) {
+            items(messages.reversed()) { message ->
+                MessageBubble(message = message)
+            }
+        }
+
+        // Поле ввода
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF17212B))
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { }) {
+                Icon(Icons.Filled.AttachFile, contentDescription = "Attach", tint = Color.Gray)
+            }
+
+            TextField(
+                value = messageText,
+                onValueChange = { messageText = it },
+                placeholder = { Text("Сообщение", color = Color.Gray) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF242F3D),
+                    unfocusedContainerColor = Color(0xFF242F3D),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color(0xFF5B8DEF),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+            )
+
+            IconButton(onClick = { }) {
+                Icon(Icons.Filled.EmojiEmotions, contentDescription = "Emoji", tint = Color.Gray)
+            }
+
+            IconButton(onClick = { }) {
+                Icon(
+                    if (messageText.isNotEmpty()) Icons.Filled.Send else Icons.Filled.Mic,
+                    contentDescription = "Send",
+                    tint = Color(0xFF5B8DEF)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun MessageBubble(message: Message) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        contentAlignment = if (message.isFromMe) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .clip(RoundedCornerShape(
+                    topStart = 16.dp,
+                    topEnd = 16.dp,
+                    bottomStart = if (message.isFromMe) 16.dp else 4.dp,
+                    bottomEnd = if (message.isFromMe) 4.dp else 16.dp
+                ))
+                .background(
+                    if (message.isFromMe) Color(0xFF2B5278) else Color(0xFF182533)
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Column {
+                Text(
+                    text = message.text,
+                    color = Color.White,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = message.time,
+                    color = Color.Gray,
+                    fontSize = 11.sp,
+                    modifier = Modifier.align(Alignment.End)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyChatScreen(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .background(Color(0xFF0E1621)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                Icons.Filled.Chat,
+                contentDescription = null,
+                tint = Color.Gray,
+                modifier = Modifier.size(80.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Выберите чат",
+                color = Color.Gray,
+                fontSize = 18.sp
+            )
+            Text(
+                text = "чтобы начать общение",
+                color = Color.Gray.copy(alpha = 0.7f),
+                fontSize = 14.sp
+            )
+        }
+    }
+}
+
+package com.example.myapplication.ui.theme
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+// Set of Material typography styles to start with
+val Typography = Typography(
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp
+    )
+    /* Other default text styles to override
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp
+    ),
+    labelSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
+    )
+    */
+)
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MyApplication"
+        tools:targetApi="31">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.MyApplication">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
