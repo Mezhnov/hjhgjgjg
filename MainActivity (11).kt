@@ -2608,3 +2608,269 @@ fun CountryItem(
         thickness = 0.5.dp
     )
 }
+package com.example.myapplication.ui.theme
+
+import android.app.Activity
+import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+
+// Messenger цветовая палитра - Светлая тема
+private val MessengerLightColorScheme = lightColorScheme(
+    primary = Color(0xFF0088CC),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFE3F2FD),
+    onPrimaryContainer = Color(0xFF001F2A),
+
+    secondary = Color(0xFF229ED9),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE1F5FE),
+    onSecondaryContainer = Color(0xFF001F29),
+
+    tertiary = Color(0xFF54C7FC),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFB3E5FC),
+    onTertiaryContainer = Color(0xFF001F28),
+
+    error = Color(0xFFFDE8E7),
+    onError = Color.White,
+    errorContainer = Color(0xFFFFEBEE),
+    onErrorContainer = Color(0xFF410002),
+
+    background = Color(0xFFF7F8FA),
+    onBackground = Color(0xFF1D2733),
+
+    surface = Color.White,
+    onSurface = Color(0xFF1D2733),
+    surfaceVariant = Color(0xFFF0F2F5),
+    onSurfaceVariant = Color(0xFF707579),
+
+    outline = Color(0xFFE7E8EA),
+    outlineVariant = Color(0xFFCAC4D0),
+
+    scrim = Color(0x80000000),
+    inverseSurface = Color(0xFF1D2733),
+    inverseOnSurface = Color(0xFFF7F8FA),
+    inversePrimary = Color(0xFF54C7FC)
+)
+
+// Messenger цветовая палитра - Тёмная тема
+private val MessengerDarkColorScheme = darkColorScheme(
+    primary = Color(0xFF54C7FC),
+    onPrimary = Color(0xFF003547),
+    primaryContainer = Color(0xFF004D67),
+    onPrimaryContainer = Color(0xFFB3E5FC),
+
+    secondary = Color(0xFF64B5F6),
+    onSecondary = Color(0xFF003548),
+    secondaryContainer = Color(0xFF004D68),
+    onSecondaryContainer = Color(0xFFB3E5FC),
+
+    tertiary = Color(0xFF81D4FA),
+    onTertiary = Color(0xFF003546),
+    tertiaryContainer = Color(0xFF004D65),
+    onTertiaryContainer = Color(0xFFB3E5FC),
+
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
+
+    background = Color(0xFF17212B),
+    onBackground = Color(0xFFE7E8EA),
+
+    surface = Color(0xFF1E2C3A),
+    onSurface = Color(0xFFE7E8EA),
+    surfaceVariant = Color(0xFF242F3D),
+    onSurfaceVariant = Color(0xFF9CA3AF),
+
+    outline = Color(0xFF303940),
+    outlineVariant = Color(0xFF404952),
+
+    scrim = Color(0x80000000),
+    inverseSurface = Color(0xFFE7E8EA),
+    inverseOnSurface = Color(0xFF17212B),
+    inversePrimary = Color(0xFF0088CC)
+)
+
+@Composable
+fun MyApplicationTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
+    val colorScheme = if (darkTheme) MessengerDarkColorScheme else MessengerLightColorScheme
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            // Устанавливаем цвет статус бара
+            window.statusBarColor = if (darkTheme) {
+                Color(0xFF17212B).toArgb()
+            } else {
+                Color(0xFFF7F8FA).toArgb()
+            }
+            // Устанавливаем стиль иконок статус бара
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+        }
+    }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        content = content
+    )
+}
+
+package com.example.myapplication.ui.theme
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+val Typography = Typography(
+    // Большой заголовок для "Ваш телефон", "Дата рождения" и т.д.
+    headlineLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 26.sp,
+        lineHeight = 34.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Заголовок среднего размера для диалогов и подзаголовков
+    headlineMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 22.sp,
+        lineHeight = 30.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Маленький заголовок для секций
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 18.sp,
+        lineHeight = 26.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Заголовок для карточек и списков
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 20.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Текст кнопок и важных элементов
+    titleMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.15.sp
+    ),
+
+    // Мелкие заголовки
+    titleSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
+    ),
+
+    // Основной текст - поля ввода, списки
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp
+    ),
+
+    // Вторичный текст - описания, подсказки
+    bodyMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.25.sp
+    ),
+
+    // Мелкий текст - примечания, счётчики
+    bodySmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.4.sp
+    ),
+
+    // Метки для полей ввода
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
+    ),
+
+    // Подписи к полям
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
+    ),
+
+    // Мелкие подписи
+    labelSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 10.sp,
+        lineHeight = 14.sp,
+        letterSpacing = 0.5.sp
+    ),
+
+    // Отображаемый крупный текст (для чисел кода)
+    displayLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 57.sp,
+        lineHeight = 64.sp,
+        letterSpacing = (-0.25).sp
+    ),
+
+    // Средний отображаемый текст
+    displayMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 45.sp,
+        lineHeight = 52.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Малый отображаемый текст
+    displaySmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 36.sp,
+        lineHeight = 44.sp,
+        letterSpacing = 0.sp
+    )
+)
