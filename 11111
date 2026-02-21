@@ -1,4 +1,2749 @@
-package com.example.probrowser import androidx.compose.foundation.lazy.grid.* import android.Manifest import android.annotation.SuppressLint import android.app.DownloadManager import android.content.ClipData import android.content.ClipboardManager import android.content.Context import android.content.Intent import android.graphics.Bitmap import android.net.Uri import android.os.Bundle import android.os.Environment import android.speech.RecognizerIntent import android.webkit.* import android.widget.LinearLayout import android.widget.Toast import androidx.activity.ComponentActivity import androidx.activity.compose.rememberLauncherForActivityResult import androidx.activity.compose.setContent import androidx.activity.result.contract.ActivityResultContracts import androidx.compose.animation.* import androidx.compose.foundation.* import androidx.compose.foundation.gestures.detectHorizontalDragGestures import androidx.compose.foundation.layout.* import androidx.compose.foundation.lazy.* import androidx.compose.foundation.shape.CircleShape import androidx.compose.foundation.shape.RoundedCornerShape import androidx.compose.foundation.text.KeyboardActions import androidx.compose.foundation.text.KeyboardOptions import androidx.compose.material.icons.Icons import androidx.compose.material.icons.filled.* import androidx.compose.material.icons.outlined.* import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.draw.clip import androidx.compose.ui.draw.shadow import androidx.compose.ui.graphics.Color import androidx.compose.ui.graphics.vector.ImageVector import androidx.compose.ui.input.pointer.pointerInput import androidx.compose.ui.platform.LocalContext import androidx.compose.ui.platform.LocalFocusManager import androidx.compose.ui.text.font.FontWeight import androidx.compose.ui.text.input.ImeAction import androidx.compose.ui.text.style.TextOverflow import androidx.compose.ui.unit.dp import androidx.compose.ui.unit.sp import androidx.compose.ui.viewinterop.AndroidView import androidx.compose.ui.zIndex import kotlinx.coroutines.launch import java.text.SimpleDateFormat import java.util.*  // ============== DATA CLASSES ==============  data class Tab(     val id: String = UUID.randomUUID().toString(),     var url: String = "https://www.google.com",     var title: String = "Новая вкладка",     var favicon: Bitmap? = null,     var isIncognito: Boolean = false,     var webView: WebView? = null )  data class HistoryItem(     val id: String = UUID.randomUUID().toString(),     val url: String,     val title: String,     val timestamp: Long = System.currentTimeMillis(),     val favicon: Bitmap? = null )  data class Bookmark(     val id: String = UUID.randomUUID().toString(),     val url: String,     val title: String,     val folder: String = "Общие",     val timestamp: Long = System.currentTimeMillis() )  data class DownloadItem(     val id: String = UUID.randomUUID().toString(),     val fileName: String,     val url: String,     val progress: Int = 0,     val status: DownloadStatus = DownloadStatus.DOWNLOADING )  enum class DownloadStatus { DOWNLOADING, COMPLETED, FAILED, PAUSED }  // ============== BROWSER STATE ==============  class BrowserState {     var tabs = mutableStateListOf<Tab>()     var currentTabIndex by mutableStateOf(0)     var history = mutableStateListOf<HistoryItem>()     var bookmarks = mutableStateListOf<Bookmark>()     var downloads = mutableStateListOf<DownloadItem>()      // Settings     var isDarkMode by mutableStateOf(false)     var isDesktopMode by mutableStateOf(false)     var isAdBlockEnabled by mutableStateOf(true)     var isJavaScriptEnabled by mutableStateOf(true)     var fontSize by mutableStateOf(100) // percentage     var searchEngine by mutableStateOf("Google")     var isDataSaverEnabled by mutableStateOf(false)      val currentTab: Tab?         get() = tabs.getOrNull(currentTabIndex)      init {         tabs.add(Tab())     }      fun addTab(isIncognito: Boolean = false) {         tabs.add(Tab(isIncognito = isIncognito))         currentTabIndex = tabs.size - 1     }      fun closeTab(index: Int) {         if (tabs.size > 1) {             tabs[index].webView?.destroy()             tabs.removeAt(index)             if (currentTabIndex >= tabs.size) {                 currentTabIndex = tabs.size - 1             }         }     }      fun addToHistory(url: String, title: String, favicon: Bitmap? = null) {         if (currentTab?.isIncognito == false) {             history.add(0, HistoryItem(url = url, title = title, favicon = favicon))             if (history.size > 1000) history.removeLast()         }     }      fun addBookmark(url: String, title: String) {         if (!bookmarks.any { it.url == url }) {             bookmarks.add(Bookmark(url = url, title = title))         }     }      fun isBookmarked(url: String): Boolean = bookmarks.any { it.url == url }      fun removeBookmark(url: String) {         bookmarks.removeAll { it.url == url }     } }  // ============== MAIN ACTIVITY ==============  class MainActivity : ComponentActivity() {     override fun onCreate(savedInstanceState: Bundle?) {         super.onCreate(savedInstanceState)         setContent {             val browserState = remember { BrowserState() }             ProBrowserTheme(darkTheme = browserState.isDarkMode) {                 Surface(                     modifier = Modifier.fillMaxSize(),                     color = MaterialTheme.colorScheme.background                 ) {                     ProBrowser(browserState)                 }             }         }     } }  // ============== THEME ==============  @Composable fun ProBrowserTheme(     darkTheme: Boolean = false,     content: @Composable () -> Unit ) {     val colorScheme = if (darkTheme) {         darkColorScheme(             primary = Color(0xFF8AB4F8),             secondary = Color(0xFF81C995),             background = Color(0xFF202124),             surface = Color(0xFF303134),             onPrimary = Color.Black,             onSecondary = Color.Black,             onBackground = Color.White,             onSurface = Color.White         )     } else {         lightColorScheme(             primary = Color(0xFF1A73E8),             secondary = Color(0xFF34A853),             background = Color.White,             surface = Color(0xFFF1F3F4),             onPrimary = Color.White,             onSecondary = Color.White,             onBackground = Color.Black,             onSurface = Color.Black         )     }      MaterialTheme(         colorScheme = colorScheme,         content = content     ) }  // ============== MAIN BROWSER COMPOSABLE ==============  @OptIn(ExperimentalMaterial3Api::class) @Composable fun ProBrowser(state: BrowserState) {     val context = LocalContext.current     val scope = rememberCoroutineScope()     val focusManager = LocalFocusManager.current      var url by remember { mutableStateOf("") }     var isLoading by remember { mutableStateOf(false) }     var loadProgress by remember { mutableStateOf(0) }     var canGoBack by remember { mutableStateOf(false) }     var canGoForward by remember { mutableStateOf(false) }     var pageTitle by remember { mutableStateOf("") }     var isSecure by remember { mutableStateOf(false) }      // UI States     var showMenu by remember { mutableStateOf(false) }     var showTabs by remember { mutableStateOf(false) }     var showHistory by remember { mutableStateOf(false) }     var showBookmarks by remember { mutableStateOf(false) }     var showDownloads by remember { mutableStateOf(false) }     var showSettings by remember { mutableStateOf(false) }     var showFindInPage by remember { mutableStateOf(false) }     var findQuery by remember { mutableStateOf("") }     var showShareSheet by remember { mutableStateOf(false) }      // Voice search     val voiceLauncher = rememberLauncherForActivityResult(         ActivityResultContracts.StartActivityForResult()     ) { result ->         val data = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)         data?.firstOrNull()?.let { query ->             url = query             state.currentTab?.webView?.loadUrl(getSearchUrl(query, state.searchEngine))         }     }      // Swipe gestures     var swipeOffset by remember { mutableStateOf(0f) }      Box(modifier = Modifier.fillMaxSize()) {         Column(modifier = Modifier.fillMaxSize()) {              // ===== TOP BAR =====             TopAppBar(state, url, isLoading, loadProgress, isSecure, canGoBack,                 onUrlChange = { url = it },                 onNavigate = { newUrl ->                     val finalUrl = processUrl(newUrl, state.searchEngine)                     state.currentTab?.webView?.loadUrl(finalUrl)                     focusManager.clearFocus()                 },                 onVoiceSearch = {                     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {                         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)                         putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())                         putExtra(RecognizerIntent.EXTRA_PROMPT, "Голосовой поиск")                     }                     voiceLauncher.launch(intent)                 },                 onShowTabs = { showTabs = true },                 onShowMenu = { showMenu = true }             )              // ===== FIND IN PAGE BAR =====             AnimatedVisibility(visible = showFindInPage) {                 FindInPageBar(                     query = findQuery,                     onQueryChange = {                         findQuery = it                         state.currentTab?.webView?.findAllAsync(it)                     },                     onNext = { state.currentTab?.webView?.findNext(true) },                     onPrevious = { state.currentTab?.webView?.findNext(false) },                     onClose = {                         showFindInPage = false                         state.currentTab?.webView?.clearMatches()                     }                 )             }              // ===== WEB VIEW =====             Box(                 modifier = Modifier                     .weight(1f)                     .pointerInput(Unit) {                         detectHorizontalDragGestures(                             onDragEnd = {                                 if (swipeOffset > 100 && canGoBack) {                                     state.currentTab?.webView?.goBack()                                 } else if (swipeOffset < -100 && canGoForward) {                                     state.currentTab?.webView?.goForward()                                 }                                 swipeOffset = 0f                             },                             onHorizontalDrag = { _, dragAmount ->                                 swipeOffset += dragAmount                             }                         )                     }             ) {                 state.currentTab?.let { tab ->                     WebViewContainer(                         tab = tab,                         state = state,                         onUrlChange = { url = it },                         onTitleChange = { pageTitle = it },                         onLoadingChange = { isLoading = it },                         onProgressChange = { loadProgress = it },                         onNavigationChange = { back, forward ->                             canGoBack = back                             canGoForward = forward                         },                         onSecureChange = { isSecure = it },                         context = context                     )                 }                  // Loading indicator                 if (isLoading) {                     LinearProgressIndicator(                         progress = loadProgress / 100f,                         modifier = Modifier                             .fillMaxWidth()                             .zIndex(10f),                         color = MaterialTheme.colorScheme.primary                     )                 }             }              // ===== BOTTOM BAR =====             BottomNavigationBar(                 canGoBack = canGoBack,                 canGoForward = canGoForward,                 isBookmarked = state.isBookmarked(state.currentTab?.url ?: ""),                 onBack = { state.currentTab?.webView?.goBack() },                 onForward = { state.currentTab?.webView?.goForward() },                 onHome = {                     state.currentTab?.webView?.loadUrl("https://www.google.com")                 },                 onBookmark = {                     val currentUrl = state.currentTab?.url ?: return@BottomNavigationBar                     if (state.isBookmarked(currentUrl)) {                         state.removeBookmark(currentUrl)                         Toast.makeText(context, "Закладка удалена", Toast.LENGTH_SHORT).show()                     } else {                         state.addBookmark(currentUrl, pageTitle)                         Toast.makeText(context, "Добавлено в закладки", Toast.LENGTH_SHORT).show()                     }                 },                 onTabs = { showTabs = true }             )         }          // ===== DIALOGS & SHEETS =====          // Main Menu         if (showMenu) {             MainMenuDialog(                 state = state,                 onDismiss = { showMenu = false },                 onNewTab = {                     state.addTab()                     showMenu = false                 },                 onIncognitoTab = {                     state.addTab(isIncognito = true)                     showMenu = false                 },                 onHistory = {                     showHistory = true                     showMenu = false                 },                 onBookmarks = {                     showBookmarks = true                     showMenu = false                 },                 onDownloads = {                     showDownloads = true                     showMenu = false                 },                 onFindInPage = {                     showFindInPage = true                     showMenu = false                 },                 onShare = {                     val sendIntent = Intent().apply {                         action = Intent.ACTION_SEND                         putExtra(Intent.EXTRA_TEXT, state.currentTab?.url)                         type = "text/plain"                     }                     context.startActivity(Intent.createChooser(sendIntent, "Поделиться"))                     showMenu = false                 },                 onDesktopMode = {                     state.isDesktopMode = !state.isDesktopMode                     state.currentTab?.webView?.settings?.apply {                         userAgentString = if (state.isDesktopMode) {                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"                         } else null                         useWideViewPort = state.isDesktopMode                     }                     state.currentTab?.webView?.reload()                 },                 onSettings = {                     showSettings = true                     showMenu = false                 },                 onReload = {                     state.currentTab?.webView?.reload()                     showMenu = false                 },                 context = context             )         }          // Tabs Sheet         if (showTabs) {             TabsSheet(                 state = state,                 onDismiss = { showTabs = false },                 onTabSelect = { index ->                     state.currentTabIndex = index                     showTabs = false                 },                 onTabClose = { index ->                     state.closeTab(index)                 },                 onNewTab = {                     state.addTab()                     showTabs = false                 }             )         }          // History Sheet         if (showHistory) {             HistorySheet(                 history = state.history,                 onDismiss = { showHistory = false },                 onItemClick = { item ->                     state.currentTab?.webView?.loadUrl(item.url)                     showHistory = false                 },                 onClearHistory = {                     state.history.clear()                 }             )         }          // Bookmarks Sheet         if (showBookmarks) {             BookmarksSheet(                 bookmarks = state.bookmarks,                 onDismiss = { showBookmarks = false },                 onItemClick = { bookmark ->                     state.currentTab?.webView?.loadUrl(bookmark.url)                     showBookmarks = false                 },                 onDelete = { bookmark ->                     state.bookmarks.remove(bookmark)                 }             )         }          // Downloads Sheet         if (showDownloads) {             DownloadsSheet(                 downloads = state.downloads,                 onDismiss = { showDownloads = false }             )         }          // Settings Sheet         if (showSettings) {             SettingsSheet(                 state = state,                 onDismiss = { showSettings = false }             )         }     } }  // ============== TOP APP BAR ==============  @OptIn(ExperimentalMaterial3Api::class) @Composable fun TopAppBar(     state: BrowserState,     url: String,     isLoading: Boolean,     progress: Int,     isSecure: Boolean,     canGoBack: Boolean,     onUrlChange: (String) -> Unit,     onNavigate: (String) -> Unit,     onVoiceSearch: () -> Unit,     onShowTabs: () -> Unit,     onShowMenu: () -> Unit ) {     val isIncognito = state.currentTab?.isIncognito == true      Surface(         modifier = Modifier.fillMaxWidth(),         color = if (isIncognito) Color(0xFF303134) else MaterialTheme.colorScheme.surface,         shadowElevation = 4.dp     ) {         Column {             Row(                 modifier = Modifier                     .fillMaxWidth()                     .padding(8.dp),                 verticalAlignment = Alignment.CenterVertically             ) {                 // Incognito indicator                 if (isIncognito) {                     Icon(                         imageVector = Icons.Default.VisibilityOff,                         contentDescription = "Incognito",                         tint = Color.Gray,                         modifier = Modifier                             .padding(end = 8.dp)                             .size(20.dp)                     )                 }                  // URL Bar                 Surface(                     modifier = Modifier                         .weight(1f)                         .height(44.dp),                     shape = RoundedCornerShape(22.dp),                     color = if (isIncognito) Color(0xFF202124) else MaterialTheme.colorScheme.surface                 ) {                     Row(                         modifier = Modifier                             .fillMaxSize()                             .padding(horizontal = 12.dp),                         verticalAlignment = Alignment.CenterVertically                     ) {                         // Security icon                         Icon(                             imageVector = if (isSecure) Icons.Default.Lock else Icons.Default.LockOpen,                             contentDescription = if (isSecure) "Secure" else "Not Secure",                             tint = if (isSecure) Color(0xFF34A853) else Color(0xFFEA4335),                             modifier = Modifier.size(16.dp)                         )                          Spacer(modifier = Modifier.width(8.dp))                          // URL TextField                         TextField(                             value = url,                             onValueChange = onUrlChange,                             modifier = Modifier.weight(1f),                             colors = TextFieldDefaults.colors(                                 focusedContainerColor = Color.Transparent,                                 unfocusedContainerColor = Color.Transparent,                                 focusedIndicatorColor = Color.Transparent,                                 unfocusedIndicatorColor = Color.Transparent                             ),                             textStyle = LocalTextStyle.current.copy(                                 fontSize = 14.sp,                                 color = if (isIncognito) Color.White else Color.Black                             ),                             placeholder = {                                 Text(                                     "Поиск или введите URL",                                     color = Color.Gray,                                     fontSize = 14.sp                                 )                             },                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),                             keyboardActions = KeyboardActions(onGo = { onNavigate(url) }),                             singleLine = true                         )                          // Voice search                         IconButton(                             onClick = onVoiceSearch,                             modifier = Modifier.size(32.dp)                         ) {                             Icon(                                 imageVector = Icons.Default.Mic,                                 contentDescription = "Voice Search",                                 tint = Color.Gray,                                 modifier = Modifier.size(20.dp)                             )                         }                     }                 }                  Spacer(modifier = Modifier.width(4.dp))                  // Tabs button                 BadgedBox(                     badge = {                         Badge(containerColor = MaterialTheme.colorScheme.primary) {                             Text(                                 state.tabs.size.toString(),                                 fontSize = 10.sp                             )                         }                     }                 ) {                     IconButton(onClick = onShowTabs) {                         Icon(                             imageVector = Icons.Default.Tab,                             contentDescription = "Tabs",                             tint = if (isIncognito) Color.White else MaterialTheme.colorScheme.onSurface                         )                     }                 }                  // Menu button                 IconButton(onClick = onShowMenu) {                     Icon(                         imageVector = Icons.Default.MoreVert,                         contentDescription = "Menu",                         tint = if (isIncognito) Color.White else MaterialTheme.colorScheme.onSurface                     )                 }             }         }     } }  // ============== BOTTOM NAVIGATION BAR ==============  @Composable fun BottomNavigationBar(     canGoBack: Boolean,     canGoForward: Boolean,     isBookmarked: Boolean,     onBack: () -> Unit,     onForward: () -> Unit,     onHome: () -> Unit,     onBookmark: () -> Unit,     onTabs: () -> Unit ) {     Surface(         modifier = Modifier.fillMaxWidth(),         color = MaterialTheme.colorScheme.surface,         shadowElevation = 8.dp     ) {         Row(             modifier = Modifier                 .fillMaxWidth()                 .padding(vertical = 4.dp),             horizontalArrangement = Arrangement.SpaceEvenly,             verticalAlignment = Alignment.CenterVertically         ) {             NavButton(Icons.Default.ArrowBack, "Back", canGoBack, onBack)             NavButton(Icons.Default.ArrowForward, "Forward", canGoForward, onForward)             NavButton(Icons.Default.Home, "Home", true, onHome)             NavButton(                 if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,                 "Bookmark",                 true,                 onBookmark             )             NavButton(Icons.Default.Layers, "Tabs", true, onTabs)         }     } }  @Composable fun NavButton(     icon: ImageVector,     description: String,     enabled: Boolean,     onClick: () -> Unit ) {     IconButton(onClick = onClick, enabled = enabled) {         Icon(             imageVector = icon,             contentDescription = description,             tint = if (enabled) MaterialTheme.colorScheme.onSurface else Color.LightGray,             modifier = Modifier.size(24.dp)         )     } }  // ============== FIND IN PAGE ==============  @Composable fun FindInPageBar(     query: String,     onQueryChange: (String) -> Unit,     onNext: () -> Unit,     onPrevious: () -> Unit,     onClose: () -> Unit ) {     Surface(         modifier = Modifier.fillMaxWidth(),         color = MaterialTheme.colorScheme.surface,         shadowElevation = 4.dp     ) {         Row(             modifier = Modifier                 .fillMaxWidth()                 .padding(8.dp),             verticalAlignment = Alignment.CenterVertically         ) {             TextField(                 value = query,                 onValueChange = onQueryChange,                 modifier = Modifier.weight(1f),                 placeholder = { Text("Найти на странице") },                 colors = TextFieldDefaults.colors(                     focusedContainerColor = Color.Transparent,                     unfocusedContainerColor = Color.Transparent                 ),                 singleLine = true             )             IconButton(onClick = onPrevious) {                 Icon(Icons.Default.KeyboardArrowUp, "Previous")             }             IconButton(onClick = onNext) {                 Icon(Icons.Default.KeyboardArrowDown, "Next")             }             IconButton(onClick = onClose) {                 Icon(Icons.Default.Close, "Close")             }         }     } }  // ============== WEB VIEW CONTAINER ==============  @SuppressLint("SetJavaScriptEnabled") @Composable fun WebViewContainer(     tab: Tab,     state: BrowserState,     onUrlChange: (String) -> Unit,     onTitleChange: (String) -> Unit,     onLoadingChange: (Boolean) -> Unit,     onProgressChange: (Int) -> Unit,     onNavigationChange: (Boolean, Boolean) -> Unit,     onSecureChange: (Boolean) -> Unit,     context: Context ) {     AndroidView(         factory = { ctx ->             WebView(ctx).apply {                 layoutParams = LinearLayout.LayoutParams(                     LinearLayout.LayoutParams.MATCH_PARENT,                     LinearLayout.LayoutParams.MATCH_PARENT                 )                  settings.apply {                     javaScriptEnabled = state.isJavaScriptEnabled                     domStorageEnabled = true                     loadWithOverviewMode = true                     useWideViewPort = true                     builtInZoomControls = true                     displayZoomControls = false                     setSupportZoom(true)                     cacheMode = if (state.isDataSaverEnabled)                         WebSettings.LOAD_CACHE_ELSE_NETWORK                     else                         WebSettings.LOAD_DEFAULT                     mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE                     allowFileAccess = true                     allowContentAccess = true                     databaseEnabled = true                     textZoom = state.fontSize                      // Desktop mode                     if (state.isDesktopMode) {                         userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"                     }                 }                  webViewClient = object : WebViewClient() {                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {                         onLoadingChange(true)                         url?.let {                             onUrlChange(it)                             onSecureChange(it.startsWith("https"))                         }                     }                      override fun onPageFinished(view: WebView?, url: String?) {                         onLoadingChange(false)                         onNavigationChange(view?.canGoBack() ?: false, view?.canGoForward() ?: false)                         url?.let {                             tab.url = it                             onUrlChange(it)                             state.addToHistory(it, view?.title ?: "")                         }                         view?.title?.let {                             tab.title = it                             onTitleChange(it)                         }                     }                      override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {                         val url = request?.url?.toString() ?: return false                          // Handle special URLs                         if (url.startsWith("tel:") || url.startsWith("mailto:") || url.startsWith("intent:")) {                             try {                                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))                             } catch (e: Exception) {                                 e.printStackTrace()                             }                             return true                         }                          return false                     }                      // Simple ad blocking                     override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {                         if (state.isAdBlockEnabled) {                             val url = request?.url?.toString() ?: ""                             val adDomains = listOf(                                 "doubleclick.net", "googlesyndication.com", "adservice",                                 "ads.", "tracking.", "analytics."                             )                             if (adDomains.any { url.contains(it) }) {                                 return WebResourceResponse("text/plain", "utf-8", null)                             }                         }                         return super.shouldInterceptRequest(view, request)                     }                 }                  webChromeClient = object : WebChromeClient() {                     override fun onProgressChanged(view: WebView?, newProgress: Int) {                         onProgressChange(newProgress)                     }                      override fun onReceivedTitle(view: WebView?, title: String?) {                         title?.let {                             tab.title = it                             onTitleChange(it)                         }                     }                      override fun onReceivedIcon(view: WebView?, icon: Bitmap?) {                         tab.favicon = icon                     }                 }                  // Download listener                 setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->                     val request = DownloadManager.Request(Uri.parse(url)).apply {                         setMimeType(mimetype)                         addRequestHeader("User-Agent", userAgent)                         setDescription("Downloading file...")                         setTitle(URLUtil.guessFileName(url, contentDisposition, mimetype))                         setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)                         setDestinationInExternalPublicDir(                             Environment.DIRECTORY_DOWNLOADS,                             URLUtil.guessFileName(url, contentDisposition, mimetype)                         )                     }                      val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager                     dm.enqueue(request)                      state.downloads.add(                         DownloadItem(                             fileName = URLUtil.guessFileName(url, contentDisposition, mimetype),                             url = url,                             status = DownloadStatus.DOWNLOADING                         )                     )                      Toast.makeText(context, "Загрузка начата", Toast.LENGTH_SHORT).show()                 }                  tab.webView = this                 loadUrl(tab.url)             }         },         update = { webView ->             webView.settings.javaScriptEnabled = state.isJavaScriptEnabled             webView.settings.textZoom = state.fontSize         },         modifier = Modifier.fillMaxSize()     ) }  // ============== DIALOGS & SHEETS ==============  @OptIn(ExperimentalMaterial3Api::class) @Composable fun MainMenuDialog(     state: BrowserState,     onDismiss: () -> Unit,     onNewTab: () -> Unit,     onIncognitoTab: () -> Unit,     onHistory: () -> Unit,     onBookmarks: () -> Unit,     onDownloads: () -> Unit,     onFindInPage: () -> Unit,     onShare: () -> Unit,     onDesktopMode: () -> Unit,     onSettings: () -> Unit,     onReload: () -> Unit,     context: Context ) {     ModalBottomSheet(         onDismissRequest = onDismiss,         containerColor = MaterialTheme.colorScheme.surface     ) {         Column(             modifier = Modifier                 .fillMaxWidth()                 .padding(16.dp)         ) {             Text(                 "Меню",                 style = MaterialTheme.typography.titleLarge,                 fontWeight = FontWeight.Bold,                 modifier = Modifier.padding(bottom = 16.dp)             )              // Quick actions row             Row(                 modifier = Modifier.fillMaxWidth(),                 horizontalArrangement = Arrangement.SpaceEvenly             ) {                 QuickActionButton(Icons.Default.Add, "Новая\nвкладка", onNewTab)                 QuickActionButton(Icons.Default.VisibilityOff, "Инкогнито", onIncognitoTab)                 QuickActionButton(Icons.Default.Refresh, "Обновить", onReload)                 QuickActionButton(Icons.Default.Share, "Поделиться", onShare)             }              Spacer(modifier = Modifier.height(16.dp))             HorizontalDivider()             Spacer(modifier = Modifier.height(8.dp))              // Menu items             MenuItem(Icons.Default.History, "История", onHistory)             MenuItem(Icons.Default.Bookmarks, "Закладки", onBookmarks)             MenuItem(Icons.Default.Download, "Загрузки", onDownloads)             MenuItem(Icons.Default.Search, "Найти на странице", onFindInPage)              // Desktop mode toggle             Row(                 modifier = Modifier                     .fillMaxWidth()                     .clickable { onDesktopMode() }                     .padding(vertical = 12.dp),                 verticalAlignment = Alignment.CenterVertically             ) {                 Icon(                     Icons.Default.DesktopWindows,                     contentDescription = "Desktop Mode",                     modifier = Modifier.padding(end = 16.dp)                 )                 Text("Версия для ПК", modifier = Modifier.weight(1f))                 Switch(                     checked = state.isDesktopMode,                     onCheckedChange = { onDesktopMode() }                 )             }              MenuItem(Icons.Default.Settings, "Настройки", onSettings)              Spacer(modifier = Modifier.height(32.dp))         }     } }  @Composable fun QuickActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {     Column(         horizontalAlignment = Alignment.CenterHorizontally,         modifier = Modifier             .clip(RoundedCornerShape(8.dp))             .clickable { onClick() }             .padding(12.dp)     ) {         Surface(             shape = CircleShape,             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),             modifier = Modifier.size(48.dp)         ) {             Box(contentAlignment = Alignment.Center) {                 Icon(                     icon,                     contentDescription = label,                     tint = MaterialTheme.colorScheme.primary                 )             }         }         Spacer(modifier = Modifier.height(4.dp))         Text(             label.replace("\n", "\n"),             fontSize = 11.sp,             color = MaterialTheme.colorScheme.onSurface         )     } }  @Composable fun MenuItem(icon: ImageVector, title: String, onClick: () -> Unit) {     Row(         modifier = Modifier             .fillMaxWidth()             .clickable { onClick() }             .padding(vertical = 12.dp),         verticalAlignment = Alignment.CenterVertically     ) {         Icon(icon, contentDescription = title, modifier = Modifier.padding(end = 16.dp))         Text(title)     } }  // ============== TABS SHEET ==============  @OptIn(ExperimentalMaterial3Api::class) @Composable fun TabsSheet(     state: BrowserState,     onDismiss: () -> Unit,     onTabSelect: (Int) -> Unit,     onTabClose: (Int) -> Unit,     onNewTab: () -> Unit ) {     ModalBottomSheet(         onDismissRequest = onDismiss,         containerColor = MaterialTheme.colorScheme.surface     ) {         Column(             modifier = Modifier                 .fillMaxWidth()                 .fillMaxHeight(0.8f)         ) {             Row(                 modifier = Modifier                     .fillMaxWidth()                     .padding(16.dp),                 horizontalArrangement = Arrangement.SpaceBetween,                 verticalAlignment = Alignment.CenterVertically             ) {                 Text(                     "Вкладки (${state.tabs.size})",                     style = MaterialTheme.typography.titleLarge,                     fontWeight = FontWeight.Bold                 )                 FilledTonalButton(onClick = onNewTab) {                     Icon(Icons.Default.Add, "New Tab")                     Spacer(modifier = Modifier.width(4.dp))                     Text("Новая")                 }             }              LazyVerticalGrid(                 columns = GridCells.Fixed(2),                 contentPadding = PaddingValues(16.dp),                 horizontalArrangement = Arrangement.spacedBy(12.dp),                 verticalArrangement = Arrangement.spacedBy(12.dp)             ) {                 itemsIndexed(state.tabs) { index, tab ->                     TabCard(                         tab = tab,                         isSelected = index == state.currentTabIndex,                         onClick = { onTabSelect(index) },                         onClose = { onTabClose(index) }                     )                 }             }         }     } }  @Composable fun TabCard(     tab: Tab,     isSelected: Boolean,     onClick: () -> Unit,     onClose: () -> Unit ) {     Card(         modifier = Modifier             .fillMaxWidth()             .height(160.dp)             .clickable { onClick() },         shape = RoundedCornerShape(12.dp),         border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,         colors = CardDefaults.cardColors(             containerColor = if (tab.isIncognito) Color(0xFF303134) else MaterialTheme.colorScheme.surface         )     ) {         Box(modifier = Modifier.fillMaxSize()) {             Column(                 modifier = Modifier                     .fillMaxSize()                     .padding(12.dp)             ) {                 Row(                     modifier = Modifier.fillMaxWidth(),                     horizontalArrangement = Arrangement.SpaceBetween,                     verticalAlignment = Alignment.CenterVertically                 ) {                     if (tab.isIncognito) {                         Icon(                             Icons.Default.VisibilityOff,                             "Incognito",                             tint = Color.Gray,                             modifier = Modifier.size(16.dp)                         )                     }                     Spacer(modifier = Modifier.weight(1f))                     IconButton(                         onClick = onClose,                         modifier = Modifier.size(24.dp)                     ) {                         Icon(                             Icons.Default.Close,                             "Close",                             modifier = Modifier.size(16.dp),                             tint = if (tab.isIncognito) Color.Gray else MaterialTheme.colorScheme.onSurface                         )                     }                 }                  Spacer(modifier = Modifier.weight(1f))                  Text(                     tab.title,                     maxLines = 2,                     overflow = TextOverflow.Ellipsis,                     style = MaterialTheme.typography.bodyMedium,                     fontWeight = FontWeight.Medium,                     color = if (tab.isIncognito) Color.White else MaterialTheme.colorScheme.onSurface                 )                  Text(                     tab.url.removePrefix("https://").removePrefix("www.").take(30),                     maxLines = 1,                     overflow = TextOverflow.Ellipsis,                     style = MaterialTheme.typography.bodySmall,                     color = Color.Gray                 )             }         }     } }  // ============== HISTORY SHEET ==============  @OptIn(ExperimentalMaterial3Api::class) @Composable fun HistorySheet(     history: List<HistoryItem>,     onDismiss: () -> Unit,     onItemClick: (HistoryItem) -> Unit,     onClearHistory: () -> Unit ) {     val dateFormat = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }      ModalBottomSheet(         onDismissRequest = onDismiss,         containerColor = MaterialTheme.colorScheme.surface     ) {         Column(             modifier = Modifier                 .fillMaxWidth()                 .fillMaxHeight(0.8f)         ) {             Row(                 modifier = Modifier                     .fillMaxWidth()                     .padding(16.dp),                 horizontalArrangement = Arrangement.SpaceBetween,                 verticalAlignment = Alignment.CenterVertically             ) {                 Text(                     "История",                     style = MaterialTheme.typography.titleLarge,                     fontWeight = FontWeight.Bold                 )                 TextButton(onClick = onClearHistory) {                     Text("Очистить")                 }             }              if (history.isEmpty()) {                 Box(                     modifier = Modifier                         .fillMaxWidth()                         .padding(32.dp),                     contentAlignment = Alignment.Center                 ) {                     Column(horizontalAlignment = Alignment.CenterHorizontally) {                         Icon(                             Icons.Default.History,                             "Empty history",                             modifier = Modifier.size(64.dp),                             tint = Color.Gray                         )                         Spacer(modifier = Modifier.height(16.dp))                         Text("История пуста", color = Color.Gray)                     }                 }             } else {                 LazyColumn {                     items(history) { item ->                         ListItem(                             modifier = Modifier.clickable { onItemClick(item) },                             headlineContent = {                                 Text(                                     item.title.ifEmpty { item.url },                                     maxLines = 1,                                     overflow = TextOverflow.Ellipsis                                 )                             },                             supportingContent = {                                 Text(                                     item.url,                                     maxLines = 1,                                     overflow = TextOverflow.Ellipsis,                                     color = Color.Gray,                                     fontSize = 12.sp                                 )                             },                             trailingContent = {                                 Text(                                     dateFormat.format(Date(item.timestamp)),                                     fontSize = 11.sp,                                     color = Color.Gray                                 )                             },                             leadingContent = {                                 Icon(                                     Icons.Default.Public,                                     "Website",                                     tint = MaterialTheme.colorScheme.primary                                 )                             }                         )                     }                 }             }         }     } }  // ============== BOOKMARKS SHEET ==============  @OptIn(ExperimentalMaterial3Api::class) @Composable fun BookmarksSheet(     bookmarks: List<Bookmark>,     onDismiss: () -> Unit,     onItemClick: (Bookmark) -> Unit,     onDelete: (Bookmark) -> Unit ) {     ModalBottomSheet(         onDismissRequest = onDismiss,         containerColor = MaterialTheme.colorScheme.surface     ) {         Column(             modifier = Modifier                 .fillMaxWidth()                 .fillMaxHeight(0.8f)         ) {             Text(                 "Закладки",                 style = MaterialTheme.typography.titleLarge,                 fontWeight = FontWeight.Bold,                 modifier = Modifier.padding(16.dp)             )              if (bookmarks.isEmpty()) {                 Box(                     modifier = Modifier                         .fillMaxWidth()                         .padding(32.dp),                     contentAlignment = Alignment.Center                 ) {                     Column(horizontalAlignment = Alignment.CenterHorizontally) {                         Icon(                             Icons.Default.BookmarkBorder,                             "Empty bookmarks",                             modifier = Modifier.size(64.dp),                             tint = Color.Gray                         )                         Spacer(modifier = Modifier.height(16.dp))                         Text("Нет закладок", color = Color.Gray)                     }                 }             } else {                 LazyColumn {                     items(bookmarks) { bookmark ->                         ListItem(                             modifier = Modifier.clickable { onItemClick(bookmark) },                             headlineContent = {                                 Text(                                     bookmark.title,                                     maxLines = 1,                                     overflow = TextOverflow.Ellipsis                                 )                             },                             supportingContent = {                                 Text(                                     bookmark.url,                                     maxLines = 1,                                     overflow = TextOverflow.Ellipsis,                                     color = Color.Gray,                                     fontSize = 12.sp                                 )                             },                             leadingContent = {                                 Icon(                                     Icons.Default.Bookmark,                                     "Bookmark",                                     tint = MaterialTheme.colorScheme.primary                                 )                             },                             trailingContent = {                                 IconButton(onClick = { onDelete(bookmark) }) {                                     Icon(Icons.Default.Delete, "Delete", tint = Color.Gray)                                 }                             }                         )                     }                 }             }         }     } }  // ============== DOWNLOADS SHEET ==============  @OptIn(ExperimentalMaterial3Api::class) @Composable fun DownloadsSheet(     downloads: List<DownloadItem>,     onDismiss: () -> Unit ) {     ModalBottomSheet(         onDismissRequest = onDismiss,         containerColor = MaterialTheme.colorScheme.surface     ) {         Column(             modifier = Modifier                 .fillMaxWidth()                 .fillMaxHeight(0.6f)         ) {             Text(                 "Загрузки",                 style = MaterialTheme.typography.titleLarge,                 fontWeight = FontWeight.Bold,                 modifier = Modifier.padding(16.dp)             )              if (downloads.isEmpty()) {                 Box(                     modifier = Modifier                         .fillMaxWidth()                         .padding(32.dp),                     contentAlignment = Alignment.Center                 ) {                     Column(horizontalAlignment = Alignment.CenterHorizontally) {                         Icon(                             Icons.Default.Download,                             "Empty downloads",                             modifier = Modifier.size(64.dp),                             tint = Color.Gray                         )                         Spacer(modifier = Modifier.height(16.dp))                         Text("Нет загрузок", color = Color.Gray)                     }                 }             } else {                 LazyColumn {                     items(downloads) { download ->                         ListItem(                             headlineContent = { Text(download.fileName) },                             supportingContent = {                                 when (download.status) {                                     DownloadStatus.DOWNLOADING -> LinearProgressIndicator(                                         progress = download.progress / 100f,                                         modifier = Modifier.fillMaxWidth()                                     )                                     DownloadStatus.COMPLETED -> Text("Завершено", color = Color(0xFF34A853))                                     DownloadStatus.FAILED -> Text("Ошибка", color = Color(0xFFEA4335))                                     DownloadStatus.PAUSED -> Text("Пауза", color = Color(0xFFFBBC04))                                 }                             },                             leadingContent = {                                 Icon(                                     when (download.status) {                                         DownloadStatus.COMPLETED -> Icons.Default.CheckCircle                                         DownloadStatus.FAILED -> Icons.Default.Error                                         else -> Icons.Default.Download                                     },                                     "Download status",                                     tint = when (download.status) {                                         DownloadStatus.COMPLETED -> Color(0xFF34A853)                                         DownloadStatus.FAILED -> Color(0xFFEA4335)                                         else -> MaterialTheme.colorScheme.primary                                     }                                 )                             }                         )                     }                 }             }         }     } }  // ============== SETTINGS SHEET ==============  @OptIn(ExperimentalMaterial3Api::class) @Composable fun SettingsSheet(     state: BrowserState,     onDismiss: () -> Unit ) {     ModalBottomSheet(         onDismissRequest = onDismiss,         containerColor = MaterialTheme.colorScheme.surface     ) {         Column(             modifier = Modifier                 .fillMaxWidth()                 .fillMaxHeight(0.9f)                 .verticalScroll(rememberScrollState())                 .padding(16.dp)         ) {             Text(                 "Настройки",                 style = MaterialTheme.typography.titleLarge,                 fontWeight = FontWeight.Bold,                 modifier = Modifier.padding(bottom = 16.dp)             )              // Appearance section             Text(                 "Внешний вид",                 style = MaterialTheme.typography.titleMedium,                 color = MaterialTheme.colorScheme.primary,                 modifier = Modifier.padding(vertical = 8.dp)             )              SettingsToggle(                 title = "Тёмная тема",                 subtitle = "Включить тёмный режим",                 icon = Icons.Default.DarkMode,                 checked = state.isDarkMode,                 onCheckedChange = { state.isDarkMode = it }             )              // Font size             Column(modifier = Modifier.padding(vertical = 8.dp)) {                 Row(                     modifier = Modifier.fillMaxWidth(),                     horizontalArrangement = Arrangement.SpaceBetween                 ) {                     Text("Размер шрифта")                     Text("${state.fontSize}%")                 }                 Slider(                     value = state.fontSize.toFloat(),                     onValueChange = { state.fontSize = it.toInt() },                     valueRange = 50f..200f,                     steps = 14                 )             }              HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))              // Privacy section             Text(                 "Конфиденциальность",                 style = MaterialTheme.typography.titleMedium,                 color = MaterialTheme.colorScheme.primary,                 modifier = Modifier.padding(vertical = 8.dp)             )              SettingsToggle(                 title = "Блокировка рекламы",                 subtitle = "Блокировать рекламу и трекеры",                 icon = Icons.Default.Block,                 checked = state.isAdBlockEnabled,                 onCheckedChange = { state.isAdBlockEnabled = it }             )              SettingsToggle(                 title = "JavaScript",                 subtitle = "Разрешить выполнение JavaScript",                 icon = Icons.Default.Code,                 checked = state.isJavaScriptEnabled,                 onCheckedChange = { state.isJavaScriptEnabled = it }             )              HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))              // Data section             Text(                 "Данные",                 style = MaterialTheme.typography.titleMedium,                 color = MaterialTheme.colorScheme.primary,                 modifier = Modifier.padding(vertical = 8.dp)             )              SettingsToggle(                 title = "Экономия трафика",                 subtitle = "Использовать кэш для экономии данных",                 icon = Icons.Default.DataSaverOn,                 checked = state.isDataSaverEnabled,                 onCheckedChange = { state.isDataSaverEnabled = it }             )              // Search engine selector             var expanded by remember { mutableStateOf(false) }              Row(                 modifier = Modifier                     .fillMaxWidth()                     .clickable { expanded = true }                     .padding(vertical = 12.dp),                 horizontalArrangement = Arrangement.SpaceBetween,                 verticalAlignment = Alignment.CenterVertically             ) {                 Row(verticalAlignment = Alignment.CenterVertically) {                     Icon(                         Icons.Default.Search,                         "Search engine",                         modifier = Modifier.padding(end = 16.dp)                     )                     Column {                         Text("Поисковая система")                         Text(                             state.searchEngine,                             style = MaterialTheme.typography.bodySmall,                             color = Color.Gray                         )                     }                 }                 Icon(Icons.Default.ArrowDropDown, "Select")                  DropdownMenu(                     expanded = expanded,                     onDismissRequest = { expanded = false }                 ) {                     listOf("Google", "Яндекс", "DuckDuckGo", "Bing").forEach { engine ->                         DropdownMenuItem(                             text = { Text(engine) },                             onClick = {                                 state.searchEngine = engine                                 expanded = false                             }                         )                     }                 }             }              Spacer(modifier = Modifier.height(32.dp))              // Version info             Text(                 "ProBrowser v1.0.0",                 style = MaterialTheme.typography.bodySmall,                 color = Color.Gray,                 modifier = Modifier.align(Alignment.CenterHorizontally)             )              Spacer(modifier = Modifier.height(32.dp))         }     } }  @Composable fun SettingsToggle(     title: String,     subtitle: String,     icon: ImageVector,     checked: Boolean,     onCheckedChange: (Boolean) -> Unit ) {     Row(         modifier = Modifier             .fillMaxWidth()             .clickable { onCheckedChange(!checked) }             .padding(vertical = 8.dp),         horizontalArrangement = Arrangement.SpaceBetween,         verticalAlignment = Alignment.CenterVertically     ) {         Row(             modifier = Modifier.weight(1f),             verticalAlignment = Alignment.CenterVertically         ) {             Icon(icon, title, modifier = Modifier.padding(end = 16.dp))             Column {                 Text(title)                 Text(                     subtitle,                     style = MaterialTheme.typography.bodySmall,                     color = Color.Gray                 )             }         }         Switch(checked = checked, onCheckedChange = onCheckedChange)     } }  // ============== UTILITY FUNCTIONS ==============  fun processUrl(input: String, searchEngine: String): String {     val trimmed = input.trim()      // Check if it's a valid URL     if (trimmed.contains(".") && !trimmed.contains(" ")) {         return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {             trimmed         } else {             "https://$trimmed"         }     }      // Otherwise, treat it as a search query     return getSearchUrl(trimmed, searchEngine) }  fun getSearchUrl(query: String, engine: String): String {     val encoded = java.net.URLEncoder.encode(query, "UTF-8")     return when (engine) {         "Google" -> "https://www.google.com/search?q=$encoded"         "Яндекс" -> "https://yandex.ru/search/?text=$encoded"         "DuckDuckGo" -> "https://duckduckgo.com/?q=$encoded"         "Bing" -> "https://www.bing.com/search?q=$encoded"         else -> "https://www.google.com/search?q=$encoded"     } }
+package com.example.myapplication
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.absoluteValue
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            MyApplicationTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    TelegramAuthApp()
+                }
+            }
+        }
+    }
+}
+
+// ==================== КОНФИГУРАЦИЯ ИЗОБРАЖЕНИЙ ====================
+// Замените URL на свои изображения или оставьте null для использования иконок Material
+
+object AppImages {
+    // Онбординг страницы
+    val ONBOARDING_MESSENGER: String? = null // URL или null для иконки
+    val ONBOARDING_SECURITY: String? = null
+    val ONBOARDING_CLOUD: String? = null
+    val ONBOARDING_GROUPS: String? = null
+    val ONBOARDING_ROCKET: String? = null
+
+    // Логотип
+    val TELEGRAM_LOGO: String? = null
+
+    // Экран верификации кода
+    val MESSAGE_ICON: String? = null
+
+    // Экран пароля
+    val LOCK_ICON: String? = null
+
+    // Экран регистрации - имя
+    val USER_ICON: String? = null
+
+    // Экран регистрации - дата рождения
+    val BIRTHDAY_ICON: String? = null
+
+    // Экран успеха
+    val SUCCESS_ICON: String? = null
+    val CELEBRATION_ICON: String? = null
+}
+
+// ==================== КОНЕЦ КОНФИГУРАЦИИ ====================
+
+// Состояния навигации
+sealed class AuthScreen {
+    object Welcome : AuthScreen()
+    object PhoneInput : AuthScreen()
+    data class CodeVerification(val phoneNumber: String, val countryCode: String) : AuthScreen()
+    data class Password(val phoneNumber: String) : AuthScreen()
+    data class Registration(val phoneNumber: String) : AuthScreen()
+    object Success : AuthScreen()
+}
+
+// Модель данных для страны
+data class Country(
+    val name: String,
+    val code: String,
+    val flag: String,
+    val phoneCode: String
+)
+
+// Модель данных пользователя
+data class UserData(
+    var firstName: String = "",
+    var lastName: String = "",
+    var birthDay: String = "",
+    var birthMonth: String = "",
+    var birthYear: String = "",
+    var bio: String = "",
+    var username: String = "",
+    var phoneNumber: String = ""
+)
+
+// Данные для онбординга
+data class OnboardingPage(
+    val imageUrl: String?,
+    val fallbackIcon: ImageVector,
+    val title: String,
+    val description: String,
+    val gradient: List<Color>
+)
+
+// Список стран
+val countries = listOf(
+    Country("Россия", "RU", "🇷🇺", "+7"),
+    Country("Украина", "UA", "🇺🇦", "+380"),
+    Country("Беларусь", "BY", "🇧🇾", "+375"),
+    Country("Казахстан", "KZ", "🇰🇿", "+7"),
+    Country("Узбекистан", "UZ", "🇺🇿", "+998"),
+    Country("Германия", "DE", "🇩🇪", "+49"),
+    Country("США", "US", "🇺🇸", "+1"),
+    Country("Великобритания", "GB", "🇬🇧", "+44"),
+    Country("Франция", "FR", "🇫🇷", "+33"),
+    Country("Италия", "IT", "🇮🇹", "+39"),
+    Country("Испания", "ES", "🇪🇸", "+34"),
+    Country("Польша", "PL", "🇵🇱", "+48"),
+    Country("Турция", "TR", "🇹🇷", "+90"),
+    Country("Китай", "CN", "🇨🇳", "+86"),
+    Country("Япония", "JP", "🇯🇵", "+81"),
+    Country("Южная Корея", "KR", "🇰🇷", "+82"),
+    Country("Индия", "IN", "🇮🇳", "+91"),
+    Country("Бразилия", "BR", "🇧🇷", "+55"),
+    Country("Канада", "CA", "🇨🇦", "+1"),
+    Country("Австралия", "AU", "🇦🇺", "+61"),
+    Country("ОАЭ", "AE", "🇦🇪", "+971"),
+    Country("Грузия", "GE", "🇬🇪", "+995"),
+    Country("Армения", "AM", "🇦🇲", "+374"),
+    Country("Азербайджан", "AZ", "🇦🇿", "+994"),
+    Country("Молдова", "MD", "🇲🇩", "+373"),
+    Country("Литва", "LT", "🇱🇹", "+370"),
+    Country("Латвия", "LV", "🇱🇻", "+371"),
+    Country("Эстония", "EE", "🇪🇪", "+372")
+)
+
+// Telegram цвета
+object TelegramColors {
+    val Primary = Color(0xFF0088CC)
+    val PrimaryLight = Color(0xFF64B5F6)
+    val PrimaryDark = Color(0xFF006699)
+    val Background = Color(0xFFF7F8FA)
+    val Surface = Color.White
+    val TextPrimary = Color(0xFF222222)
+    val TextSecondary = Color(0xFF8E8E93)
+    val Divider = Color(0xFFE5E5EA)
+    val Link = Color(0xFF007AFF)
+    val Error = Color(0xFFE53935)
+    val Success = Color(0xFF34C759)
+    val GradientStart = Color(0xFF2AABEE)
+    val GradientEnd = Color(0xFF229ED9)
+    val GradientPurple = Color(0xFF9B59B6)
+    val GradientOrange = Color(0xFFE67E22)
+    val GradientPink = Color(0xFFE91E63)
+    val GradientGreen = Color(0xFF27AE60)
+}
+
+// Универсальный компонент для отображения иконки или изображения
+@Composable
+fun AppIcon(
+    imageUrl: String?,
+    fallbackIcon: ImageVector,
+    modifier: Modifier = Modifier,
+    iconSize: Int = 48,
+    tint: Color = Color.White
+) {
+    if (imageUrl != null) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(imageUrl)
+                .crossfade(true)
+                .build(),
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = ContentScale.Fit
+        )
+    } else {
+        Icon(
+            imageVector = fallbackIcon,
+            contentDescription = null,
+            modifier = modifier.size(iconSize.dp),
+            tint = tint
+        )
+    }
+}
+
+@Composable
+fun TelegramAuthApp() {
+    var currentScreen by remember { mutableStateOf<AuthScreen>(AuthScreen.Welcome) }
+    var userData by remember { mutableStateOf(UserData()) }
+
+    AnimatedContent(
+        targetState = currentScreen,
+        transitionSpec = {
+            when {
+                targetState is AuthScreen.Welcome -> {
+                    fadeIn(animationSpec = tween(300)) togetherWith
+                            fadeOut(animationSpec = tween(300))
+                }
+                initialState is AuthScreen.Welcome -> {
+                    slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = tween(400, easing = FastOutSlowInEasing)
+                    ) + fadeIn() togetherWith
+                            slideOutVertically(
+                                targetOffsetY = { -it / 3 },
+                                animationSpec = tween(400)
+                            ) + fadeOut()
+                }
+                targetState is AuthScreen.PhoneInput && initialState !is AuthScreen.Welcome -> {
+                    slideInHorizontally { -it } + fadeIn() togetherWith
+                            slideOutHorizontally { it } + fadeOut()
+                }
+                else -> {
+                    slideInHorizontally { it } + fadeIn() togetherWith
+                            slideOutHorizontally { -it } + fadeOut()
+                }
+            }
+        },
+        label = "screen_transition"
+    ) { screen ->
+        when (screen) {
+            is AuthScreen.Welcome -> {
+                WelcomeScreen(
+                    onStartMessaging = { currentScreen = AuthScreen.PhoneInput }
+                )
+            }
+            is AuthScreen.PhoneInput -> {
+                LoginScreen(
+                    onBack = { currentScreen = AuthScreen.Welcome },
+                    onContinue = { phoneNumber, countryCode ->
+                        userData = userData.copy(phoneNumber = "$countryCode $phoneNumber")
+                        currentScreen = AuthScreen.CodeVerification(phoneNumber, countryCode)
+                    }
+                )
+            }
+            is AuthScreen.CodeVerification -> {
+                CodeVerificationScreen(
+                    phoneNumber = screen.phoneNumber,
+                    countryCode = screen.countryCode,
+                    onBack = { currentScreen = AuthScreen.PhoneInput },
+                    onCodeVerified = { isNewUser ->
+                        currentScreen = if (isNewUser) {
+                            AuthScreen.Registration(screen.phoneNumber)
+                        } else {
+                            AuthScreen.Success
+                        }
+                    },
+                    onPasswordRequired = {
+                        currentScreen = AuthScreen.Password(screen.phoneNumber)
+                    }
+                )
+            }
+            is AuthScreen.Password -> {
+                PasswordScreen(
+                    phoneNumber = screen.phoneNumber,
+                    onBack = { currentScreen = AuthScreen.PhoneInput },
+                    onSuccess = { currentScreen = AuthScreen.Success }
+                )
+            }
+            is AuthScreen.Registration -> {
+                RegistrationScreen(
+                    phoneNumber = screen.phoneNumber,
+                    userData = userData,
+                    onUserDataChanged = { userData = it },
+                    onBack = { currentScreen = AuthScreen.PhoneInput },
+                    onComplete = { currentScreen = AuthScreen.Success }
+                )
+            }
+            is AuthScreen.Success -> {
+                SuccessScreen(
+                    userData = userData,
+                    onLogout = {
+                        userData = UserData()
+                        currentScreen = AuthScreen.Welcome
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun WelcomeScreen(
+    onStartMessaging: () -> Unit
+) {
+    val pages = listOf(
+        OnboardingPage(
+            imageUrl = AppImages.ONBOARDING_MESSENGER,
+            fallbackIcon = Icons.AutoMirrored.Filled.Send,
+            title = "Messenger",
+            description = "Самый быстрый мессенджер в мире.\nБесплатный и безопасный.",
+            gradient = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+        ),
+        OnboardingPage(
+            imageUrl = AppImages.ONBOARDING_SECURITY,
+            fallbackIcon = Icons.Default.Lock,
+            title = "Безопасность",
+            description = "Сквозное шифрование и секретные чаты для полной конфиденциальности.",
+            gradient = listOf(TelegramColors.GradientPurple, Color(0xFF8E44AD))
+        ),
+        OnboardingPage(
+            imageUrl = AppImages.ONBOARDING_CLOUD,
+            fallbackIcon = Icons.Default.Cloud,
+            title = "Облачное хранение",
+            description = "Неограниченное хранилище для ваших сообщений, фото и файлов.",
+            gradient = listOf(TelegramColors.GradientGreen, Color(0xFF2ECC71))
+        ),
+        OnboardingPage(
+            imageUrl = AppImages.ONBOARDING_GROUPS,
+            fallbackIcon = Icons.Default.Groups,
+            title = "Группы и каналы",
+            description = "Создавайте группы до 200 000 участников и каналы с неограниченной аудиторией.",
+            gradient = listOf(TelegramColors.GradientOrange, Color(0xFFF39C12))
+        ),
+        OnboardingPage(
+            imageUrl = AppImages.ONBOARDING_ROCKET,
+            fallbackIcon = Icons.Default.RocketLaunch,
+            title = "Быстрый старт",
+            description = "Начните общение прямо сейчас — это займёт всего минуту!",
+            gradient = listOf(TelegramColors.GradientPink, Color(0xFFC0392B))
+        )
+    )
+
+    val pagerState = rememberPagerState(pageCount = { pages.size })
+    val coroutineScope = rememberCoroutineScope()
+
+    // Автопрокрутка
+    LaunchedEffect(pagerState.currentPage) {
+        delay(4000)
+        val nextPage = (pagerState.currentPage + 1) % pages.size
+        pagerState.animateScrollToPage(nextPage)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(60.dp))
+
+            // Пейджер с анимацией
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) { page ->
+                val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+
+                OnboardingPageContent(
+                    page = pages[page],
+                    pageOffset = pageOffset
+                )
+            }
+
+            // Индикаторы страниц
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(pages.size) { index ->
+                    val isSelected = pagerState.currentPage == index
+                    val width by animateDpAsState(
+                        targetValue = if (isSelected) 24.dp else 8.dp,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                        label = "indicator_width"
+                    )
+                    val color by animateColorAsState(
+                        targetValue = if (isSelected) TelegramColors.Primary else TelegramColors.Divider,
+                        label = "indicator_color"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .height(8.dp)
+                            .width(width)
+                            .clip(CircleShape)
+                            .background(color)
+                            .clickable {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(index)
+                                }
+                            }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Кнопка начать
+            Button(
+                onClick = onStartMessaging,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp)
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TelegramColors.Primary
+                ),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 4.dp,
+                    pressedElevation = 8.dp
+                )
+            ) {
+                Text(
+                    text = "Начать общение",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Ссылка на QR-код
+            TextButton(
+                onClick = { /* TODO: QR вход */ }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.QrCode,
+                    contentDescription = null,
+                    tint = TelegramColors.Link,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Войти по QR-коду",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.Link
+                )
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+}
+
+@Composable
+fun OnboardingPageContent(
+    page: OnboardingPage,
+    pageOffset: Float
+) {
+    val scale by animateFloatAsState(
+        targetValue = 1f - (pageOffset.absoluteValue * 0.15f),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
+        label = "scale"
+    )
+
+    val alpha by animateFloatAsState(
+        targetValue = 1f - (pageOffset.absoluteValue * 0.5f),
+        label = "alpha"
+    )
+
+    // Анимация вращения иконки
+    val infiniteTransition = rememberInfiniteTransition(label = "infinite")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = -5f,
+        targetValue = 5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "rotation"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                this.alpha = alpha
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Анимированная иконка
+        Box(
+            modifier = Modifier
+                .size(160.dp)
+                .rotate(rotation)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.linearGradient(colors = page.gradient)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            AppIcon(
+                imageUrl = page.imageUrl,
+                fallbackIcon = page.fallbackIcon,
+                modifier = if (page.imageUrl != null) Modifier.size(100.dp) else Modifier,
+                iconSize = 72,
+                tint = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Text(
+            text = page.title,
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = page.description,
+            style = MaterialTheme.typography.bodyLarge,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center,
+            lineHeight = 24.sp
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LoginScreen(
+    onBack: () -> Unit,
+    onContinue: (String, String) -> Unit
+) {
+    var selectedCountry by remember { mutableStateOf(countries[0]) }
+    var phoneNumber by remember { mutableStateOf("") }
+    var showCountryPicker by remember { mutableStateOf(false) }
+    var syncContacts by remember { mutableStateOf(true) }
+    var isAnimating by remember { mutableStateOf(false) }
+
+    // Анимация появления
+    val logoScale by animateFloatAsState(
+        targetValue = if (isAnimating) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "logo_scale"
+    )
+
+    LaunchedEffect(Unit) {
+        isAnimating = true
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        // Верхняя панель
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Назад",
+                    tint = TelegramColors.Primary
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Логотип Telegram с анимацией
+            Box(
+                modifier = Modifier.scale(logoScale)
+            ) {
+                TelegramLogo()
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Заголовок
+            Text(
+                text = "Ваш телефон",
+                style = MaterialTheme.typography.headlineLarge,
+                color = TelegramColors.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Описание
+            Text(
+                text = "Пожалуйста, подтвердите код страны\nи введите свой номер телефона.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Карточка с полями ввода
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = TelegramColors.Surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column {
+                    // Выбор страны
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showCountryPicker = true }
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = selectedCountry.flag, fontSize = 28.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = selectedCountry.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TelegramColors.TextPrimary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Выбрать страну",
+                            tint = TelegramColors.TextSecondary
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = TelegramColors.Divider,
+                        thickness = 0.5.dp
+                    )
+
+                    // Ввод номера телефона
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(56.dp)
+                                .clickable { showCountryPicker = true }
+                        ) {
+                            Text(
+                                text = selectedCountry.phoneCode,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = TelegramColors.Primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        BasicTextField(
+                            value = phoneNumber,
+                            onValueChange = { newValue ->
+                                val filtered = newValue.filter { it.isDigit() }
+                                if (filtered.length <= 15) {
+                                    phoneNumber = filtered
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(28.dp),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                color = TelegramColors.TextPrimary,
+                                fontSize = 18.sp
+                            ),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            singleLine = true,
+                            cursorBrush = SolidColor(TelegramColors.Primary),
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (phoneNumber.isEmpty()) {
+                                        Text(
+                                            text = "Номер телефона",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = TelegramColors.TextSecondary
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+
+                        // Иконка очистки
+                        AnimatedVisibility(
+                            visible = phoneNumber.isNotEmpty(),
+                            enter = fadeIn() + scaleIn(),
+                            exit = fadeOut() + scaleOut()
+                        ) {
+                            IconButton(
+                                onClick = { phoneNumber = "" },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Очистить",
+                                    tint = TelegramColors.TextSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Чекбокс синхронизации
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { syncContacts = !syncContacts }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = syncContacts,
+                    onCheckedChange = { syncContacts = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = TelegramColors.Primary,
+                        uncheckedColor = TelegramColors.TextSecondary
+                    )
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Синхронизировать контакты",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.TextPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Кнопка продолжить
+            Button(
+                onClick = { onContinue(phoneNumber, selectedCountry.phoneCode) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TelegramColors.Primary,
+                    disabledContainerColor = TelegramColors.Primary.copy(alpha = 0.5f)
+                ),
+                enabled = phoneNumber.length >= 6
+            ) {
+                Text(
+                    text = "Продолжить",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(48.dp))
+        }
+    }
+
+    if (showCountryPicker) {
+        CountryPickerDialog(
+            countries = countries,
+            selectedCountry = selectedCountry,
+            onCountrySelected = { country ->
+                selectedCountry = country
+                showCountryPicker = false
+            },
+            onDismiss = { showCountryPicker = false }
+        )
+    }
+}
+
+@Composable
+fun CodeVerificationScreen(
+    phoneNumber: String,
+    countryCode: String,
+    onBack: () -> Unit,
+    onCodeVerified: (Boolean) -> Unit,
+    onPasswordRequired: () -> Unit
+) {
+    var code by remember { mutableStateOf(List(5) { "" }) }
+    var isError by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var countdown by remember { mutableIntStateOf(60) }
+    val focusRequesters = remember { List(5) { FocusRequester() } }
+    val focusManager = LocalFocusManager.current
+
+    // Таймер обратного отсчёта
+    LaunchedEffect(countdown) {
+        if (countdown > 0) {
+            delay(1000)
+            countdown--
+        }
+    }
+
+    // Автофокус на первое поле
+    LaunchedEffect(Unit) {
+        delay(300)
+        focusRequesters[0].requestFocus()
+    }
+
+    // Анимация пульсации при ошибке
+    val shakeOffset by animateFloatAsState(
+        targetValue = if (isError) 10f else 0f,
+        animationSpec = if (isError) {
+            spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessHigh)
+        } else {
+            spring()
+        },
+        label = "shake"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        // Верхняя панель
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Назад",
+                    tint = TelegramColors.Primary
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Кнопка редактирования номера
+            TextButton(onClick = onBack) {
+                Text(
+                    text = "Изменить",
+                    color = TelegramColors.Link
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Иконка с анимацией
+            AnimatedMessageIcon()
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "$countryCode $phoneNumber",
+                style = MaterialTheme.typography.headlineMedium,
+                color = TelegramColors.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Мы отправили код подтверждения\nв приложение Telegram на другом устройстве",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Поля ввода кода с анимацией
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset(x = shakeOffset.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spacer(modifier = Modifier.weight(1f))
+                code.forEachIndexed { index, digit ->
+                    CodeDigitField(
+                        value = digit,
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 1 && newValue.all { it.isDigit() }) {
+                                isError = false
+                                val newCode = code.toMutableList()
+                                newCode[index] = newValue
+                                code = newCode
+
+                                if (newValue.isNotEmpty() && index < 4) {
+                                    focusRequesters[index + 1].requestFocus()
+                                }
+
+                                // Проверка кода при заполнении всех полей
+                                if (newCode.all { it.isNotEmpty() }) {
+                                    isLoading = true
+                                    val enteredCode = newCode.joinToString("")
+                                    when (enteredCode) {
+                                        "12345" -> onCodeVerified(true) // Новый пользователь
+                                        "11111" -> onCodeVerified(false) // Существующий пользователь
+                                        "00000" -> onPasswordRequired() // Требуется пароль
+                                        else -> {
+                                            isLoading = false
+                                            isError = true
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        isError = isError,
+                        focusRequester = focusRequesters[index],
+                        onBackspace = {
+                            if (digit.isEmpty() && index > 0) {
+                                focusRequesters[index - 1].requestFocus()
+                                val newCode = code.toMutableList()
+                                newCode[index - 1] = ""
+                                code = newCode
+                            }
+                        }
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            // Сообщение об ошибке
+            AnimatedVisibility(
+                visible = isError,
+                enter = fadeIn() + slideInVertically(),
+                exit = fadeOut() + slideOutVertically()
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Неверный код. Попробуйте ещё раз.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TelegramColors.Error
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Таймер и повторная отправка
+            if (countdown > 0) {
+                Text(
+                    text = "Запросить код повторно через $countdown сек",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.TextSecondary
+                )
+            } else {
+                Text(
+                    text = "Отправить код повторно",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.Link,
+                    modifier = Modifier.clickable {
+                        countdown = 60
+                        code = List(5) { "" }
+                        isError = false
+                        focusRequesters[0].requestFocus()
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            TextButton(onClick = { /* TODO */ }) {
+                Icon(
+                    imageVector = Icons.Default.Phone,
+                    contentDescription = null,
+                    tint = TelegramColors.Link,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Получить код по SMS",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.Link
+                )
+            }
+
+            if (isLoading) {
+                Spacer(modifier = Modifier.height(32.dp))
+                CircularProgressIndicator(
+                    color = TelegramColors.Primary,
+                    modifier = Modifier.size(36.dp),
+                    strokeWidth = 3.dp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Подсказка
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = TelegramColors.Primary.copy(alpha = 0.08f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = null,
+                        tint = TelegramColors.Primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Тестовые коды:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TelegramColors.Primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "12345 — новый пользователь\n11111 — существующий\n00000 — требуется пароль",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TelegramColors.Primary.copy(alpha = 0.8f),
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AnimatedMessageIcon() {
+    val infiniteTransition = rememberInfiniteTransition(label = "message_animation")
+
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(100.dp)
+            .scale(scale)
+            .clip(CircleShape)
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        AppIcon(
+            imageUrl = AppImages.MESSAGE_ICON,
+            fallbackIcon = Icons.Default.MarkChatRead,
+            iconSize = 48,
+            tint = Color.White
+        )
+    }
+}
+
+@Composable
+fun CodeDigitField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    isError: Boolean,
+    focusRequester: FocusRequester,
+    onBackspace: () -> Unit
+) {
+    val borderColor by animateColorAsState(
+        targetValue = when {
+            isError -> TelegramColors.Error
+            value.isNotEmpty() -> TelegramColors.Primary
+            else -> TelegramColors.Divider
+        },
+        animationSpec = tween(200),
+        label = "border_color"
+    )
+
+    val scale by animateFloatAsState(
+        targetValue = if (value.isNotEmpty()) 1.05f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "digit_scale"
+    )
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier
+            .size(52.dp)
+            .scale(scale)
+            .clip(RoundedCornerShape(14.dp))
+            .background(TelegramColors.Surface)
+            .border(
+                width = 2.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .focusRequester(focusRequester),
+        textStyle = MaterialTheme.typography.headlineLarge.copy(
+            color = TelegramColors.TextPrimary,
+            textAlign = TextAlign.Center,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        ),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Next
+        ),
+        singleLine = true,
+        cursorBrush = SolidColor(TelegramColors.Primary),
+        decorationBox = { innerTextField ->
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                innerTextField()
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PasswordScreen(
+    phoneNumber: String,
+    onBack: () -> Unit,
+    onSuccess: () -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var isError by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        delay(300)
+        focusRequester.requestFocus()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        // Верхняя панель
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Назад",
+                    tint = TelegramColors.Primary
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Иконка замка
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(TelegramColors.GradientPurple, Color(0xFF8E44AD))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                AppIcon(
+                    imageUrl = AppImages.LOCK_ICON,
+                    fallbackIcon = Icons.Default.Lock,
+                    iconSize = 48,
+                    tint = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Введите пароль",
+                style = MaterialTheme.typography.headlineLarge,
+                color = TelegramColors.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "У вас включена двухэтапная аутентификация.\nВведите ваш пароль.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Поле пароля
+            OutlinedTextField(
+                value = password,
+                onValueChange = {
+                    password = it
+                    isError = false
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+                label = { Text("Пароль") },
+                placeholder = { Text("Введите пароль") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = TelegramColors.Primary
+                    )
+                },
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (passwordVisible) "Скрыть пароль" else "Показать пароль",
+                            tint = TelegramColors.TextSecondary
+                        )
+                    }
+                },
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                isError = isError,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = TelegramColors.Primary,
+                    unfocusedBorderColor = TelegramColors.Divider,
+                    focusedContainerColor = TelegramColors.Surface,
+                    unfocusedContainerColor = TelegramColors.Surface,
+                    errorBorderColor = TelegramColors.Error
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (password == "password") {
+                            onSuccess()
+                        } else {
+                            isError = true
+                        }
+                    }
+                ),
+                singleLine = true
+            )
+
+            if (isError) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Неверный пароль",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TelegramColors.Error
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            TextButton(onClick = { /* TODO: Восстановление пароля */ }) {
+                Text(
+                    text = "Забыли пароль?",
+                    color = TelegramColors.Link
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Подсказка
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = TelegramColors.Primary.copy(alpha = 0.08f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = null,
+                        tint = TelegramColors.Primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Тестовый пароль: password",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TelegramColors.Primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = {
+                    isLoading = true
+                    if (password == "password") {
+                        onSuccess()
+                    } else {
+                        isLoading = false
+                        isError = true
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TelegramColors.Primary,
+                    disabledContainerColor = TelegramColors.Primary.copy(alpha = 0.5f)
+                ),
+                enabled = password.isNotEmpty() && !isLoading
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = "Войти",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(48.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RegistrationScreen(
+    phoneNumber: String,
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onBack: () -> Unit,
+    onComplete: () -> Unit
+) {
+    var currentStep by remember { mutableIntStateOf(0) }
+
+    val totalSteps = 3
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        // Верхняя панель
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = {
+                if (currentStep > 0) {
+                    currentStep--
+                } else {
+                    onBack()
+                }
+            }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Назад",
+                    tint = TelegramColors.Primary
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Индикатор шагов
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(totalSteps) { index ->
+                    val isCompleted = index < currentStep
+                    val isCurrent = index == currentStep
+
+                    Box(
+                        modifier = Modifier
+                            .size(if (isCurrent) 10.dp else 8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    isCompleted -> TelegramColors.Success
+                                    isCurrent -> TelegramColors.Primary
+                                    else -> TelegramColors.Divider
+                                }
+                            )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(56.dp))
+        }
+
+        // Индикатор прогресса
+        LinearProgressIndicator(
+            progress = { (currentStep + 1).toFloat() / totalSteps },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(3.dp),
+            color = TelegramColors.Primary,
+            trackColor = TelegramColors.Divider,
+        )
+
+        AnimatedContent(
+            targetState = currentStep,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    slideInHorizontally { it } + fadeIn() togetherWith
+                            slideOutHorizontally { -it } + fadeOut()
+                } else {
+                    slideInHorizontally { -it } + fadeIn() togetherWith
+                            slideOutHorizontally { it } + fadeOut()
+                }
+            },
+            label = "step_transition"
+        ) { step ->
+            when (step) {
+                0 -> NameInputStep(
+                    userData = userData,
+                    onUserDataChanged = onUserDataChanged,
+                    onNext = { currentStep++ }
+                )
+                1 -> BirthdayInputStep(
+                    userData = userData,
+                    onUserDataChanged = onUserDataChanged,
+                    onNext = { currentStep++ }
+                )
+                2 -> ProfilePhotoStep(
+                    userData = userData,
+                    onUserDataChanged = onUserDataChanged,
+                    onComplete = onComplete
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun NameInputStep(
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onNext: () -> Unit
+) {
+    var firstName by remember { mutableStateOf(userData.firstName) }
+    var lastName by remember { mutableStateOf(userData.lastName) }
+    val focusManager = LocalFocusManager.current
+    val firstNameFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        delay(300)
+        firstNameFocusRequester.requestFocus()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Иконка
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            AppIcon(
+                imageUrl = AppImages.USER_ICON,
+                fallbackIcon = Icons.Default.Person,
+                iconSize = 48,
+                tint = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Ваше имя",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Введите ваше имя и фамилию",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Поле имени
+        OutlinedTextField(
+            value = firstName,
+            onValueChange = { firstName = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(firstNameFocusRequester),
+            label = { Text("Имя") },
+            placeholder = { Text("Введите имя") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Поле фамилии
+        OutlinedTextField(
+            value = lastName,
+            onValueChange = { lastName = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Фамилия") },
+            placeholder = { Text("Введите фамилию (необязательно)") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Outlined.Person,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = { focusManager.clearFocus() }
+            ),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = {
+                onUserDataChanged(userData.copy(firstName = firstName, lastName = lastName))
+                onNext()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = TelegramColors.Primary,
+                disabledContainerColor = TelegramColors.Primary.copy(alpha = 0.5f)
+            ),
+            enabled = firstName.isNotBlank()
+        ) {
+            Text(
+                text = "Продолжить",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+    }
+}
+
+@Composable
+fun BirthdayInputStep(
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onNext: () -> Unit
+) {
+    var day by remember { mutableStateOf(userData.birthDay) }
+    var month by remember { mutableStateOf(userData.birthMonth) }
+    var year by remember { mutableStateOf(userData.birthYear) }
+    var skipBirthday by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+
+    val months = listOf(
+        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+    )
+
+    var showMonthPicker by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Иконка
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(TelegramColors.GradientOrange, Color(0xFFF39C12))
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            AppIcon(
+                imageUrl = AppImages.BIRTHDAY_ICON,
+                fallbackIcon = Icons.Default.Cake,
+                iconSize = 48,
+                tint = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Дата рождения",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Укажите дату вашего рождения.\nДрузья смогут поздравить вас!",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center,
+            lineHeight = 20.sp
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Поля даты
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // День
+            OutlinedTextField(
+                value = day,
+                onValueChange = {
+                    if (it.length <= 2 && it.all { char -> char.isDigit() }) {
+                        day = it
+                        if (it.length == 2) focusManager.moveFocus(FocusDirection.Right)
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                label = { Text("День") },
+                placeholder = { Text("ДД") },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = TelegramColors.Primary,
+                    unfocusedBorderColor = TelegramColors.Divider,
+                    focusedContainerColor = TelegramColors.Surface,
+                    unfocusedContainerColor = TelegramColors.Surface
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                ),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center)
+            )
+
+            // Месяц
+            Box(modifier = Modifier.weight(2f)) {
+                OutlinedTextField(
+                    value = if (month.isNotEmpty()) months[month.toInt() - 1] else "",
+                    onValueChange = { },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Месяц") },
+                    placeholder = { Text("Выберите") },
+                    readOnly = true,
+                    enabled = false,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledBorderColor = TelegramColors.Divider,
+                        disabledContainerColor = TelegramColors.Surface,
+                        disabledTextColor = TelegramColors.TextPrimary,
+                        disabledLabelColor = TelegramColors.TextSecondary
+                    ),
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = TelegramColors.TextSecondary
+                        )
+                    },
+                    singleLine = true
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable { showMonthPicker = true }
+                )
+            }
+
+            // Год
+            OutlinedTextField(
+                value = year,
+                onValueChange = {
+                    if (it.length <= 4 && it.all { char -> char.isDigit() }) {
+                        year = it
+                    }
+                },
+                modifier = Modifier.weight(1.5f),
+                label = { Text("Год") },
+                placeholder = { Text("ГГГГ") },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = TelegramColors.Primary,
+                    unfocusedBorderColor = TelegramColors.Divider,
+                    focusedContainerColor = TelegramColors.Surface,
+                    unfocusedContainerColor = TelegramColors.Surface
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = { focusManager.clearFocus() }
+                ),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Чекбокс пропустить
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { skipBirthday = !skipBirthday }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = skipBirthday,
+                onCheckedChange = { skipBirthday = it },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = TelegramColors.Primary,
+                    uncheckedColor = TelegramColors.TextSecondary
+                )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Пропустить этот шаг",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextPrimary
+            )
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = {
+                onUserDataChanged(userData.copy(
+                    birthDay = day,
+                    birthMonth = month,
+                    birthYear = year
+                ))
+                onNext()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = TelegramColors.Primary,
+                disabledContainerColor = TelegramColors.Primary.copy(alpha = 0.5f)
+            ),
+            enabled = skipBirthday || (day.isNotBlank() && month.isNotBlank() && year.length == 4)
+        ) {
+            Text(
+                text = "Продолжить",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+    }
+
+    // Диалог выбора месяца
+    if (showMonthPicker) {
+        MonthPickerDialog(
+            months = months,
+            selectedMonth = if (month.isNotEmpty()) month.toInt() - 1 else -1,
+            onMonthSelected = { index ->
+                month = (index + 1).toString()
+                showMonthPicker = false
+            },
+            onDismiss = { showMonthPicker = false }
+        )
+    }
+}
+
+@Composable
+fun MonthPickerDialog(
+    months: List<String>,
+    selectedMonth: Int,
+    onMonthSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = TelegramColors.Surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                Text(
+                    text = "Выберите месяц",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TelegramColors.TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
+                )
+
+                HorizontalDivider(color = TelegramColors.Divider)
+
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 400.dp)
+                ) {
+                    items(months.size) { index ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onMonthSelected(index) }
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = months[index],
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (index == selectedMonth) TelegramColors.Primary else TelegramColors.TextPrimary,
+                                fontWeight = if (index == selectedMonth) FontWeight.SemiBold else FontWeight.Normal,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (index == selectedMonth) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = TelegramColors.Primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfilePhotoStep(
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onComplete: () -> Unit
+) {
+    var bio by remember { mutableStateOf(userData.bio) }
+    var username by remember { mutableStateOf(userData.username) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Аватар с кнопкой добавления фото
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                        )
+                    )
+                    .clickable { /* TODO: Открыть галерею */ },
+                contentAlignment = Alignment.Center
+            ) {
+                if (userData.firstName.isNotEmpty()) {
+                    Text(
+                        text = userData.firstName.first().uppercase() +
+                                (userData.lastName.firstOrNull()?.uppercase() ?: ""),
+                        fontSize = 40.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(60.dp)
+                    )
+                }
+            }
+
+            // Кнопка камеры
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 4.dp, y = 4.dp)
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(TelegramColors.Primary)
+                    .border(3.dp, TelegramColors.Background, CircleShape)
+                    .clickable { /* TODO: Открыть камеру */ },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = "Добавить фото",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Ваш профиль",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Добавьте фото и расскажите о себе",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Имя пользователя
+        OutlinedTextField(
+            value = username,
+            onValueChange = {
+                val filtered = it.filter { char ->
+                    char.isLetterOrDigit() || char == '_'
+                }.lowercase()
+                if (filtered.length <= 32) {
+                    username = filtered
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Имя пользователя") },
+            placeholder = { Text("username") },
+            prefix = {
+                Text(
+                    "@",
+                    color = TelegramColors.Primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.AlternateEmail,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            supportingText = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (username.length >= 5) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = TelegramColors.Success,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Имя доступно",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TelegramColors.Success
+                        )
+                    } else {
+                        Text(
+                            text = "Минимум 5 символов. Можно a-z, 0-9, _",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TelegramColors.TextSecondary
+                        )
+                    }
+                }
+            },
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Био
+        OutlinedTextField(
+            value = bio,
+            onValueChange = { if (it.length <= 70) bio = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("О себе") },
+            placeholder = { Text("Расскажите о себе...") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            supportingText = {
+                Text(
+                    text = "${bio.length}/70",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (bio.length > 60) TelegramColors.Error else TelegramColors.TextSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.End
+                )
+            },
+            maxLines = 3
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = {
+                onUserDataChanged(userData.copy(bio = bio, username = username))
+                onComplete()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = TelegramColors.Primary)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = Color.White
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Завершить регистрацию",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        TextButton(onClick = onComplete) {
+            Text(
+                text = "Пропустить",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.Link
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun SuccessScreen(
+    userData: UserData,
+    onLogout: () -> Unit
+) {
+    // Анимация появления
+    var isVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(100)
+        isVisible = true
+    }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "scale"
+    )
+
+    val alpha by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = tween(500),
+        label = "alpha"
+    )
+
+    // Конфетти анимация
+    val infiniteTransition = rememberInfiniteTransition(label = "confetti")
+    val confettiOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "confetti_offset"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp)
+                .alpha(alpha),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Анимированная галочка
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .scale(scale)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(TelegramColors.Success, Color(0xFF2ECC71))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                AppIcon(
+                    imageUrl = AppImages.SUCCESS_ICON,
+                    fallbackIcon = Icons.Default.Check,
+                    iconSize = 60,
+                    tint = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = "Добро пожаловать!",
+                style = MaterialTheme.typography.headlineLarge,
+                color = TelegramColors.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Иконка празднования
+            AppIcon(
+                imageUrl = AppImages.CELEBRATION_ICON,
+                fallbackIcon = Icons.Default.Celebration,
+                modifier = Modifier.size(32.dp),
+                iconSize = 32,
+                tint = TelegramColors.GradientOrange
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Информация о пользователе
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = TelegramColors.Surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Аватар
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = userData.firstName.firstOrNull()?.uppercase() ?: "?",
+                            fontSize = 32.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "${userData.firstName} ${userData.lastName}".trim().ifEmpty { "Пользователь" },
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = TelegramColors.TextPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    if (userData.username.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "@${userData.username}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TelegramColors.Link
+                        )
+                    }
+
+                    if (userData.phoneNumber.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Phone,
+                                contentDescription = null,
+                                tint = TelegramColors.TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = userData.phoneNumber,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TelegramColors.TextSecondary
+                            )
+                        }
+                    }
+
+                    if (userData.birthDay.isNotEmpty() && userData.birthMonth.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        val months = listOf(
+                            "января", "февраля", "марта", "апреля", "мая", "июня",
+                            "июля", "августа", "сентября", "октября", "ноября", "декабря"
+                        )
+                        val monthName = months.getOrElse(userData.birthMonth.toInt() - 1) { "" }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Cake,
+                                contentDescription = null,
+                                tint = TelegramColors.TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "${userData.birthDay} $monthName ${userData.birthYear}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TelegramColors.TextSecondary
+                            )
+                        }
+                    }
+
+                    if (userData.bio.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = TelegramColors.Divider)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = userData.bio,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TelegramColors.TextPrimary,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = "Ваш аккаунт успешно создан!\nТеперь вы можете начать общение.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 22.sp
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            Button(
+                onClick = { /* TODO: Перейти к чатам */ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = TelegramColors.Primary)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = Color.White
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Начать общение",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            TextButton(onClick = onLogout) {
+                Icon(
+                    imageVector = Icons.Default.Logout,
+                    contentDescription = null,
+                    tint = TelegramColors.Error,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Выйти из аккаунта",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.Error
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TelegramLogo() {
+    val infiniteTransition = rememberInfiniteTransition(label = "logo_animation")
+
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = -5f,
+        targetValue = 5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "rotation"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(100.dp)
+            .rotate(rotation)
+            .clip(CircleShape)
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        AppIcon(
+            imageUrl = AppImages.TELEGRAM_LOGO,
+            fallbackIcon = Icons.AutoMirrored.Filled.Send,
+            iconSize = 48,
+            tint = Color.White
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CountryPickerDialog(
+    countries: List<Country>,
+    selectedCountry: Country,
+    onCountrySelected: (Country) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredCountries = remember(searchQuery) {
+        if (searchQuery.isEmpty()) {
+            countries
+        } else {
+            countries.filter { country ->
+                country.name.contains(searchQuery, ignoreCase = true) ||
+                        country.phoneCode.contains(searchQuery)
+            }
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 48.dp),
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            color = TelegramColors.Background
+        ) {
+            Column {
+                Surface(
+                    color = TelegramColors.Surface,
+                    shadowElevation = 2.dp
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Выберите страну",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = TelegramColors.TextPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Закрыть",
+                                    tint = TelegramColors.TextSecondary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = {
+                                Text(text = "Поиск страны...", color = TelegramColors.TextSecondary)
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Поиск",
+                                    tint = TelegramColors.TextSecondary
+                                )
+                            },
+                            trailingIcon = {
+                                AnimatedVisibility(
+                                    visible = searchQuery.isNotEmpty(),
+                                    enter = fadeIn() + scaleIn(),
+                                    exit = fadeOut() + scaleOut()
+                                ) {
+                                    IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = "Очистить",
+                                            tint = TelegramColors.TextSecondary
+                                        )
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = TelegramColors.Primary,
+                                unfocusedBorderColor = TelegramColors.Divider,
+                                focusedContainerColor = TelegramColors.Surface,
+                                unfocusedContainerColor = TelegramColors.Surface
+                            ),
+                            singleLine = true
+                        )
+                    }
+                }
+
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(filteredCountries) { country ->
+                        CountryItem(
+                            country = country,
+                            isSelected = country == selectedCountry,
+                            onClick = { onCountrySelected(country) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CountryItem(
+    country: Country,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isSelected) {
+            TelegramColors.Primary.copy(alpha = 0.1f)
+        } else {
+            TelegramColors.Surface
+        },
+        label = "background_color"
+    )
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = backgroundColor
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = country.flag, fontSize = 32.sp)
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = country.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TelegramColors.TextPrimary,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
+
+            Text(
+                text = country.phoneCode,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.Primary,
+                fontWeight = FontWeight.Medium
+            )
+
+            AnimatedVisibility(
+                visible = isSelected,
+                enter = fadeIn() + scaleIn(),
+                exit = fadeOut() + scaleOut()
+            ) {
+                Row {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Выбрано",
+                        tint = TelegramColors.Primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+        }
+    }
+
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 68.dp),
+        color = TelegramColors.Divider,
+        thickness = 0.5.dp
+    )
+}
 
 
-измени название на Orega Browser а также улучши дизайн пожалуййста в несколько раз и наверху где google.com улучши дизайн и сделай чтобы если там что-то пишешь то ищет тоже можешь углы закруглить кароче улучши дизайн сделай лучше стартовую страницу вот такую как на картинке обновляйй тольоко тот файл который скинул
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MyApplication"
+        tools:targetApi="31">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.MyApplication">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
