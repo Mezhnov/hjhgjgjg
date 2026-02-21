@@ -113,7 +113,7 @@ fun LoginScreen() {
     var phoneNumber by remember { mutableStateOf("") }
     var showCountryPicker by remember { mutableStateOf(false) }
     var syncContacts by remember { mutableStateOf(true) }
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -122,7 +122,7 @@ fun LoginScreen() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(80.dp))
-        
+
         // Логотип Telegram (круг с самолётиком)
         Box(
             modifier = Modifier
@@ -144,9 +144,9 @@ fun LoginScreen() {
                 color = Color.White
             )
         }
-        
+
         Spacer(modifier = Modifier.height(24.dp))
-        
+
         // Заголовок
         Text(
             text = "Ваш телефон",
@@ -154,9 +154,9 @@ fun LoginScreen() {
             color = TelegramColors.TextPrimary,
             fontWeight = FontWeight.Bold
         )
-        
+
         Spacer(modifier = Modifier.height(12.dp))
-        
+
         // Описание
         Text(
             text = "Пожалуйста, подтвердите код страны\nи введите свой номер телефона.",
@@ -165,9 +165,9 @@ fun LoginScreen() {
             textAlign = TextAlign.Center,
             lineHeight = 20.sp
         )
-        
+
         Spacer(modifier = Modifier.height(40.dp))
-        
+
         // Карточка с полями ввода
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -192,30 +192,30 @@ fun LoginScreen() {
                         text = selectedCountry.flag,
                         fontSize = 24.sp
                     )
-                    
+
                     Spacer(modifier = Modifier.width(12.dp))
-                    
+
                     Text(
                         text = selectedCountry.name,
                         style = MaterialTheme.typography.bodyLarge,
                         color = TelegramColors.TextPrimary,
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Выбрать страну",
                         tint = TelegramColors.TextSecondary
                     )
                 }
-                
+
                 // Разделитель
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 52.dp),
                     color = TelegramColors.Divider,
                     thickness = 0.5.dp
                 )
-                
+
                 // Ввод номера телефона
                 Row(
                     modifier = Modifier
@@ -236,9 +236,9 @@ fun LoginScreen() {
                             fontWeight = FontWeight.Medium
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.width(8.dp))
-                    
+
                     // Поле ввода номера
                     BasicTextField(
                         value = phoneNumber,
@@ -279,9 +279,9 @@ fun LoginScreen() {
                 }
             }
         }
-        
+
         Spacer(modifier = Modifier.height(24.dp))
-        
+
         // Чекбокс синхронизации контактов
         Row(
             modifier = Modifier
@@ -300,18 +300,18 @@ fun LoginScreen() {
                     uncheckedColor = TelegramColors.TextSecondary
                 )
             )
-            
+
             Spacer(modifier = Modifier.width(8.dp))
-            
+
             Text(
                 text = "Синхронизировать контакты",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TelegramColors.TextPrimary
             )
         }
-        
+
         Spacer(modifier = Modifier.weight(1f))
-        
+
         // Кнопка продолжить
         Button(
             onClick = { /* TODO: Отправить код подтверждения */ },
@@ -330,9 +330,9 @@ fun LoginScreen() {
                 color = Color.White
             )
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         // Ссылка на вход по QR-коду
         Text(
             text = "Войти по QR-коду",
@@ -342,10 +342,10 @@ fun LoginScreen() {
                 .clickable { /* TODO: Открыть экран QR */ }
                 .padding(vertical = 8.dp)
         )
-        
+
         Spacer(modifier = Modifier.height(32.dp))
     }
-    
+
     // Диалог выбора страны
     if (showCountryPicker) {
         CountryPickerDialog(
@@ -369,18 +369,18 @@ fun CountryPickerDialog(
     onDismiss: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    
+
     val filteredCountries = remember(searchQuery) {
         if (searchQuery.isEmpty()) {
             countries
         } else {
             countries.filter { country ->
                 country.name.contains(searchQuery, ignoreCase = true) ||
-                country.phoneCode.contains(searchQuery)
+                        country.phoneCode.contains(searchQuery)
             }
         }
     }
-    
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -415,7 +415,7 @@ fun CountryPickerDialog(
                                 color = TelegramColors.TextPrimary,
                                 fontWeight = FontWeight.Bold
                             )
-                            
+
                             TextButton(onClick = onDismiss) {
                                 Text(
                                     text = "Отмена",
@@ -423,9 +423,9 @@ fun CountryPickerDialog(
                                 )
                             }
                         }
-                        
+
                         Spacer(modifier = Modifier.height(12.dp))
-                        
+
                         // Поле поиска
                         OutlinedTextField(
                             value = searchQuery,
@@ -455,7 +455,7 @@ fun CountryPickerDialog(
                         )
                     }
                 }
-                
+
                 // Список стран
                 LazyColumn(
                     modifier = Modifier.fillMaxSize()
@@ -499,9 +499,9 @@ fun CountryItem(
                 text = country.flag,
                 fontSize = 28.sp
             )
-            
+
             Spacer(modifier = Modifier.width(16.dp))
-            
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = country.name,
@@ -510,13 +510,13 @@ fun CountryItem(
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                 )
             }
-            
+
             Text(
                 text = country.phoneCode,
                 style = MaterialTheme.typography.bodyMedium,
                 color = TelegramColors.TextSecondary
             )
-            
+
             if (isSelected) {
                 Spacer(modifier = Modifier.width(12.dp))
                 Icon(
@@ -528,10 +528,94 @@ fun CountryItem(
             }
         }
     }
-    
+
     HorizontalDivider(
         modifier = Modifier.padding(start = 60.dp),
         color = TelegramColors.Divider,
         thickness = 0.5.dp
     )
 }
+
+
+
+package com.example.myapplication.ui.theme
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+val Typography = Typography(
+    // Большой заголовок для "Ваш телефон"
+    headlineLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        lineHeight = 32.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Заголовок среднего размера
+    headlineMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 20.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Основной текст
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp
+    ),
+
+    // Вторичный текст (описание)
+    bodyMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.25.sp
+    ),
+
+    // Мелкий текст
+    bodySmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.4.sp
+    ),
+
+    // Текст для полей ввода
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.1.sp
+    ),
+
+    // Подписи к полям
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
+    ),
+
+    // Текст кнопок
+    titleMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.15.sp
+    )
+)
