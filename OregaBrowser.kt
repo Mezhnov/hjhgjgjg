@@ -1,5 +1,5 @@
 package com.example.oregabrowser
-
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.foundation.lazy.grid.*
 import android.Manifest
 import android.annotation.SuppressLint
@@ -76,7 +76,7 @@ object OregaColors {
     val TextSecondary = Color(0xFF6B7280)
     val Accent = Color(0xFFFF6B6B)
     val SearchBar = Color(0xFFFFFFFF)
-    
+
     // Dark theme
     val DarkBackground = Color(0xFF0F0F23)
     val DarkSurface = Color(0xFF1A1A2E)
@@ -201,7 +201,7 @@ class BrowserState {
     fun removeBookmark(url: String) {
         bookmarks.removeAll { it.url == url }
     }
-    
+
     fun addQuickLink(title: String, url: String) {
         quickLinks.add(QuickLink(title, url, Icons.Rounded.Link, OregaColors.Primary))
     }
@@ -628,13 +628,13 @@ fun HomePage(
     onShowMenu: () -> Unit
 ) {
     val isDark = state.isDarkMode
-    
+
     val gradientColors = if (isDark) {
         listOf(OregaColors.DarkGradientStart, OregaColors.DarkGradientEnd, OregaColors.DarkBackground)
     } else {
         listOf(OregaColors.GradientStart, OregaColors.GradientMiddle, OregaColors.GradientEnd)
     }
-    
+
     var selectedCategory by remember { mutableStateOf("Для вас") }
     val categories = listOf("Для вас", "Политика", "Спорт", "Технологии", "Наука")
 
@@ -666,8 +666,8 @@ fun HomePage(
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            color = if (isDark) OregaColors.DarkCard.copy(alpha = 0.5f) 
-                                   else Color.White.copy(alpha = 0.7f),
+                            color = if (isDark) OregaColors.DarkCard.copy(alpha = 0.5f)
+                            else Color.White.copy(alpha = 0.7f),
                             shape = RoundedCornerShape(12.dp)
                         )
                 ) {
@@ -703,7 +703,7 @@ fun HomePage(
                 color = if (isDark) Color.White else OregaColors.TextPrimary,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Quick Links Grid
@@ -718,7 +718,7 @@ fun HomePage(
                         onClick = { /* Add quick link */ }
                     )
                 }
-                
+
                 items(state.quickLinks) { link ->
                     QuickLinkCard(
                         link = link,
@@ -766,7 +766,7 @@ fun HomePage(
                                 text = {
                                     Text(
                                         category,
-                                        fontWeight = if (category == selectedCategory) 
+                                        fontWeight = if (category == selectedCategory)
                                             FontWeight.SemiBold else FontWeight.Normal
                                     )
                                 }
@@ -798,7 +798,7 @@ fun HomePage(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-                        
+
                         TextButton(onClick = { /* Show more */ }) {
                             Text(
                                 "Ещё",
@@ -942,11 +942,11 @@ fun AddQuickLinkButton(
             .size(72.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
-        color = if (isDark) OregaColors.DarkCard.copy(alpha = 0.5f) 
-               else Color.White.copy(alpha = 0.8f),
+        color = if (isDark) OregaColors.DarkCard.copy(alpha = 0.5f)
+        else Color.White.copy(alpha = 0.8f),
         border = BorderStroke(
             1.dp,
-            if (isDark) Color.White.copy(alpha = 0.1f) 
+            if (isDark) Color.White.copy(alpha = 0.1f)
             else Color.Black.copy(alpha = 0.05f)
         )
     ) {
@@ -954,8 +954,8 @@ fun AddQuickLinkButton(
             Icon(
                 Icons.Rounded.Add,
                 contentDescription = "Добавить",
-                tint = if (isDark) Color.White.copy(alpha = 0.7f) 
-                       else OregaColors.TextSecondary,
+                tint = if (isDark) Color.White.copy(alpha = 0.7f)
+                else OregaColors.TextSecondary,
                 modifier = Modifier.size(28.dp)
             )
         }
@@ -989,14 +989,14 @@ fun QuickLinkCard(
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.height(6.dp))
-        
+
         Text(
             link.title,
             style = MaterialTheme.typography.labelSmall,
-            color = if (isDark) Color.White.copy(alpha = 0.8f) 
-                   else OregaColors.TextSecondary,
+            color = if (isDark) Color.White.copy(alpha = 0.8f)
+            else OregaColors.TextSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center
@@ -1038,7 +1038,7 @@ fun NewsCardLarge(
                         )
                     )
             )
-            
+
             // Content
             Column(
                 modifier = Modifier
@@ -1059,7 +1059,7 @@ fun NewsCardLarge(
                         fontWeight = FontWeight.Medium
                     )
                 }
-                
+
                 // Title
                 Text(
                     title,
@@ -1110,9 +1110,9 @@ fun NewsCardSmall(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            
+
             Spacer(modifier = Modifier.width(12.dp))
-            
+
             Surface(
                 modifier = Modifier.size(60.dp),
                 shape = RoundedCornerShape(12.dp),
@@ -1150,9 +1150,9 @@ fun WebViewTopBar(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = if (isIncognito) OregaColors.DarkSurface 
-               else if (isDark) OregaColors.DarkSurface 
-               else Color.White,
+        color = if (isIncognito) OregaColors.DarkSurface
+        else if (isDark) OregaColors.DarkSurface
+        else Color.White,
         shadowElevation = 4.dp
     ) {
         Row(
@@ -1180,8 +1180,8 @@ fun WebViewTopBar(
                     .height(44.dp),
                 shape = RoundedCornerShape(22.dp),
                 color = if (isIncognito) OregaColors.DarkCard.copy(alpha = 0.5f)
-                       else if (isDark) OregaColors.DarkCard
-                       else OregaColors.SurfaceVariant
+                else if (isDark) OregaColors.DarkCard
+                else OregaColors.SurfaceVariant
             ) {
                 Row(
                     modifier = Modifier
@@ -1263,8 +1263,8 @@ fun WebViewTopBar(
                     Icon(
                         imageVector = Icons.Rounded.Layers,
                         contentDescription = "Вкладки",
-                        tint = if (isIncognito || isDark) Color.White 
-                               else OregaColors.TextPrimary
+                        tint = if (isIncognito || isDark) Color.White
+                        else OregaColors.TextPrimary
                     )
                 }
             }
@@ -1274,8 +1274,8 @@ fun WebViewTopBar(
                 Icon(
                     imageVector = Icons.Rounded.MoreVert,
                     contentDescription = "Меню",
-                    tint = if (isIncognito || isDark) Color.White 
-                           else OregaColors.TextPrimary
+                    tint = if (isIncognito || isDark) Color.White
+                    else OregaColors.TextPrimary
                 )
             }
         }
@@ -1327,7 +1327,7 @@ fun ModernBottomBar(
                 isHighlighted = true,
                 onClick = onHome
             )
-            
+
             // Tabs button with badge
             Box {
                 ModernNavButton(
@@ -1348,7 +1348,7 @@ fun ModernBottomBar(
                     }
                 }
             }
-            
+
             ModernNavButton(
                 icon = Icons.Rounded.AccountCircle,
                 description = "Профиль",
@@ -1434,7 +1434,7 @@ fun FindInPageBar(
                     singleLine = true
                 )
             }
-            
+
             IconButton(onClick = onPrevious) {
                 Icon(Icons.Rounded.KeyboardArrowUp, "Предыдущий")
             }
@@ -1464,7 +1464,7 @@ fun WebViewContainer(
     context: Context
 ) {
     val startUrl = if (tab.url.isEmpty()) "https://www.google.com" else tab.url
-    
+
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
@@ -1653,7 +1653,7 @@ fun MainMenuDialog(
                     color = OregaColors.TextSecondary
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(20.dp))
 
             // Quick actions grid
@@ -1661,9 +1661,9 @@ fun MainMenuDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                ModernQuickAction(Icons.Rounded.Add, "Новая
-вкладка", onNewTab)
-                ModernQuickAction(Icons.Rounded.VisibilityOff, "Инкогнито", onIncognitoTab)
+// ПРАВИЛЬНО
+                ModernQuickAction(Icons.Rounded.Add, "Новая вкладка", onNewTab)
+                        ModernQuickAction(Icons.Rounded.VisibilityOff, "Инкогнито", onIncognitoTab)
                 ModernQuickAction(Icons.Rounded.Refresh, "Обновить", onReload)
                 ModernQuickAction(Icons.Rounded.Share, "Поделиться", onShare)
             }
@@ -1858,8 +1858,8 @@ fun ModernTabCard(
         shape = RoundedCornerShape(16.dp),
         border = if (isSelected) BorderStroke(2.dp, OregaColors.Primary) else null,
         colors = CardDefaults.cardColors(
-            containerColor = if (tab.isIncognito) OregaColors.DarkCard 
-                            else MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (tab.isIncognito) OregaColors.DarkCard
+            else MaterialTheme.colorScheme.surfaceVariant
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp)
     ) {
@@ -1884,7 +1884,7 @@ fun ModernTabCard(
                     } else {
                         Spacer(modifier = Modifier.size(16.dp))
                     }
-                    
+
                     Surface(
                         onClick = onClose,
                         shape = CircleShape,
@@ -1896,8 +1896,8 @@ fun ModernTabCard(
                                 Icons.Rounded.Close,
                                 "Закрыть",
                                 modifier = Modifier.size(14.dp),
-                                tint = if (tab.isIncognito) Color.Gray 
-                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                tint = if (tab.isIncognito) Color.Gray
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         }
                     }
@@ -1911,14 +1911,14 @@ fun ModernTabCard(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = if (tab.isIncognito) Color.White 
-                            else MaterialTheme.colorScheme.onSurface
+                    color = if (tab.isIncognito) Color.White
+                    else MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    if (tab.isHomePage) "Главная" 
+                    if (tab.isHomePage) "Главная"
                     else tab.url.removePrefix("https://").removePrefix("www.").take(25),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -2398,7 +2398,7 @@ fun SettingsSheet(
                             text = {
                                 Text(
                                     engine,
-                                    fontWeight = if (engine == state.searchEngine) 
+                                    fontWeight = if (engine == state.searchEngine)
                                         FontWeight.Medium else FontWeight.Normal
                                 )
                             },
@@ -2578,4 +2578,97 @@ fun getSearchUrl(query: String, engine: String): String {
         "Bing" -> "https://www.bing.com/search?q=$encoded"
         else -> "https://www.google.com/search?q=$encoded"
     }
+}
+
+package com.example.myapplication.ui.theme
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+// Set of Material typography styles to start with
+val Typography = Typography(
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp
+    )
+    /* Other default text styles to override
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp
+    ),
+    labelSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
+    )
+    */
+)
+package com.example.myapplication.ui.theme
+
+import android.app.Activity
+import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+
+private val DarkColorScheme = darkColorScheme(
+    primary = Purple80,
+    secondary = PurpleGrey80,
+    tertiary = Pink80
+)
+
+private val LightColorScheme = lightColorScheme(
+    primary = Purple40,
+    secondary = PurpleGrey40,
+    tertiary = Pink40
+
+    /* Other default colors to override
+    background = Color(0xFFFFFBFE),
+    surface = Color(0xFFFFFBFE),
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.White,
+    onBackground = Color(0xFF1C1B1F),
+    onSurface = Color(0xFF1C1B1F),
+    */
+)
+
+@Composable
+fun MyApplicationTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    // Dynamic color is available on Android 12+
+    dynamicColor: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        content = content
+    )
 }
