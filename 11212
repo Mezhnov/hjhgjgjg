@@ -1,1 +1,1927 @@
- <!DOCTYPE html> <html lang="ru"> <head>   <meta charset="UTF-8" />   <meta name="viewport" content="width=device-width, initial-scale=1.0" />   <title>VidFlow — Видеохостинг</title>   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">    <style>     :root {       --primary: #ff0000;       --primary-dark: #cc0000;       --bg-primary: #0f0f0f;       --bg-secondary: #181818;       --bg-tertiary: #212121;       --bg-hover: #272727;       --bg-active: #3d3d3d;       --text-primary: #f1f1f1;       --text-secondary: #aaaaaa;       --text-muted: #717171;       --border-color: #303030;       --shadow: 0 4px 32px rgba(0,0,0,0.4);       --radius: 12px;       --radius-sm: 8px;       --transition: all 0.2s ease;     }      * { margin: 0; padding: 0; box-sizing: border-box; }          html { scroll-behavior: smooth; }      body {       font-family: 'Roboto', 'Arial', sans-serif;       background: var(--bg-primary);       color: var(--text-primary);       min-height: 100vh;       overflow-x: hidden;     }      a { color: inherit; text-decoration: none; }      /* ========== SCROLLBAR ========== */     ::-webkit-scrollbar { width: 8px; height: 8px; }     ::-webkit-scrollbar-track { background: var(--bg-primary); }     ::-webkit-scrollbar-thumb { background: var(--bg-active); border-radius: 4px; }     ::-webkit-scrollbar-thumb:hover { background: #555; }      /* ========== HEADER ========== */     .header {       position: fixed;       top: 0;       left: 0;       right: 0;       height: 56px;       background: var(--bg-primary);       display: flex;       align-items: center;       justify-content: space-between;       padding: 0 16px;       z-index: 1000;       border-bottom: 1px solid var(--border-color);     }      .header-left {       display: flex;       align-items: center;       gap: 16px;     }      .menu-btn {       width: 40px;       height: 40px;       border: none;       background: transparent;       color: var(--text-primary);       border-radius: 50%;       cursor: pointer;       display: flex;       align-items: center;       justify-content: center;       font-size: 20px;       transition: var(--transition);     }     .menu-btn:hover { background: var(--bg-hover); }      .logo {       display: flex;       align-items: center;       gap: 4px;       cursor: pointer;       user-select: none;     }     .logo-icon {       width: 32px;       height: 22px;       background: var(--primary);       border-radius: 4px;       display: flex;       align-items: center;       justify-content: center;       color: white;       font-size: 14px;     }     .logo-text {       font-size: 20px;       font-weight: 700;       letter-spacing: -1px;     }     .logo-country {       font-size: 10px;       color: var(--text-muted);       margin-left: 2px;       vertical-align: super;     }      .header-center {       flex: 1;       max-width: 640px;       display: flex;       align-items: center;       gap: 8px;       margin: 0 40px;     }      .search-box {       flex: 1;       display: flex;       align-items: center;       border: 1px solid var(--border-color);       border-radius: 40px;       overflow: hidden;       background: var(--bg-primary);     }     .search-box:focus-within {       border-color: #3ea6ff;       box-shadow: inset 0 1px 2px rgba(0,0,0,.3);     }      .search-input {       flex: 1;       height: 40px;       border: none;       background: transparent;       color: var(--text-primary);       padding: 0 16px;       font-size: 16px;       outline: none;     }     .search-input::placeholder { color: var(--text-muted); }      .search-btn {       width: 64px;       height: 40px;       border: none;       border-left: 1px solid var(--border-color);       background: var(--bg-tertiary);       color: var(--text-primary);       cursor: pointer;       display: flex;       align-items: center;       justify-content: center;       font-size: 18px;       transition: var(--transition);     }     .search-btn:hover { background: var(--bg-hover); }      .voice-btn {       width: 40px;       height: 40px;       border: none;       background: var(--bg-tertiary);       color: var(--text-primary);       border-radius: 50%;       cursor: pointer;       display: flex;       align-items: center;       justify-content: center;       font-size: 16px;       transition: var(--transition);     }     .voice-btn:hover { background: var(--bg-hover); }      .header-right {       display: flex;       align-items: center;       gap: 8px;     }      .icon-btn {       width: 40px;       height: 40px;       border: none;       background: transparent;       color: var(--text-primary);       border-radius: 50%;       cursor: pointer;       display: flex;       align-items: center;       justify-content: center;       font-size: 20px;       position: relative;       transition: var(--transition);     }     .icon-btn:hover { background: var(--bg-hover); }      .notification-badge {       position: absolute;       top: 4px;       right: 4px;       background: var(--primary);       color: white;       font-size: 10px;       font-weight: 500;       padding: 1px 4px;       border-radius: 8px;       min-width: 16px;       text-align: center;     }      .user-avatar {       width: 32px;       height: 32px;       border-radius: 50%;       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);       display: flex;       align-items: center;       justify-content: center;       font-size: 14px;       font-weight: 500;       cursor: pointer;       margin-left: 8px;     }      /* ========== SIDEBAR ========== */     .sidebar {       position: fixed;       top: 56px;       left: 0;       width: 240px;       height: calc(100vh - 56px);       background: var(--bg-primary);       overflow-y: auto;       overflow-x: hidden;       z-index: 900;       transition: width 0.2s ease, transform 0.2s ease;       border-right: 1px solid var(--border-color);     }      .sidebar.collapsed {       width: 72px;     }      .sidebar-section {       padding: 12px;       border-bottom: 1px solid var(--border-color);     }      .sidebar-item {       display: flex;       align-items: center;       gap: 24px;       padding: 10px 12px;       border-radius: var(--radius);       cursor: pointer;       transition: var(--transition);       white-space: nowrap;     }     .sidebar-item:hover { background: var(--bg-hover); }     .sidebar-item.active { background: var(--bg-active); }      .sidebar-item i {       width: 24px;       font-size: 20px;       text-align: center;       flex-shrink: 0;     }      .sidebar-item span {       font-size: 14px;       font-weight: 400;     }      .sidebar.collapsed .sidebar-item span { display: none; }     .sidebar.collapsed .sidebar-item { justify-content: center; padding: 16px 0; }      .sidebar-title {       font-size: 14px;       font-weight: 500;       color: var(--text-secondary);       padding: 8px 12px 8px 12px;       text-transform: uppercase;       letter-spacing: 0.5px;     }      .sidebar.collapsed .sidebar-title { display: none; }      .subscription-item {       display: flex;       align-items: center;       gap: 16px;       padding: 8px 12px;       border-radius: var(--radius);       cursor: pointer;       transition: var(--transition);     }     .subscription-item:hover { background: var(--bg-hover); }      .sub-avatar {       width: 24px;       height: 24px;       border-radius: 50%;       object-fit: cover;       flex-shrink: 0;     }      .sub-name {       font-size: 14px;       white-space: nowrap;       overflow: hidden;       text-overflow: ellipsis;     }      .sidebar.collapsed .subscription-item span { display: none; }      /* ========== MAIN CONTENT ========== */     .main-content {       margin-left: 240px;       margin-top: 56px;       min-height: calc(100vh - 56px);       transition: margin-left 0.2s ease;     }      .sidebar.collapsed ~ .main-content {       margin-left: 72px;     }      /* ========== CHIPS/TAGS ========== */     .chips-bar {       position: sticky;       top: 56px;       background: var(--bg-primary);       padding: 12px 24px;       display: flex;       gap: 12px;       overflow-x: auto;       z-index: 100;       border-bottom: 1px solid var(--border-color);     }     .chips-bar::-webkit-scrollbar { height: 0; }      .chip {       padding: 8px 12px;       background: var(--bg-tertiary);       border: none;       border-radius: 8px;       color: var(--text-primary);       font-size: 14px;       font-weight: 500;       cursor: pointer;       white-space: nowrap;       transition: var(--transition);     }     .chip:hover { background: var(--bg-hover); }     .chip.active {       background: var(--text-primary);       color: var(--bg-primary);     }      /* ========== VIDEO GRID ========== */     .videos-grid {       display: grid;       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));       gap: 16px;       padding: 24px;     }      .video-card {       cursor: pointer;       transition: var(--transition);     }     .video-card:hover .video-title { color: #3ea6ff; }      .video-thumbnail {       position: relative;       width: 100%;       aspect-ratio: 16/9;       border-radius: var(--radius);       overflow: hidden;       background: var(--bg-secondary);     }      .video-thumbnail img {       width: 100%;       height: 100%;       object-fit: cover;       transition: transform 0.3s ease;     }     .video-card:hover .video-thumbnail img { transform: scale(1.05); }      .video-duration {       position: absolute;       bottom: 8px;       right: 8px;       background: rgba(0,0,0,0.8);       color: white;       font-size: 12px;       font-weight: 500;       padding: 2px 6px;       border-radius: 4px;     }      .video-progress-bar {       position: absolute;       bottom: 0;       left: 0;       height: 3px;       background: var(--primary);     }      .video-info {       display: flex;       gap: 12px;       padding: 12px 4px;     }      .channel-avatar {       width: 36px;       height: 36px;       border-radius: 50%;       object-fit: cover;       flex-shrink: 0;       cursor: pointer;     }      .video-details { flex: 1; min-width: 0; }      .video-title {       font-size: 14px;       font-weight: 500;       line-height: 1.4;       margin-bottom: 6px;       display: -webkit-box;       -webkit-line-clamp: 2;       -webkit-box-orient: vertical;       overflow: hidden;       transition: var(--transition);     }      .video-channel {       font-size: 12px;       color: var(--text-secondary);       margin-bottom: 2px;       display: flex;       align-items: center;       gap: 4px;     }     .video-channel:hover { color: var(--text-primary); }      .verified-badge {       font-size: 12px;       color: var(--text-secondary);     }      .video-meta {       font-size: 12px;       color: var(--text-secondary);     }      /* ========== WATCH PAGE ========== */     .watch-page {       display: none;       padding: 24px;     }      .watch-page.active { display: block; }      .watch-container {       display: grid;       grid-template-columns: 1fr 402px;       gap: 24px;       max-width: 1800px;       margin: 0 auto;     }      .watch-primary { min-width: 0; }      /* ========== VIDEO PLAYER ========== */     .player-wrapper {       position: relative;       width: 100%;       background: #000;       border-radius: var(--radius);       overflow: hidden;       aspect-ratio: 16/9;     }      .player-wrapper.theater {       border-radius: 0;       max-width: none;       margin: -24px -24px 24px -24px;       width: calc(100% + 48px);     }      #mainVideo {       width: 100%;       height: 100%;       object-fit: contain;       background: #000;     }      .player-overlay {       position: absolute;       top: 0;       left: 0;       right: 0;       bottom: 0;       display: flex;       align-items: center;       justify-content: center;       background: rgba(0,0,0,0.4);       opacity: 0;       transition: opacity 0.3s ease;       pointer-events: none;     }     .player-overlay.visible { opacity: 1; pointer-events: all; }      .big-play-btn {       width: 80px;       height: 80px;       background: rgba(0,0,0,0.6);       border: none;       border-radius: 50%;       color: white;       font-size: 32px;       cursor: pointer;       display: flex;       align-items: center;       justify-content: center;       transition: var(--transition);     }     .big-play-btn:hover { background: rgba(0,0,0,0.8); transform: scale(1.1); }      .player-controls {       position: absolute;       bottom: 0;       left: 0;       right: 0;       background: linear-gradient(transparent, rgba(0,0,0,0.9));       padding: 50px 12px 12px;       transform: translateY(100%);       transition: transform 0.3s ease;     }     .player-wrapper:hover .player-controls,     .player-controls.visible { transform: translateY(0); }      .progress-bar-container {       width: 100%;       height: 5px;       background: rgba(255,255,255,0.2);       border-radius: 3px;       cursor: pointer;       margin-bottom: 8px;       position: relative;     }     .progress-bar-container:hover { height: 7px; }      .progress-bar-buffer {       position: absolute;       top: 0;       left: 0;       height: 100%;       background: rgba(255,255,255,0.4);       border-radius: 3px;     }      .progress-bar-fill {       position: absolute;       top: 0;       left: 0;       height: 100%;       background: var(--primary);       border-radius: 3px;     }      .progress-bar-thumb {       position: absolute;       top: 50%;       transform: translate(-50%, -50%);       width: 14px;       height: 14px;       background: var(--primary);       border-radius: 50%;       opacity: 0;       transition: opacity 0.2s;     }     .progress-bar-container:hover .progress-bar-thumb { opacity: 1; }      .controls-row {       display: flex;       align-items: center;       justify-content: space-between;     }      .controls-left, .controls-right {       display: flex;       align-items: center;       gap: 4px;     }      .ctrl-btn {       width: 40px;       height: 40px;       background: transparent;       border: none;       color: white;       border-radius: 50%;       cursor: pointer;       display: flex;       align-items: center;       justify-content: center;       font-size: 18px;       transition: var(--transition);     }     .ctrl-btn:hover { background: rgba(255,255,255,0.1); }      .volume-control {       display: flex;       align-items: center;       gap: 4px;     }      .volume-slider {       width: 0;       overflow: hidden;       transition: width 0.2s ease;     }     .volume-control:hover .volume-slider { width: 60px; }      .volume-slider input {       width: 60px;       height: 4px;       -webkit-appearance: none;       background: rgba(255,255,255,0.3);       border-radius: 2px;       outline: none;     }     .volume-slider input::-webkit-slider-thumb {       -webkit-appearance: none;       width: 12px;       height: 12px;       background: white;       border-radius: 50%;       cursor: pointer;     }      .time-display {       color: white;       font-size: 13px;       margin-left: 12px;       font-weight: 500;     }      .speed-menu, .quality-menu {       position: relative;     }      .speed-btn, .quality-btn {       background: transparent;       border: none;       color: white;       font-size: 13px;       font-weight: 500;       padding: 8px 12px;       cursor: pointer;       border-radius: 4px;       transition: var(--transition);     }     .speed-btn:hover, .quality-btn:hover { background: rgba(255,255,255,0.1); }      .dropdown-menu {       position: absolute;       bottom: 100%;       right: 0;       background: var(--bg-tertiary);       border-radius: var(--radius-sm);       padding: 8px 0;       min-width: 120px;       display: none;       box-shadow: var(--shadow);     }     .speed-menu:hover .dropdown-menu,     .quality-menu:hover .dropdown-menu { display: block; }      .dropdown-item {       padding: 8px 16px;       font-size: 13px;       cursor: pointer;       transition: var(--transition);     }     .dropdown-item:hover { background: var(--bg-hover); }     .dropdown-item.active { color: #3ea6ff; }      .loading-spinner {       position: absolute;       top: 50%;       left: 50%;       transform: translate(-50%, -50%);       display: none;     }     .loading-spinner.active { display: block; }      .spinner {       width: 48px;       height: 48px;       border: 3px solid rgba(255,255,255,0.2);       border-top-color: white;       border-radius: 50%;       animation: spin 1s linear infinite;     }     @keyframes spin { to { transform: rotate(360deg); } }      /* ========== VIDEO INFO SECTION ========== */     .video-info-section {       padding: 12px 0;     }      .watch-title {       font-size: 20px;       font-weight: 600;       line-height: 1.4;       margin-bottom: 12px;     }      .watch-stats {       display: flex;       align-items: center;       justify-content: space-between;       flex-wrap: wrap;       gap: 12px;       padding-bottom: 16px;       border-bottom: 1px solid var(--border-color);     }      .watch-views {       font-size: 14px;       color: var(--text-secondary);     }      .watch-actions {       display: flex;       align-items: center;       gap: 8px;     }      .action-btn {       display: flex;       align-items: center;       gap: 6px;       padding: 8px 16px;       background: var(--bg-tertiary);       border: none;       border-radius: 20px;       color: var(--text-primary);       font-size: 14px;       font-weight: 500;       cursor: pointer;       transition: var(--transition);     }     .action-btn:hover { background: var(--bg-hover); }     .action-btn.active { background: rgba(62,166,255,0.2); color: #3ea6ff; }     .action-btn i { font-size: 18px; }      .like-dislike-group {       display: flex;       background: var(--bg-tertiary);       border-radius: 20px;       overflow: hidden;     }     .like-dislike-group button {       background: transparent;       border: none;       color: var(--text-primary);       padding: 8px 16px;       cursor: pointer;       display: flex;       align-items: center;       gap: 6px;       font-size: 14px;       font-weight: 500;       transition: var(--transition);     }     .like-dislike-group button:hover { background: var(--bg-hover); }     .like-dislike-group button.active { color: #3ea6ff; }     .like-dislike-group .divider {       width: 1px;       background: var(--border-color);     }      /* ========== CHANNEL INFO ========== */     .channel-info-row {       display: flex;       align-items: center;       justify-content: space-between;       padding: 16px 0;       gap: 16px;     }      .channel-info-left {       display: flex;       align-items: center;       gap: 12px;       cursor: pointer;     }      .channel-avatar-large {       width: 40px;       height: 40px;       border-radius: 50%;       object-fit: cover;     }      .channel-text h3 {       font-size: 16px;       font-weight: 500;       display: flex;       align-items: center;       gap: 4px;     }      .channel-text p {       font-size: 12px;       color: var(--text-secondary);     }      .subscribe-btn {       padding: 10px 16px;       background: white;       border: none;       border-radius: 20px;       color: black;       font-size: 14px;       font-weight: 500;       cursor: pointer;       transition: var(--transition);     }     .subscribe-btn:hover { background: #d9d9d9; }     .subscribe-btn.subscribed {       background: var(--bg-tertiary);       color: var(--text-primary);     }      /* ========== DESCRIPTION ========== */     .description-box {       background: var(--bg-tertiary);       border-radius: var(--radius);       padding: 12px;       margin-top: 16px;       cursor: pointer;       transition: var(--transition);     }     .description-box:hover { background: var(--bg-hover); }      .description-preview {       font-size: 14px;       line-height: 1.5;       color: var(--text-secondary);     }      .description-stats {       font-size: 14px;       font-weight: 500;       margin-bottom: 8px;     }      /* ========== COMMENTS ========== */     .comments-section {       margin-top: 24px;     }      .comments-header {       display: flex;       align-items: center;       gap: 32px;       margin-bottom: 24px;     }      .comments-count {       font-size: 16px;       font-weight: 500;     }      .comments-sort {       display: flex;       align-items: center;       gap: 8px;       cursor: pointer;       font-size: 14px;       font-weight: 500;     }      .add-comment {       display: flex;       gap: 12px;       margin-bottom: 24px;     }      .comment-input-wrapper {       flex: 1;     }      .comment-input {       width: 100%;       background: transparent;       border: none;       border-bottom: 1px solid var(--border-color);       color: var(--text-primary);       font-size: 14px;       padding: 8px 0;       outline: none;     }     .comment-input:focus { border-bottom-color: white; }     .comment-input::placeholder { color: var(--text-muted); }      .comment-actions {       display: flex;       justify-content: flex-end;       gap: 8px;       margin-top: 8px;       opacity: 0;       transition: opacity 0.2s;     }     .comment-input:focus ~ .comment-actions { opacity: 1; }      .comment-cancel, .comment-submit {       padding: 8px 16px;       border: none;       border-radius: 20px;       font-size: 14px;       font-weight: 500;       cursor: pointer;       transition: var(--transition);     }     .comment-cancel { background: transparent; color: var(--text-primary); }     .comment-cancel:hover { background: var(--bg-hover); }     .comment-submit { background: #3ea6ff; color: black; }     .comment-submit:disabled { background: var(--bg-tertiary); color: var(--text-muted); cursor: not-allowed; }      .comment-item {       display: flex;       gap: 12px;       margin-bottom: 16px;     }      .comment-avatar {       width: 40px;       height: 40px;       border-radius: 50%;       object-fit: cover;       flex-shrink: 0;     }      .comment-content { flex: 1; }      .comment-author {       display: flex;       align-items: center;       gap: 8px;       margin-bottom: 4px;     }      .comment-author-name {       font-size: 13px;       font-weight: 500;     }      .comment-date {       font-size: 12px;       color: var(--text-muted);     }      .comment-text {       font-size: 14px;       line-height: 1.5;       margin-bottom: 8px;     }      .comment-reactions {       display: flex;       align-items: center;       gap: 8px;     }      .comment-reaction-btn {       background: transparent;       border: none;       color: var(--text-secondary);       font-size: 12px;       cursor: pointer;       display: flex;       align-items: center;       gap: 4px;       padding: 4px 8px;       border-radius: 20px;       transition: var(--transition);     }     .comment-reaction-btn:hover { background: var(--bg-hover); }     .comment-reaction-btn i { font-size: 14px; }      /* ========== SIDEBAR / RECOMMENDATIONS ========== */     .watch-secondary {       display: flex;       flex-direction: column;       gap: 8px;     }      .rec-video {       display: flex;       gap: 8px;       cursor: pointer;       padding: 4px;       border-radius: var(--radius-sm);       transition: var(--transition);     }     .rec-video:hover { background: var(--bg-hover); }      .rec-thumbnail {       position: relative;       width: 168px;       height: 94px;       border-radius: var(--radius-sm);       overflow: hidden;       flex-shrink: 0;       background: var(--bg-secondary);     }      .rec-thumbnail img {       width: 100%;       height: 100%;       object-fit: cover;     }      .rec-duration {       position: absolute;       bottom: 4px;       right: 4px;       background: rgba(0,0,0,0.8);       color: white;       font-size: 11px;       font-weight: 500;       padding: 1px 4px;       border-radius: 3px;     }      .rec-info {       flex: 1;       min-width: 0;     }      .rec-title {       font-size: 14px;       font-weight: 500;       line-height: 1.3;       margin-bottom: 6px;       display: -webkit-box;       -webkit-line-clamp: 2;       -webkit-box-orient: vertical;       overflow: hidden;     }      .rec-channel {       font-size: 12px;       color: var(--text-secondary);       margin-bottom: 2px;     }      .rec-meta {       font-size: 12px;       color: var(--text-secondary);     }      /* ========== CHANNEL PAGE ========== */     .channel-page {       display: none;     }     .channel-page.active { display: block; }      .channel-banner {       width: 100%;       height: 200px;       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);       object-fit: cover;     }      .channel-header {       padding: 16px 24px;       display: flex;       align-items: flex-end;       gap: 24px;       border-bottom: 1px solid var(--border-color);     }      .channel-avatar-xl {       width: 128px;       height: 128px;       border-radius: 50%;       object-fit: cover;       margin-top: -40px;       border: 4px solid var(--bg-primary);     }      .channel-header-info {       flex: 1;       padding-bottom: 8px;     }      .channel-name {       font-size: 24px;       font-weight: 700;       display: flex;       align-items: center;       gap: 8px;       margin-bottom: 8px;     }      .channel-handle {       font-size: 14px;       color: var(--text-secondary);       margin-bottom: 8px;     }      .channel-stats-row {       font-size: 14px;       color: var(--text-secondary);     }      .channel-header-actions {       display: flex;       gap: 8px;       padding-bottom: 8px;     }      .channel-tabs {       display: flex;       gap: 24px;       padding: 0 24px;       border-bottom: 1px solid var(--border-color);     }      .channel-tab {       padding: 16px 0;       font-size: 14px;       font-weight: 500;       color: var(--text-secondary);       cursor: pointer;       border-bottom: 2px solid transparent;       transition: var(--transition);     }     .channel-tab:hover { color: var(--text-primary); }     .channel-tab.active {       color: var(--text-primary);       border-bottom-color: var(--text-primary);     }      .channel-content {       padding: 24px;     }      .channel-section-title {       font-size: 18px;       font-weight: 600;       margin-bottom: 16px;     }      /* ========== HOME PAGE ========== */     .home-page { display: block; }     .home-page.hidden { display: none; }      /* ========== RESPONSIVE ========== */     @media (max-width: 1300px) {       .watch-container {         grid-template-columns: 1fr;       }       .watch-secondary {         display: grid;         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));       }       .rec-video { flex-direction: column; }       .rec-thumbnail { width: 100%; height: auto; aspect-ratio: 16/9; }     }      @media (max-width: 1024px) {       .sidebar { transform: translateX(-100%); }       .sidebar.open { transform: translateX(0); }       .main-content { margin-left: 0 !important; }     }      @media (max-width: 768px) {       .header-center { display: none; }       .videos-grid { grid-template-columns: 1fr; padding: 16px; }       .chips-bar { padding: 12px 16px; }       .watch-page { padding: 0; }       .player-wrapper { border-radius: 0; }       .video-info-section, .comments-section { padding: 0 16px; }       .channel-header { flex-direction: column; align-items: center; text-align: center; }       .channel-avatar-xl { margin-top: -64px; }     }   </style> </head>  <body>   <!-- ========== HEADER ========== -->   <header class="header">     <div class="header-left">       <button class="menu-btn" id="menuToggle">         <i class="fas fa-bars"></i>       </button>       <div class="logo" id="logoBtn">         <div class="logo-icon"><i class="fas fa-play"></i></div>         <span class="logo-text">VidFlow<span class="logo-country">RU</span></span>       </div>     </div>      <div class="header-center">       <div class="search-box">         <input type="text" class="search-input" id="searchInput" placeholder="Введите запрос">         <button class="search-btn"><i class="fas fa-search"></i></button>       </div>       <button class="voice-btn"><i class="fas fa-microphone"></i></button>     </div>      <div class="header-right">       <button class="icon-btn"><i class="fas fa-video"></i></button>       <button class="icon-btn">         <i class="fas fa-bell"></i>         <span class="notification-badge">9+</span>       </button>       <div class="user-avatar">А</div>     </div>   </header>    <!-- ========== SIDEBAR ========== -->   <aside class="sidebar" id="sidebar">     <div class="sidebar-section">       <div class="sidebar-item active" data-page="home">         <i class="fas fa-home"></i>         <span>Главная</span>       </div>       <div class="sidebar-item">         <i class="fas fa-fire"></i>         <span>В тренде</span>       </div>       <div class="sidebar-item">         <i class="fas fa-music"></i>         <span>Музыка</span>       </div>       <div class="sidebar-item">         <i class="fas fa-gamepad"></i>         <span>Игры</span>       </div>       <div class="sidebar-item">         <i class="fas fa-newspaper"></i>         <span>Новости</span>       </div>     </div>      <div class="sidebar-section">       <div class="sidebar-item">         <i class="fas fa-history"></i>         <span>История</span>       </div>       <div class="sidebar-item">         <i class="fas fa-clock"></i>         <span>Смотреть позже</span>       </div>       <div class="sidebar-item">         <i class="fas fa-thumbs-up"></i>         <span>Понравившиеся</span>       </div>     </div>      <div class="sidebar-section">       <div class="sidebar-title">Подписки</div>       <div class="subscription-item" data-channel="blender">         <img class="sub-avatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100" alt="">         <span class="sub-name">Blender Studio</span>       </div>       <div class="subscription-item" data-channel="tech">         <img class="sub-avatar" src="https://images.unsplash.com/photo-1599566150163-29194dcabd36?w=100" alt="">         <span class="sub-name">TechWorld</span>       </div>       <div class="subscription-item" data-channel="music">         <img class="sub-avatar" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100" alt="">         <span class="sub-name">Music Channel</span>       </div>     </div>   </aside>    <!-- ========== MAIN CONTENT ========== -->   <main class="main-content">      <!-- HOME PAGE -->     <div class="home-page" id="homePage">       <div class="chips-bar" id="chipsBar"></div>       <div class="videos-grid" id="videosGrid"></div>     </div>      <!-- WATCH PAGE -->     <div class="watch-page" id="watchPage">       <div class="watch-container">         <div class="watch-primary">           <!-- VIDEO PLAYER -->           <div class="player-wrapper" id="playerWrapper">             <video id="mainVideo" playsinline preload="metadata"></video>              <div class="player-overlay" id="playerOverlay">               <button class="big-play-btn" id="bigPlayBtn">                 <i class="fas fa-play"></i>               </button>             </div>              <div class="loading-spinner" id="loadingSpinner">               <div class="spinner"></div>             </div>              <div class="player-controls" id="playerControls">               <div class="progress-bar-container" id="progressBar">                 <div class="progress-bar-buffer" id="bufferBar"></div>                 <div class="progress-bar-fill" id="progressFill"></div>                 <div class="progress-bar-thumb" id="progressThumb"></div>               </div>                <div class="controls-row">                 <div class="controls-left">                   <button class="ctrl-btn" id="playPauseBtn">                     <i class="fas fa-play"></i>                   </button>                   <button class="ctrl-btn" id="rewindBtn">                     <i class="fas fa-backward"></i>                   </button>                   <button class="ctrl-btn" id="forwardBtn">                     <i class="fas fa-forward"></i>                   </button>                    <div class="volume-control">                     <button class="ctrl-btn" id="muteBtn">                       <i class="fas fa-volume-up" id="volumeIcon"></i>                     </button>                     <div class="volume-slider">                       <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">                     </div>                   </div>                    <span class="time-display">                     <span id="currentTime">0:00</span> / <span id="duration">0:00</span>                   </span>                 </div>                  <div class="controls-right">                   <div class="speed-menu">                     <button class="speed-btn" id="speedBtn">1x</button>                     <div class="dropdown-menu" id="speedMenu">                       <div class="dropdown-item" data-speed="0.25">0.25x</div>                       <div class="dropdown-item" data-speed="0.5">0.5x</div>                       <div class="dropdown-item" data-speed="0.75">0.75x</div>                       <div class="dropdown-item active" data-speed="1">Обычная</div>                       <div class="dropdown-item" data-speed="1.25">1.25x</div>                       <div class="dropdown-item" data-speed="1.5">1.5x</div>                       <div class="dropdown-item" data-speed="2">2x</div>                     </div>                   </div>                    <div class="quality-menu">                     <button class="quality-btn" id="qualityBtn">1080p</button>                     <div class="dropdown-menu" id="qualityMenu">                       <div class="dropdown-item active" data-quality="1080">1080p</div>                       <div class="dropdown-item" data-quality="720">720p</div>                       <div class="dropdown-item" data-quality="480">480p</div>                       <div class="dropdown-item" data-quality="360">360p</div>                       <div class="dropdown-item" data-quality="auto">Авто</div>                     </div>                   </div>                    <button class="ctrl-btn" id="theaterBtn">                     <i class="fas fa-expand-alt"></i>                   </button>                   <button class="ctrl-btn" id="fullscreenBtn">                     <i class="fas fa-expand"></i>                   </button>                 </div>               </div>             </div>           </div>            <!-- VIDEO INFO -->           <div class="video-info-section">             <h1 class="watch-title" id="watchTitle">Загрузка...</h1>              <div class="watch-stats">               <span class="watch-views" id="watchViews">0 просмотров</span>                <div class="watch-actions">                 <div class="like-dislike-group">                   <button id="likeBtn"><i class="far fa-thumbs-up"></i> <span id="likeCount">0</span></button>                   <div class="divider"></div>                   <button id="dislikeBtn"><i class="far fa-thumbs-down"></i></button>                 </div>                 <button class="action-btn" id="shareBtn"><i class="fas fa-share"></i> Поделиться</button>                 <button class="action-btn" id="saveBtn"><i class="far fa-bookmark"></i> Сохранить</button>               </div>             </div>              <div class="channel-info-row">               <div class="channel-info-left" id="channelLink">                 <img class="channel-avatar-large" id="watchChannelAvatar" src="" alt="">                 <div class="channel-text">                   <h3 id="watchChannelName">Канал <i class="fas fa-check-circle verified-badge"></i></h3>                   <p id="watchChannelSubs">0 подписчиков</p>                 </div>               </div>               <button class="subscribe-btn" id="subscribeBtn">Подписаться</button>             </div>              <div class="description-box" id="descriptionBox">               <div class="description-stats" id="descStats"></div>               <div class="description-preview" id="descText"></div>             </div>           </div>            <!-- COMMENTS -->           <div class="comments-section">             <div class="comments-header">               <span class="comments-count" id="commentsCount">0 комментариев</span>               <div class="comments-sort">                 <i class="fas fa-sort-amount-down"></i>                 <span>Сортировка</span>               </div>             </div>              <div class="add-comment">               <img class="comment-avatar" src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100" alt="">               <div class="comment-input-wrapper">                 <input type="text" class="comment-input" placeholder="Введите комментарий...">                 <div class="comment-actions">                   <button class="comment-cancel">Отмена</button>                   <button class="comment-submit" disabled>Оставить комментарий</button>                 </div>               </div>             </div>              <div class="comments-list" id="commentsList"></div>           </div>         </div>          <!-- RECOMMENDATIONS -->         <div class="watch-secondary" id="recommendationsList"></div>       </div>     </div>      <!-- CHANNEL PAGE -->     <div class="channel-page" id="channelPage">       <img class="channel-banner" id="channelBanner" src="" alt="">        <div class="channel-header">         <img class="channel-avatar-xl" id="channelAvatarXL" src="" alt="">         <div class="channel-header-info">           <h1 class="channel-name" id="channelNameXL">             <span></span>             <i class="fas fa-check-circle verified-badge"></i>           </h1>           <div class="channel-handle" id="channelHandle">@channel</div>           <div class="channel-stats-row" id="channelStatsRow">0 подписчиков • 0 видео</div>         </div>         <div class="channel-header-actions">           <button class="subscribe-btn" id="channelSubscribeBtn">Подписаться</button>           <button class="action-btn"><i class="fas fa-bell"></i></button>         </div>       </div>        <div class="channel-tabs">         <div class="channel-tab active">Главная</div>         <div class="channel-tab">Видео</div>         <div class="channel-tab">Плейлисты</div>         <div class="channel-tab">Сообщество</div>         <div class="channel-tab">О канале</div>       </div>        <div class="channel-content">         <h2 class="channel-section-title">Видео канала</h2>         <div class="videos-grid" id="channelVideosGrid"></div>       </div>     </div>    </main>    <script>     // ==================== DATA ====================     const CHANNELS = {       blender: {         id: 'blender',         name: 'Blender Studio',         handle: '@BlenderStudio',         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',         banner: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1600',         subscribers: '2.5M',         videoCount: 156,         description: 'Официальный канал Blender Foundation. Создаём открытое ПО для 3D-графики.'       },       tech: {         id: 'tech',         name: 'TechWorld',         handle: '@TechWorld',         avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcabd36?w=200',         banner: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1600',         subscribers: '890K',         videoCount: 312,         description: 'Новости технологий, обзоры гаджетов и IT-индустрии.'       },       music: {         id: 'music',         name: 'Music Channel',         handle: '@MusicChannel',         avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',         banner: 'https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=1600',         subscribers: '1.2M',         videoCount: 89,         description: 'Музыкальные клипы, концерты и лайвы.'       }     };      const VIDEOS = [       {         id: 'bbb',         title: 'Big Buck Bunny — Полный фильм в 4K',         src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',         poster: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=800',         channelId: 'blender',         views: '12M',         date: '2 года назад',         duration: '9:56',         likes: '450K',         tags: ['Анимация', 'Все'],         description: 'Big Buck Bunny — короткометражный анимационный фильм, созданный Blender Institute. Это история о гигантском кролике, который противостоит трём хулиганам-грызунам. Фильм создан с использованием свободного ПО Blender и распространяется под лицензией Creative Commons.'       },       {         id: 'elephants',         title: 'Elephant Dream — Первый открытый фильм',         src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',         poster: 'https://images.unsplash.com/photo-1522199710521-72d69614c702?w=800',         channelId: 'blender',         views: '8.6M',         date: '3 года назад',         duration: '10:53',         likes: '280K',         tags: ['Анимация', 'Все'],         description: 'Elephants Dream — первый открытый фильм, полностью созданный с помощью Blender. Сюрреалистическая история о двух персонажах, путешествующих по странному механическому миру.'       },       {         id: 'sintel',         title: 'Sintel — Эпическая короткометражка',         src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',         poster: 'https://images.unsplash.com/photo-1517602302552-471fe67acf66?w=800',         channelId: 'blender',         views: '27M',         date: '1 год назад',         duration: '14:48',         likes: '1.2M',         tags: ['Анимация', 'Экшен', 'Все'],         description: 'Sintel — третий открытый фильм от Blender Foundation. Эпическая история девушки-воительницы Sintel, ищущей своего потерянного дракона. Фильм демонстрирует невероятные возможности Blender.'       },       {         id: 'tears',         title: 'Tears of Steel — Sci-Fi короткометражка',         src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',         poster: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800',         channelId: 'tech',         views: '19M',         date: '6 месяцев назад',         duration: '12:14',         likes: '770K',         tags: ['Sci-Fi', 'Кино', 'Все'],         description: 'Tears of Steel — научно-фантастический короткометражный фильм, сочетающий живых актёров и CGI. История о группе воинов, сражающихся с роботами в постапокалиптическом Амстердаме.'       },       {         id: 'blazes',         title: 'For Bigger Blazes — Рекламный ролик',         src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',         poster: 'https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=800',         channelId: 'tech',         views: '3.1M',         date: '1 месяц назад',         duration: '0:15',         likes: '96K',         tags: ['Демо', 'Реклама', 'Все'],         description: 'Короткий демонстрационный ролик из коллекции Google sample videos. Показывает возможности видеоплеера и различные форматы.'       },       {         id: 'subaru',         title: 'Subaru Outback — На дороге и бездорожье',         src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',         poster: 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=800',         channelId: 'tech',         views: '5.4M',         date: '2 недели назад',         duration: '0:15',         likes: '140K',         tags: ['Авто', 'Демо', 'Все'],         description: 'Тестовый ролик автомобиля Subaru Outback. Демонстрация возможностей на асфальте и грунтовых дорогах.'       },       {         id: 'escape',         title: 'For Bigger Escape — Приключенческий ролик',         src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',         poster: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800',         channelId: 'music',         views: '2.8M',         date: '3 недели назад',         duration: '0:15',         likes: '85K',         tags: ['Демо', 'Все'],         description: 'Демонстрационное видео из тестовой библиотеки Google. Атмосферный ролик о путешествиях и приключениях.'       },       {         id: 'joyrides',         title: 'For Bigger Joyrides — Весёлая поездка',         src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',         poster: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800',         channelId: 'music',         views: '1.9M',         date: '1 месяц назад',         duration: '0:15',         likes: '67K',         tags: ['Демо', 'Все'],         description: 'Короткий тестовый ролик о весёлых путешествиях и дорожных приключениях.'       }     ];      const COMMENTS = [       { author: 'Александр К.', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100', text: 'Потрясающее качество анимации! Blender просто невероятен.', likes: 1247, date: '2 дня назад' },       { author: 'Мария В.', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100', text: 'Смотрю уже в третий раз, каждый раз замечаю новые детали 🔥', likes: 892, date: '1 неделю назад' },       { author: 'Дмитрий П.', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100', text: 'Кто в 2024? Классика не стареет!', likes: 534, date: '3 недели назад' },       { author: 'Елена С.', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100', text: 'Использую этот ролик для тестирования своего плеера. Отличное качество!', likes: 267, date: '1 месяц назад' }     ];      const TAGS = ['Все', 'Анимация', 'Музыка', 'Игры', 'Sci-Fi', 'Авто', 'Демо', 'Кино', 'Экшен'];      // ==================== STATE ====================     let currentPage = 'home';     let currentVideoId = null;     let currentChannelId = null;     let currentTag = 'Все';     let sidebarCollapsed = false;     let isPlaying = false;     let volume = 1;     let lastVolume = 1;      // ==================== DOM ELEMENTS ====================     const sidebar = document.getElementById('sidebar');     const homePage = document.getElementById('homePage');     const watchPage = document.getElementById('watchPage');     const channelPage = document.getElementById('channelPage');     const videosGrid = document.getElementById('videosGrid');     const chipsBar = document.getElementById('chipsBar');     const searchInput = document.getElementById('searchInput');      // Player elements     const mainVideo = document.getElementById('mainVideo');     const playerWrapper = document.getElementById('playerWrapper');     const playerOverlay = document.getElementById('playerOverlay');     const playerControls = document.getElementById('playerControls');     const bigPlayBtn = document.getElementById('bigPlayBtn');     const playPauseBtn = document.getElementById('playPauseBtn');     const rewindBtn = document.getElementById('rewindBtn');     const forwardBtn = document.getElementById('forwardBtn');     const muteBtn = document.getElementById('muteBtn');     const volumeSlider = document.getElementById('volumeSlider');     const volumeIcon = document.getElementById('volumeIcon');     const progressBar = document.getElementById('progressBar');     const progressFill = document.getElementById('progressFill');     const progressThumb = document.getElementById('progressThumb');     const bufferBar = document.getElementById('bufferBar');     const currentTimeEl = document.getElementById('currentTime');     const durationEl = document.getElementById('duration');     const speedBtn = document.getElementById('speedBtn');     const speedMenu = document.getElementById('speedMenu');     const qualityBtn = document.getElementById('qualityBtn');     const qualityMenu = document.getElementById('qualityMenu');     const theaterBtn = document.getElementById('theaterBtn');     const fullscreenBtn = document.getElementById('fullscreenBtn');     const loadingSpinner = document.getElementById('loadingSpinner');      // ==================== UTILITIES ====================     function formatTime(seconds) {       if (!isFinite(seconds)) return '0:00';       const m = Math.floor(seconds / 60);       const s = Math.floor(seconds % 60);       return `${m}:${s.toString().padStart(2, '0')}`;     }      function formatViews(views) {       return views + ' просмотров';     }      // ==================== RENDER FUNCTIONS ====================     function renderChips() {       chipsBar.innerHTML = TAGS.map(tag => `         <button class="chip ${tag === currentTag ? 'active' : ''}" data-tag="${tag}">${tag}</button>       `).join('');        chipsBar.querySelectorAll('.chip').forEach(chip => {         chip.addEventListener('click', () => {           currentTag = chip.dataset.tag;           renderChips();           renderVideosGrid();         });       });     }      function renderVideosGrid() {       const query = searchInput.value.toLowerCase();       const filtered = VIDEOS.filter(v => {         const matchTag = currentTag === 'Все' || v.tags.includes(currentTag);         const matchQuery = !query || v.title.toLowerCase().includes(query) ||                            CHANNELS[v.channelId].name.toLowerCase().includes(query);         return matchTag && matchQuery;       });        videosGrid.innerHTML = filtered.map(v => {         const channel = CHANNELS[v.channelId];         return `           <div class="video-card" data-id="${v.id}">             <div class="video-thumbnail">               <img src="${v.poster}" alt="${v.title}">               <span class="video-duration">${v.duration}</span>             </div>             <div class="video-info">               <img class="channel-avatar" src="${channel.avatar}" alt="${channel.name}" data-channel="${v.channelId}">               <div class="video-details">                 <h3 class="video-title">${v.title}</h3>                 <div class="video-channel" data-channel="${v.channelId}">                   ${channel.name}                   <i class="fas fa-check-circle verified-badge"></i>                 </div>                 <div class="video-meta">${v.views} просмотров • ${v.date}</div>               </div>             </div>           </div>         `;       }).join('');        // Event listeners       videosGrid.querySelectorAll('.video-card').forEach(card => {         card.addEventListener('click', (e) => {           if (e.target.closest('[data-channel]')) {             openChannel(e.target.closest('[data-channel]').dataset.channel);           } else {             openVideo(card.dataset.id);           }         });       });     }      function renderRecommendations(excludeId) {       const recs = VIDEOS.filter(v => v.id !== excludeId).slice(0, 8);       const list = document.getElementById('recommendationsList');        list.innerHTML = recs.map(v => {         const channel = CHANNELS[v.channelId];         return `           <div class="rec-video" data-id="${v.id}">             <div class="rec-thumbnail">               <img src="${v.poster}" alt="${v.title}">               <span class="rec-duration">${v.duration}</span>             </div>             <div class="rec-info">               <h4 class="rec-title">${v.title}</h4>               <div class="rec-channel">${channel.name}</div>               <div class="rec-meta">${v.views} • ${v.date}</div>             </div>           </div>         `;       }).join('');        list.querySelectorAll('.rec-video').forEach(item => {         item.addEventListener('click', () => openVideo(item.dataset.id));       });     }      function renderComments() {       const list = document.getElementById('commentsList');       list.innerHTML = COMMENTS.map(c => `         <div class="comment-item">           <img class="comment-avatar" src="${c.avatar}" alt="${c.author}">           <div class="comment-content">             <div class="comment-author">               <span class="comment-author-name">${c.author}</span>               <span class="comment-date">${c.date}</span>             </div>             <p class="comment-text">${c.text}</p>             <div class="comment-reactions">               <button class="comment-reaction-btn"><i class="far fa-thumbs-up"></i> ${c.likes}</button>               <button class="comment-reaction-btn"><i class="far fa-thumbs-down"></i></button>               <button class="comment-reaction-btn">Ответить</button>             </div>           </div>         </div>       `).join('');        document.getElementById('commentsCount').textContent = `${COMMENTS.length} комментариев`;     }      function renderChannelPage(channelId) {       const channel = CHANNELS[channelId];       if (!channel) return;        document.getElementById('channelBanner').src = channel.banner;       document.getElementById('channelAvatarXL').src = channel.avatar;       document.getElementById('channelNameXL').querySelector('span').textContent = channel.name;       document.getElementById('channelHandle').textContent = channel.handle;       document.getElementById('channelStatsRow').textContent = `${channel.subscribers} подписчиков • ${channel.videoCount} видео`;        const channelVideos = VIDEOS.filter(v => v.channelId === channelId);       const grid = document.getElementById('channelVideosGrid');        grid.innerHTML = channelVideos.map(v => `         <div class="video-card" data-id="${v.id}">           <div class="video-thumbnail">             <img src="${v.poster}" alt="${v.title}">             <span class="video-duration">${v.duration}</span>           </div>           <div class="video-info">             <div class="video-details" style="margin-left:0">               <h3 class="video-title">${v.title}</h3>               <div class="video-meta">${v.views} просмотров • ${v.date}</div>             </div>           </div>         </div>       `).join('');        grid.querySelectorAll('.video-card').forEach(card => {         card.addEventListener('click', () => openVideo(card.dataset.id));       });     }      // ==================== NAVIGATION ====================     function showPage(page) {       currentPage = page;       homePage.classList.toggle('hidden', page !== 'home');       watchPage.classList.toggle('active', page === 'watch');       channelPage.classList.toggle('active', page === 'channel');        if (page !== 'watch') {         mainVideo.pause();       }        window.scrollTo(0, 0);     }      function openVideo(id) {       const video = VIDEOS.find(v => v.id === id);       if (!video) return;        currentVideoId = id;       const channel = CHANNELS[video.channelId];        // Update UI       document.getElementById('watchTitle').textContent = video.title;       document.getElementById('watchViews').textContent = `${video.views} просмотров • ${video.date}`;       document.getElementById('likeCount').textContent = video.likes;       document.getElementById('watchChannelAvatar').src = channel.avatar;       document.getElementById('watchChannelName').innerHTML = `${channel.name} <i class="fas fa-check-circle verified-badge"></i>`;       document.getElementById('watchChannelSubs').textContent = `${channel.subscribers} подписчиков`;       document.getElementById('descStats').textContent = `${video.views} просмотров • ${video.date}`;       document.getElementById('descText').textContent = video.description;        // Load video       mainVideo.src = video.src;       mainVideo.poster = video.poster;       mainVideo.load();        renderRecommendations(id);       renderComments();       showPage('watch');        // Setup channel link       document.getElementById('channelLink').onclick = () => openChannel(video.channelId);        // Auto-play       mainVideo.play().catch(() => {         playerOverlay.classList.add('visible');       });     }      function openChannel(channelId) {       currentChannelId = channelId;       renderChannelPage(channelId);       showPage('channel');     }      // ==================== PLAYER CONTROLS ====================     function togglePlay() {       if (mainVideo.paused) {         mainVideo.play();       } else {         mainVideo.pause();       }     }      function updatePlayButton() {       const icon = mainVideo.paused ? 'fa-play' : 'fa-pause';       playPauseBtn.innerHTML = `<i class="fas ${icon}"></i>`;       bigPlayBtn.innerHTML = `<i class="fas ${icon}"></i>`;       playerOverlay.classList.toggle('visible', mainVideo.paused);     }      function seek(delta) {       mainVideo.currentTime = Math.max(0, Math.min(mainVideo.duration, mainVideo.currentTime + delta));     }      function updateProgress() {       if (!mainVideo.duration) return;       const percent = (mainVideo.currentTime / mainVideo.duration) * 100;       progressFill.style.width = percent + '%';       progressThumb.style.left = percent + '%';       currentTimeEl.textContent = formatTime(mainVideo.currentTime);     }      function updateBuffer() {       if (mainVideo.buffered.length > 0) {         const buffered = mainVideo.buffered.end(mainVideo.buffered.length - 1);         const percent = (buffered / mainVideo.duration) * 100;         bufferBar.style.width = percent + '%';       }     }      function seekTo(e) {       const rect = progressBar.getBoundingClientRect();       const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));       mainVideo.currentTime = percent * mainVideo.duration;     }      function updateVolume() {       mainVideo.volume = volumeSlider.value;       volume = mainVideo.volume;       updateVolumeIcon();     }      function toggleMute() {       if (mainVideo.volume > 0) {         lastVolume = mainVideo.volume;         mainVideo.volume = 0;         volumeSlider.value = 0;       } else {         mainVideo.volume = lastVolume;         volumeSlider.value = lastVolume;       }       updateVolumeIcon();     }      function updateVolumeIcon() {       let icon = 'fa-volume-up';       if (mainVideo.volume === 0) icon = 'fa-volume-mute';       else if (mainVideo.volume < 0.5) icon = 'fa-volume-down';       volumeIcon.className = 'fas ' + icon;     }      function toggleFullscreen() {       if (!document.fullscreenElement) {         playerWrapper.requestFullscreen();       } else {         document.exitFullscreen();       }     }      function toggleTheater() {       playerWrapper.classList.toggle('theater');     }      // ==================== EVENT LISTENERS ====================     function setupEventListeners() {       // Sidebar toggle       document.getElementById('menuToggle').addEventListener('click', () => {         if (window.innerWidth <= 1024) {           sidebar.classList.toggle('open');         } else {           sidebar.classList.toggle('collapsed');         }       });        // Logo click       document.getElementById('logoBtn').addEventListener('click', () => showPage('home'));        // Sidebar items       document.querySelectorAll('.sidebar-item[data-page]').forEach(item => {         item.addEventListener('click', () => showPage(item.dataset.page));       });        // Subscriptions       document.querySelectorAll('.subscription-item').forEach(item => {         item.addEventListener('click', () => openChannel(item.dataset.channel));       });        // Search       searchInput.addEventListener('input', renderVideosGrid);        // Player controls       bigPlayBtn.addEventListener('click', togglePlay);       playPauseBtn.addEventListener('click', togglePlay);       mainVideo.addEventListener('click', togglePlay);       mainVideo.addEventListener('play', updatePlayButton);       mainVideo.addEventListener('pause', updatePlayButton);       mainVideo.addEventListener('timeupdate', updateProgress);       mainVideo.addEventListener('progress', updateBuffer);       mainVideo.addEventListener('loadedmetadata', () => {         durationEl.textContent = formatTime(mainVideo.duration);       });       mainVideo.addEventListener('waiting', () => loadingSpinner.classList.add('active'));       mainVideo.addEventListener('playing', () => loadingSpinner.classList.remove('active'));       mainVideo.addEventListener('canplay', () => loadingSpinner.classList.remove('active'));        rewindBtn.addEventListener('click', () => seek(-10));       forwardBtn.addEventListener('click', () => seek(10));       muteBtn.addEventListener('click', toggleMute);       volumeSlider.addEventListener('input', updateVolume);       progressBar.addEventListener('click', seekTo);       fullscreenBtn.addEventListener('click', toggleFullscreen);       theaterBtn.addEventListener('click', toggleTheater);        // Speed options       document.querySelectorAll('#speedMenu .dropdown-item').forEach(item => {         item.addEventListener('click', () => {           const speed = parseFloat(item.dataset.speed);           mainVideo.playbackRate = speed;           speedBtn.textContent = speed === 1 ? '1x' : speed + 'x';           document.querySelectorAll('#speedMenu .dropdown-item').forEach(i => i.classList.remove('active'));           item.classList.add('active');         });       });        // Quality options (UI only)       document.querySelectorAll('#qualityMenu .dropdown-item').forEach(item => {         item.addEventListener('click', () => {           qualityBtn.textContent = item.dataset.quality === 'auto' ? 'Авто' : item.dataset.quality + 'p';           document.querySelectorAll('#qualityMenu .dropdown-item').forEach(i => i.classList.remove('active'));           item.classList.add('active');         });       });        // Fullscreen change       document.addEventListener('fullscreenchange', () => {         const icon = document.fullscreenElement ? 'fa-compress' : 'fa-expand';         fullscreenBtn.innerHTML = `<i class="fas ${icon}"></i>`;       });        // Keyboard shortcuts       document.addEventListener('keydown', (e) => {         if (currentPage !== 'watch') return;         if (e.target.tagName === 'INPUT') return;          switch(e.code) {           case 'Space': e.preventDefault(); togglePlay(); break;           case 'KeyK': togglePlay(); break;           case 'KeyJ': seek(-10); break;           case 'KeyL': seek(10); break;           case 'KeyM': toggleMute(); break;           case 'KeyF': toggleFullscreen(); break;           case 'KeyT': toggleTheater(); break;           case 'ArrowLeft': seek(-5); break;           case 'ArrowRight': seek(5); break;           case 'ArrowUp': e.preventDefault(); mainVideo.volume = Math.min(1, mainVideo.volume + 0.1); volumeSlider.value = mainVideo.volume; updateVolumeIcon(); break;           case 'ArrowDown': e.preventDefault(); mainVideo.volume = Math.max(0, mainVideo.volume - 0.1); volumeSlider.value = mainVideo.volume; updateVolumeIcon(); break;         }       });        // Like/dislike/subscribe buttons       document.getElementById('likeBtn').addEventListener('click', function() {         this.classList.toggle('active');         document.getElementById('dislikeBtn').classList.remove('active');       });        document.getElementById('dislikeBtn').addEventListener('click', function() {         this.classList.toggle('active');         document.getElementById('likeBtn').classList.remove('active');       });        document.getElementById('subscribeBtn').addEventListener('click', function() {         this.classList.toggle('subscribed');         this.textContent = this.classList.contains('subscribed') ? 'Подписка оформлена' : 'Подписаться';       });        document.getElementById('channelSubscribeBtn').addEventListener('click', function() {         this.classList.toggle('subscribed');         this.textContent = this.classList.contains('subscribed') ? 'Подписка оформлена' : 'Подписаться';       });        document.getElementById('saveBtn').addEventListener('click', function() {         this.classList.toggle('active');       });        document.getElementById('shareBtn').addEventListener('click', () => {         navigator.clipboard.writeText(window.location.href);         alert('Ссылка скопирована!');       });        // Comment input       const commentInput = document.querySelector('.comment-input');       const commentSubmit = document.querySelector('.comment-submit');       commentInput.addEventListener('input', () => {         commentSubmit.disabled = !commentInput.value.trim();       });     }      // ==================== INIT ====================     function init() {       renderChips();       renderVideosGrid();       setupEventListeners();       showPage('home');     }      init();   </script> </body> </html>  измени пожалуйста дизайн видехоситнга более зеленым сделай и современее чтобы не было видно что спидили дизайн ютуба что-то своё, видеоплеер не трогать, а также реализуй личный кабинет где смотришь свои просмотры, весь код в одном файле
+package com.example.myapplication
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.delay
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            MyApplicationTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    TelegramAuthApp()
+                }
+            }
+        }
+    }
+}
+
+// Состояния навигации
+sealed class AuthScreen {
+    object PhoneInput : AuthScreen()
+    data class CodeVerification(val phoneNumber: String, val countryCode: String) : AuthScreen()
+    data class Registration(val phoneNumber: String) : AuthScreen()
+    object Success : AuthScreen()
+}
+
+// Модель данных для страны
+data class Country(
+    val name: String,
+    val code: String,
+    val flag: String,
+    val phoneCode: String
+)
+
+// Модель данных пользователя
+data class UserData(
+    var firstName: String = "",
+    var lastName: String = "",
+    var birthDay: String = "",
+    var birthMonth: String = "",
+    var birthYear: String = "",
+    var bio: String = "",
+    var username: String = ""
+)
+
+// Список стран
+val countries = listOf(
+    Country("Россия", "RU", "🇷🇺", "+7"),
+    Country("Украина", "UA", "🇺🇦", "+380"),
+    Country("Беларусь", "BY", "🇧🇾", "+375"),
+    Country("Казахстан", "KZ", "🇰🇿", "+7"),
+    Country("Узбекистан", "UZ", "🇺🇿", "+998"),
+    Country("Германия", "DE", "🇩🇪", "+49"),
+    Country("США", "US", "🇺🇸", "+1"),
+    Country("Великобритания", "GB", "🇬🇧", "+44"),
+    Country("Франция", "FR", "🇫🇷", "+33"),
+    Country("Италия", "IT", "🇮🇹", "+39"),
+    Country("Испания", "ES", "🇪🇸", "+34"),
+    Country("Польша", "PL", "🇵🇱", "+48"),
+    Country("Турция", "TR", "🇹🇷", "+90"),
+    Country("Китай", "CN", "🇨🇳", "+86"),
+    Country("Япония", "JP", "🇯🇵", "+81"),
+    Country("Южная Корея", "KR", "🇰🇷", "+82"),
+    Country("Индия", "IN", "🇮🇳", "+91"),
+    Country("Бразилия", "BR", "🇧🇷", "+55"),
+    Country("Канада", "CA", "🇨🇦", "+1"),
+    Country("Австралия", "AU", "🇦🇺", "+61"),
+    Country("ОАЭ", "AE", "🇦🇪", "+971"),
+    Country("Грузия", "GE", "🇬🇪", "+995"),
+    Country("Армения", "AM", "🇦🇲", "+374"),
+    Country("Азербайджан", "AZ", "🇦🇿", "+994"),
+    Country("Молдова", "MD", "🇲🇩", "+373"),
+    Country("Литва", "LT", "🇱🇹", "+370"),
+    Country("Латвия", "LV", "🇱🇻", "+371"),
+    Country("Эстония", "EE", "🇪🇪", "+372")
+)
+
+// Telegram цвета
+object TelegramColors {
+    val Primary = Color(0xFF5288C1)
+    val PrimaryLight = Color(0xFF64B5F6)
+    val PrimaryDark = Color(0xFF3D6A8A)
+    val Background = Color(0xFFF5F5F5)
+    val Surface = Color.White
+    val TextPrimary = Color(0xFF222222)
+    val TextSecondary = Color(0xFF8E8E93)
+    val Divider = Color(0xFFE5E5EA)
+    val Link = Color(0xFF007AFF)
+    val Error = Color(0xFFFF3B30)
+    val Success = Color(0xFF34C759)
+    val GradientStart = Color(0xFF6CB3E8)
+    val GradientEnd = Color(0xFF3E99D6)
+}
+
+@Composable
+fun TelegramAuthApp() {
+    var currentScreen by remember { mutableStateOf<AuthScreen>(AuthScreen.PhoneInput) }
+    var userData by remember { mutableStateOf(UserData()) }
+
+    AnimatedContent(
+        targetState = currentScreen,
+        transitionSpec = {
+            if (targetState is AuthScreen.PhoneInput) {
+                slideInHorizontally { -it } + fadeIn() togetherWith
+                        slideOutHorizontally { it } + fadeOut()
+            } else {
+                slideInHorizontally { it } + fadeIn() togetherWith
+                        slideOutHorizontally { -it } + fadeOut()
+            }
+        },
+        label = "screen_transition"
+    ) { screen ->
+        when (screen) {
+            is AuthScreen.PhoneInput -> {
+                LoginScreen(
+                    onContinue = { phoneNumber, countryCode ->
+                        currentScreen = AuthScreen.CodeVerification(phoneNumber, countryCode)
+                    }
+                )
+            }
+            is AuthScreen.CodeVerification -> {
+                CodeVerificationScreen(
+                    phoneNumber = screen.phoneNumber,
+                    countryCode = screen.countryCode,
+                    onBack = { currentScreen = AuthScreen.PhoneInput },
+                    onCodeVerified = { isNewUser ->
+                        currentScreen = if (isNewUser) {
+                            AuthScreen.Registration(screen.phoneNumber)
+                        } else {
+                            AuthScreen.Success
+                        }
+                    }
+                )
+            }
+            is AuthScreen.Registration -> {
+                RegistrationScreen(
+                    phoneNumber = screen.phoneNumber,
+                    userData = userData,
+                    onUserDataChanged = { userData = it },
+                    onBack = { currentScreen = AuthScreen.PhoneInput },
+                    onComplete = { currentScreen = AuthScreen.Success }
+                )
+            }
+            is AuthScreen.Success -> {
+                SuccessScreen(
+                    userData = userData,
+                    onLogout = {
+                        userData = UserData()
+                        currentScreen = AuthScreen.PhoneInput
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LoginScreen(
+    onContinue: (String, String) -> Unit
+) {
+    var selectedCountry by remember { mutableStateOf(countries[0]) }
+    var phoneNumber by remember { mutableStateOf("") }
+    var showCountryPicker by remember { mutableStateOf(false) }
+    var syncContacts by remember { mutableStateOf(true) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(80.dp))
+
+        // Логотип Telegram
+        TelegramLogo()
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Заголовок
+        Text(
+            text = "Ваш телефон",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Описание
+        Text(
+            text = "Пожалуйста, подтвердите код страны\nи введите свой номер телефона.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center,
+            lineHeight = 20.sp
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Карточка с полями ввода
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = TelegramColors.Surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column {
+                // Выбор страны
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showCountryPicker = true }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = selectedCountry.flag, fontSize = 24.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = selectedCountry.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = TelegramColors.TextPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Выбрать страну",
+                        tint = TelegramColors.TextSecondary
+                    )
+                }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 52.dp),
+                    color = TelegramColors.Divider,
+                    thickness = 0.5.dp
+                )
+
+                // Ввод номера телефона
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(60.dp)
+                            .clickable { showCountryPicker = true }
+                    ) {
+                        Text(
+                            text = selectedCountry.phoneCode,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TelegramColors.Primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    BasicTextField(
+                        value = phoneNumber,
+                        onValueChange = { newValue ->
+                            val filtered = newValue.filter { it.isDigit() }
+                            if (filtered.length <= 15) {
+                                phoneNumber = filtered
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(24.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = TelegramColors.TextPrimary
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        singleLine = true,
+                        cursorBrush = SolidColor(TelegramColors.Primary),
+                        decorationBox = { innerTextField ->
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                if (phoneNumber.isEmpty()) {
+                                    Text(
+                                        text = "Номер телефона",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = TelegramColors.TextSecondary
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Чекбокс синхронизации
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { syncContacts = !syncContacts },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = syncContacts,
+                onCheckedChange = { syncContacts = it },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = TelegramColors.Primary,
+                    uncheckedColor = TelegramColors.TextSecondary
+                )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Синхронизировать контакты",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextPrimary
+            )
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Кнопка продолжить
+        Button(
+            onClick = { onContinue(phoneNumber, selectedCountry.phoneCode) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = TelegramColors.Primary),
+            enabled = phoneNumber.length >= 6
+        ) {
+            Text(
+                text = "Продолжить",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Войти по QR-коду",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.Link,
+            modifier = Modifier
+                .clickable { /* TODO */ }
+                .padding(vertical = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    if (showCountryPicker) {
+        CountryPickerDialog(
+            countries = countries,
+            selectedCountry = selectedCountry,
+            onCountrySelected = { country ->
+                selectedCountry = country
+                showCountryPicker = false
+            },
+            onDismiss = { showCountryPicker = false }
+        )
+    }
+}
+
+@Composable
+fun CodeVerificationScreen(
+    phoneNumber: String,
+    countryCode: String,
+    onBack: () -> Unit,
+    onCodeVerified: (Boolean) -> Unit
+) {
+    var code by remember { mutableStateOf(List(5) { "" }) }
+    var isError by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var countdown by remember { mutableIntStateOf(60) }
+    val focusRequesters = remember { List(5) { FocusRequester() } }
+    val focusManager = LocalFocusManager.current
+
+    // Таймер обратного отсчёта
+    LaunchedEffect(countdown) {
+        if (countdown > 0) {
+            delay(1000)
+            countdown--
+        }
+    }
+
+    // Автофокус на первое поле
+    LaunchedEffect(Unit) {
+        focusRequesters[0].requestFocus()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        // Верхняя панель
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Назад",
+                    tint = TelegramColors.Primary
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Иконка с кодом
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "💬",
+                    fontSize = 48.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "$countryCode $phoneNumber",
+                style = MaterialTheme.typography.headlineMedium,
+                color = TelegramColors.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Мы отправили код подтверждения\nна указанный номер",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Поля ввода кода
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spacer(modifier = Modifier.weight(1f))
+                code.forEachIndexed { index, digit ->
+                    CodeDigitField(
+                        value = digit,
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 1 && newValue.all { it.isDigit() }) {
+                                isError = false
+                                val newCode = code.toMutableList()
+                                newCode[index] = newValue
+                                code = newCode
+
+                                if (newValue.isNotEmpty() && index < 4) {
+                                    focusRequesters[index + 1].requestFocus()
+                                }
+
+                                // Проверка кода при заполнении всех полей
+                                if (newCode.all { it.isNotEmpty() }) {
+                                    isLoading = true
+                                    // Симуляция проверки - код "12345" для нового пользователя
+                                    val enteredCode = newCode.joinToString("")
+                                    if (enteredCode == "12345") {
+                                        onCodeVerified(true) // Новый пользователь
+                                    } else if (enteredCode == "11111") {
+                                        onCodeVerified(false) // Существующий пользователь
+                                    } else {
+                                        isLoading = false
+                                        isError = true
+                                    }
+                                }
+                            }
+                        },
+                        isError = isError,
+                        focusRequester = focusRequesters[index],
+                        onBackspace = {
+                            if (digit.isEmpty() && index > 0) {
+                                focusRequesters[index - 1].requestFocus()
+                                val newCode = code.toMutableList()
+                                newCode[index - 1] = ""
+                                code = newCode
+                            }
+                        }
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            if (isError) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Неверный код. Попробуйте ещё раз.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TelegramColors.Error
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Таймер и повторная отправка
+            if (countdown > 0) {
+                Text(
+                    text = "Запросить код повторно через $countdown сек",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.TextSecondary
+                )
+            } else {
+                Text(
+                    text = "Отправить код повторно",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.Link,
+                    modifier = Modifier.clickable {
+                        countdown = 60
+                        code = List(5) { "" }
+                        isError = false
+                        focusRequesters[0].requestFocus()
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Позвонить на номер",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.Link,
+                modifier = Modifier.clickable { /* TODO */ }
+            )
+
+            if (isLoading) {
+                Spacer(modifier = Modifier.height(32.dp))
+                CircularProgressIndicator(
+                    color = TelegramColors.Primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Подсказка
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = TelegramColors.Primary.copy(alpha = 0.1f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = TelegramColors.Primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Для теста: 12345 — новый пользователь\n11111 — существующий",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TelegramColors.Primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CodeDigitField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    isError: Boolean,
+    focusRequester: FocusRequester,
+    onBackspace: () -> Unit
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier
+            .size(50.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(TelegramColors.Surface)
+            .border(
+                width = 2.dp,
+                color = when {
+                    isError -> TelegramColors.Error
+                    value.isNotEmpty() -> TelegramColors.Primary
+                    else -> TelegramColors.Divider
+                },
+                shape = RoundedCornerShape(12.dp)
+            )
+            .focusRequester(focusRequester),
+        textStyle = MaterialTheme.typography.headlineLarge.copy(
+            color = TelegramColors.TextPrimary,
+            textAlign = TextAlign.Center
+        ),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Next
+        ),
+        singleLine = true,
+        cursorBrush = SolidColor(TelegramColors.Primary),
+        decorationBox = { innerTextField ->
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                innerTextField()
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RegistrationScreen(
+    phoneNumber: String,
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onBack: () -> Unit,
+    onComplete: () -> Unit
+) {
+    var currentStep by remember { mutableIntStateOf(0) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val totalSteps = 3
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        // Верхняя панель
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = {
+                if (currentStep > 0) {
+                    currentStep--
+                } else {
+                    onBack()
+                }
+            }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Назад",
+                    tint = TelegramColors.Primary
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = "Шаг ${currentStep + 1} из $totalSteps",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary
+            )
+            Spacer(modifier = Modifier.width(48.dp))
+        }
+
+        // Индикатор прогресса
+        LinearProgressIndicator(
+            progress = { (currentStep + 1).toFloat() / totalSteps },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(3.dp),
+            color = TelegramColors.Primary,
+            trackColor = TelegramColors.Divider,
+        )
+
+        AnimatedContent(
+            targetState = currentStep,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    slideInHorizontally { it } + fadeIn() togetherWith
+                            slideOutHorizontally { -it } + fadeOut()
+                } else {
+                    slideInHorizontally { -it } + fadeIn() togetherWith
+                            slideOutHorizontally { it } + fadeOut()
+                }
+            },
+            label = "step_transition"
+        ) { step ->
+            when (step) {
+                0 -> NameInputStep(
+                    userData = userData,
+                    onUserDataChanged = onUserDataChanged,
+                    onNext = { currentStep++ }
+                )
+                1 -> BirthdayInputStep(
+                    userData = userData,
+                    onUserDataChanged = onUserDataChanged,
+                    onNext = { currentStep++ }
+                )
+                2 -> ProfilePhotoStep(
+                    userData = userData,
+                    onComplete = onComplete
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun NameInputStep(
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onNext: () -> Unit
+) {
+    var firstName by remember { mutableStateOf(userData.firstName) }
+    var lastName by remember { mutableStateOf(userData.lastName) }
+    val focusManager = LocalFocusManager.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Иконка
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "👤", fontSize = 48.sp)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Ваше имя",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Введите ваше имя и фамилию",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Поле имени
+        OutlinedTextField(
+            value = firstName,
+            onValueChange = { firstName = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Имя") },
+            placeholder = { Text("Введите имя") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Поле фамилии
+        OutlinedTextField(
+            value = lastName,
+            onValueChange = { lastName = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Фамилия") },
+            placeholder = { Text("Введите фамилию (необязательно)") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = { focusManager.clearFocus() }
+            ),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = {
+                onUserDataChanged(userData.copy(firstName = firstName, lastName = lastName))
+                onNext()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = TelegramColors.Primary),
+            enabled = firstName.isNotBlank()
+        ) {
+            Text(
+                text = "Продолжить",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun BirthdayInputStep(
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onNext: () -> Unit
+) {
+    var day by remember { mutableStateOf(userData.birthDay) }
+    var month by remember { mutableStateOf(userData.birthMonth) }
+    var year by remember { mutableStateOf(userData.birthYear) }
+    var skipBirthday by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+
+    val months = listOf(
+        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+    )
+
+    var showMonthPicker by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Иконка
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "🎂", fontSize = 48.sp)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Дата рождения",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Укажите дату вашего рождения.\nЭто поможет друзьям найти вас.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Поля даты
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // День
+            OutlinedTextField(
+                value = day,
+                onValueChange = {
+                    if (it.length <= 2 && it.all { char -> char.isDigit() }) {
+                        day = it
+                        if (it.length == 2) focusManager.moveFocus(FocusDirection.Right)
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                label = { Text("День") },
+                placeholder = { Text("ДД") },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = TelegramColors.Primary,
+                    unfocusedBorderColor = TelegramColors.Divider,
+                    focusedContainerColor = TelegramColors.Surface,
+                    unfocusedContainerColor = TelegramColors.Surface
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                ),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center)
+            )
+
+            // Месяц
+            Box(modifier = Modifier.weight(2f)) {
+                OutlinedTextField(
+                    value = if (month.isNotEmpty()) months[month.toInt() - 1] else "",
+                    onValueChange = { },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showMonthPicker = true },
+                    label = { Text("Месяц") },
+                    placeholder = { Text("Выберите") },
+                    readOnly = true,
+                    enabled = false,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledBorderColor = TelegramColors.Divider,
+                        disabledContainerColor = TelegramColors.Surface,
+                        disabledTextColor = TelegramColors.TextPrimary,
+                        disabledLabelColor = TelegramColors.TextSecondary
+                    ),
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = TelegramColors.TextSecondary
+                        )
+                    },
+                    singleLine = true
+                )
+                // Прозрачный кликабельный слой
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable { showMonthPicker = true }
+                )
+            }
+
+            // Год
+            OutlinedTextField(
+                value = year,
+                onValueChange = {
+                    if (it.length <= 4 && it.all { char -> char.isDigit() }) {
+                        year = it
+                    }
+                },
+                modifier = Modifier.weight(1.5f),
+                label = { Text("Год") },
+                placeholder = { Text("ГГГГ") },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = TelegramColors.Primary,
+                    unfocusedBorderColor = TelegramColors.Divider,
+                    focusedContainerColor = TelegramColors.Surface,
+                    unfocusedContainerColor = TelegramColors.Surface
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = { focusManager.clearFocus() }
+                ),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Чекбокс пропустить
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { skipBirthday = !skipBirthday },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = skipBirthday,
+                onCheckedChange = { skipBirthday = it },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = TelegramColors.Primary,
+                    uncheckedColor = TelegramColors.TextSecondary
+                )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Пропустить этот шаг",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextPrimary
+            )
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = {
+                onUserDataChanged(userData.copy(
+                    birthDay = day,
+                    birthMonth = month,
+                    birthYear = year
+                ))
+                onNext()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = TelegramColors.Primary),
+            enabled = skipBirthday || (day.isNotBlank() && month.isNotBlank() && year.length == 4)
+        ) {
+            Text(
+                text = "Продолжить",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    // Диалог выбора месяца
+    if (showMonthPicker) {
+        MonthPickerDialog(
+            months = months,
+            selectedMonth = if (month.isNotEmpty()) month.toInt() - 1 else -1,
+            onMonthSelected = { index ->
+                month = (index + 1).toString()
+                showMonthPicker = false
+            },
+            onDismiss = { showMonthPicker = false }
+        )
+    }
+}
+
+@Composable
+fun MonthPickerDialog(
+    months: List<String>,
+    selectedMonth: Int,
+    onMonthSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = TelegramColors.Surface)
+        ) {
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                Text(
+                    text = "Выберите месяц",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TelegramColors.TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(16.dp)
+                )
+
+                months.forEachIndexed { index, monthName ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onMonthSelected(index) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = monthName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (index == selectedMonth) TelegramColors.Primary else TelegramColors.TextPrimary,
+                            fontWeight = if (index == selectedMonth) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (index == selectedMonth) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = TelegramColors.Primary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfilePhotoStep(
+    userData: UserData,
+    onComplete: () -> Unit
+) {
+    var bio by remember { mutableStateOf(userData.bio) }
+    var username by remember { mutableStateOf(userData.username) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Аватар с кнопкой добавления фото
+        Box(
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                        )
+                    )
+                    .clickable { /* TODO: Открыть галерею */ },
+                contentAlignment = Alignment.Center
+            ) {
+                if (userData.firstName.isNotEmpty()) {
+                    Text(
+                        text = userData.firstName.first().uppercase() +
+                                (userData.lastName.firstOrNull()?.uppercase() ?: ""),
+                        fontSize = 40.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(60.dp)
+                    )
+                }
+            }
+
+            // Кнопка камеры
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 4.dp, y = 4.dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(TelegramColors.Primary)
+                    .clickable { /* TODO: Открыть камеру */ },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Добавить фото",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Профиль",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Добавьте фото и расскажите о себе",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Имя пользователя
+        OutlinedTextField(
+            value = username,
+            onValueChange = {
+                // Только латиница, цифры и подчёркивание
+                val filtered = it.filter { char ->
+                    char.isLetterOrDigit() || char == '_'
+                }.lowercase()
+                if (filtered.length <= 32) {
+                    username = filtered
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Имя пользователя") },
+            placeholder = { Text("username") },
+            prefix = { Text("@", color = TelegramColors.Primary) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.AccountCircle,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            supportingText = {
+                Text(
+                    text = "Минимум 5 символов. Можно использовать a-z, 0-9 и _",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TelegramColors.TextSecondary
+                )
+            },
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Био
+        OutlinedTextField(
+            value = bio,
+            onValueChange = { if (it.length <= 70) bio = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("О себе") },
+            placeholder = { Text("Расскажите о себе...") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            supportingText = {
+                Text(
+                    text = "${bio.length}/70",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TelegramColors.TextSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.End
+                )
+            },
+            maxLines = 3
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = onComplete,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = TelegramColors.Primary)
+        ) {
+            Text(
+                text = "Завершить регистрацию",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        TextButton(onClick = onComplete) {
+            Text(
+                text = "Пропустить",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.Link
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun SuccessScreen(
+    userData: UserData,
+    onLogout: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Анимированная галочка
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .clip(CircleShape)
+                .background(TelegramColors.Success),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Успех",
+                tint = Color.White,
+                modifier = Modifier.size(60.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text(
+            text = "Добро пожаловать!",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Информация о пользователе
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = TelegramColors.Surface)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Аватар
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = userData.firstName.firstOrNull()?.uppercase() ?: "?",
+                        fontSize = 32.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "${userData.firstName} ${userData.lastName}".trim(),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = TelegramColors.TextPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (userData.username.isNotEmpty()) {
+                    Text(
+                        text = "@${userData.username}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = TelegramColors.Link
+                    )
+                }
+
+                if (userData.birthDay.isNotEmpty() && userData.birthMonth.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val months = listOf(
+                        "января", "февраля", "марта", "апреля", "мая", "июня",
+                        "июля", "августа", "сентября", "октября", "ноября", "декабря"
+                    )
+                    val monthName = months.getOrElse(userData.birthMonth.toInt() - 1) { "" }
+                    Text(
+                        text = "🎂 ${userData.birthDay} $monthName ${userData.birthYear}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TelegramColors.TextSecondary
+                    )
+                }
+
+                if (userData.bio.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = userData.bio,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TelegramColors.TextPrimary,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text(
+            text = "Ваш аккаунт успешно создан!\nТеперь вы можете начать общение.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Button(
+            onClick = { /* TODO: Перейти к чатам */ },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = TelegramColors.Primary)
+        ) {
+            Text(
+                text = "Начать общение",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        TextButton(onClick = onLogout) {
+            Text(
+                text = "Выйти из аккаунта",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.Error
+            )
+        }
+    }
+}
+
+@Composable
+fun TelegramLogo() {
+    Box(
+        modifier = Modifier
+            .size(100.dp)
+            .clip(CircleShape)
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "✈",
+            fontSize = 48.sp,
+            color = Color.White
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CountryPickerDialog(
+    countries: List<Country>,
+    selectedCountry: Country,
+    onCountrySelected: (Country) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredCountries = remember(searchQuery) {
+        if (searchQuery.isEmpty()) {
+            countries
+        } else {
+            countries.filter { country ->
+                country.name.contains(searchQuery, ignoreCase = true) ||
+                        country.phoneCode.contains(searchQuery)
+            }
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 48.dp),
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+            color = TelegramColors.Background
+        ) {
+            Column {
+                Surface(
+                    color = TelegramColors.Surface,
+                    shadowElevation = 2.dp
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Выберите страну",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = TelegramColors.TextPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            TextButton(onClick = onDismiss) {
+                                Text(text = "Отмена", color = TelegramColors.Link)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = {
+                                Text(text = "Поиск", color = TelegramColors.TextSecondary)
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Поиск",
+                                    tint = TelegramColors.TextSecondary
+                                )
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = TelegramColors.Primary,
+                                unfocusedBorderColor = TelegramColors.Divider,
+                                focusedContainerColor = TelegramColors.Surface,
+                                unfocusedContainerColor = TelegramColors.Surface
+                            ),
+                            singleLine = true
+                        )
+                    }
+                }
+
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(filteredCountries) { country ->
+                        CountryItem(
+                            country = country,
+                            isSelected = country == selectedCountry,
+                            onClick = { onCountrySelected(country) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CountryItem(
+    country: Country,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = if (isSelected) {
+            TelegramColors.Primary.copy(alpha = 0.1f)
+        } else {
+            TelegramColors.Surface
+        }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = country.flag, fontSize = 28.sp)
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = country.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TelegramColors.TextPrimary,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
+
+            Text(
+                text = country.phoneCode,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary
+            )
+
+            if (isSelected) {
+                Spacer(modifier = Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Выбрано",
+                    tint = TelegramColors.Primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 60.dp),
+        color = TelegramColors.Divider,
+        thickness = 0.5.dp
+    )
+}
+
+package com.example.myapplication.ui.theme
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+val Typography = Typography(
+    // Большой заголовок для "Ваш телефон", "Дата рождения" и т.д.
+    headlineLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 26.sp,
+        lineHeight = 34.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Заголовок среднего размера для диалогов и подзаголовков
+    headlineMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 22.sp,
+        lineHeight = 30.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Маленький заголовок для секций
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 18.sp,
+        lineHeight = 26.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Заголовок для карточек и списков
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 20.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Текст кнопок и важных элементов
+    titleMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.15.sp
+    ),
+
+    // Мелкие заголовки
+    titleSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
+    ),
+
+    // Основной текст - поля ввода, списки
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp
+    ),
+
+    // Вторичный текст - описания, подсказки
+    bodyMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.25.sp
+    ),
+
+    // Мелкий текст - примечания, счётчики
+    bodySmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.4.sp
+    ),
+
+    // Метки для полей ввода
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
+    ),
+
+    // Подписи к полям
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
+    ),
+
+    // Мелкие подписи
+    labelSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 10.sp,
+        lineHeight = 14.sp,
+        letterSpacing = 0.5.sp
+    ),
+
+    // Отображаемый крупный текст (для чисел кода)
+    displayLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 57.sp,
+        lineHeight = 64.sp,
+        letterSpacing = (-0.25).sp
+    ),
+
+    // Средний отображаемый текст
+    displayMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 45.sp,
+        lineHeight = 52.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Малый отображаемый текст
+    displaySmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 36.sp,
+        lineHeight = 44.sp,
+        letterSpacing = 0.sp
+    )
+)
+
+
+
+package com.example.myapplication.ui.theme
+
+import android.app.Activity
+import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+
+private val DarkColorScheme = darkColorScheme(
+    primary = Purple80,
+    secondary = PurpleGrey80,
+    tertiary = Pink80
+)
+
+private val LightColorScheme = lightColorScheme(
+    primary = Purple40,
+    secondary = PurpleGrey40,
+    tertiary = Pink40
+
+    /* Other default colors to override
+    background = Color(0xFFFFFBFE),
+    surface = Color(0xFFFFFBFE),
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.White,
+    onBackground = Color(0xFF1C1B1F),
+    onSurface = Color(0xFF1C1B1F),
+    */
+)
+
+@Composable
+fun MyApplicationTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    // Dynamic color is available on Android 12+
+    dynamicColor: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        content = content
+    )
+}
