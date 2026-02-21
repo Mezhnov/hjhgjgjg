@@ -3274,3 +3274,8 @@ object TelegramDimens {
 // Единицы измерения
 private val Int.dp: androidx.compose.ui.unit.Dp
     get() = androidx.compose.ui.unit.Dp(this.toFloat())
+
+
+
+
+улучши дизайн чата уровня telegrama пожалуйста как выглядит сейчас говно полностью улучшения пиши тольок два эти файла
