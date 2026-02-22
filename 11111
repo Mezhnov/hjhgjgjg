@@ -1,4 +1,2501 @@
-// ==================== ЗАМЕНИ ЭТУ ФУНКЦИЮ ====================
+package com.example.myapplication
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.absoluteValue
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            MyApplicationTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    TelegramAuthApp()
+                }
+            }
+        }
+    }
+}
+
+// ==================== КОНФИГУРАЦИЯ ИЗОБРАЖЕНИЙ ====================
+// Замените URL на свои изображения или оставьте null для использования иконок Material
+
+object AppImages {
+    // Онбординг страницы
+    val ONBOARDING_MESSENGER: String? = "https://sun9-74.userapi.com/s/v1/ig2/F5-HBmm8cM70bQPkSvGuzrhoi5G2TVqOZsXQb1gBpKaTAqG8BbWpxTQOf7mh2IymdxyiqlSZ-fOjHLGkEa4DQhhh.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1024x1024&from=bu&cs=1024x0" // URL или null для иконки
+    val ONBOARDING_SECURITY: String? = null
+    val ONBOARDING_CLOUD: String? = null
+    val ONBOARDING_GROUPS: String? = null
+    val ONBOARDING_ROCKET: String? = null
+
+    // Логотип
+    val TELEGRAM_LOGO: String? = "https://sun9-74.userapi.com/s/v1/ig2/F5-HBmm8cM70bQPkSvGuzrhoi5G2TVqOZsXQb1gBpKaTAqG8BbWpxTQOf7mh2IymdxyiqlSZ-fOjHLGkEa4DQhhh.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1024x1024&from=bu&cs=1024x0"
+
+    // Экран верификации кода
+    val MESSAGE_ICON: String? = null
+
+    // Экран пароля
+    val LOCK_ICON: String? = null
+
+    // Экран регистрации - имя
+    val USER_ICON: String? = null
+
+    // Экран регистрации - дата рождения
+    val BIRTHDAY_ICON: String? = null
+
+    // Экран успеха
+    val SUCCESS_ICON: String? = null
+    val CELEBRATION_ICON: String? = null
+}
+
+// ==================== КОНЕЦ КОНФИГУРАЦИИ ====================
+
+// Состояния навигации
+sealed class AuthScreen {
+    object Welcome : AuthScreen()
+    object PhoneInput : AuthScreen()
+    data class CodeVerification(val phoneNumber: String, val countryCode: String) : AuthScreen()
+    data class Password(val phoneNumber: String) : AuthScreen()
+    data class Registration(val phoneNumber: String) : AuthScreen()
+    object Success : AuthScreen()
+}
+
+// Модель данных для страны
+data class Country(
+    val name: String,
+    val code: String,
+    val flag: String,
+    val phoneCode: String
+)
+
+// Модель данных пользователя
+data class UserData(
+    var firstName: String = "",
+    var lastName: String = "",
+    var birthDay: String = "",
+    var birthMonth: String = "",
+    var birthYear: String = "",
+    var bio: String = "",
+    var username: String = "",
+    var phoneNumber: String = ""
+)
+
+// Данные для онбординга
+data class OnboardingPage(
+    val imageUrl: String?,
+    val fallbackIcon: ImageVector,
+    val title: String,
+    val description: String,
+    val gradient: List<Color>
+)
+
+// Список стран
+val countries = listOf(
+    Country("Россия", "RU", "🇷🇺", "+7"),
+    Country("Украина", "UA", "🇺🇦", "+380"),
+    Country("Беларусь", "BY", "🇧🇾", "+375"),
+    Country("Казахстан", "KZ", "🇰🇿", "+7"),
+    Country("Узбекистан", "UZ", "🇺🇿", "+998"),
+    Country("Германия", "DE", "🇩🇪", "+49"),
+    Country("США", "US", "🇺🇸", "+1"),
+    Country("Великобритания", "GB", "🇬🇧", "+44"),
+    Country("Франция", "FR", "🇫🇷", "+33"),
+    Country("Италия", "IT", "🇮🇹", "+39"),
+    Country("Испания", "ES", "🇪🇸", "+34"),
+    Country("Польша", "PL", "🇵🇱", "+48"),
+    Country("Турция", "TR", "🇹🇷", "+90"),
+    Country("Китай", "CN", "🇨🇳", "+86"),
+    Country("Япония", "JP", "🇯🇵", "+81"),
+    Country("Южная Корея", "KR", "🇰🇷", "+82"),
+    Country("Индия", "IN", "🇮🇳", "+91"),
+    Country("Бразилия", "BR", "🇧🇷", "+55"),
+    Country("Канада", "CA", "🇨🇦", "+1"),
+    Country("Австралия", "AU", "🇦🇺", "+61"),
+    Country("ОАЭ", "AE", "🇦🇪", "+971"),
+    Country("Грузия", "GE", "🇬🇪", "+995"),
+    Country("Армения", "AM", "🇦🇲", "+374"),
+    Country("Азербайджан", "AZ", "🇦🇿", "+994"),
+    Country("Молдова", "MD", "🇲🇩", "+373"),
+    Country("Литва", "LT", "🇱🇹", "+370"),
+    Country("Латвия", "LV", "🇱🇻", "+371"),
+    Country("Эстония", "EE", "🇪🇪", "+372")
+)
+
+// Telegram цвета
+object TelegramColors {
+    val Primary = Color(0xFF0088CC)
+    val PrimaryLight = Color(0xFF64B5F6)
+    val PrimaryDark = Color(0xFF006699)
+    val Background = Color(0xFFF7F8FA)
+    val Surface = Color.White
+    val TextPrimary = Color(0xFF222222)
+    val TextSecondary = Color(0xFF8E8E93)
+    val Divider = Color(0xFFE5E5EA)
+    val Link = Color(0xFF007AFF)
+    val Error = Color(0xFFE53935)
+    val Success = Color(0xFF34C759)
+    val GradientStart = Color(0xFF2AABEE)
+    val GradientEnd = Color(0xFF229ED9)
+    val GradientPurple = Color(0xFF9B59B6)
+    val GradientOrange = Color(0xFFE67E22)
+    val GradientPink = Color(0xFFE91E63)
+    val GradientGreen = Color(0xFF27AE60)
+}
+
+// Универсальный компонент для отображения иконки или изображения
+@Composable
+fun AppIcon(
+    imageUrl: String?,
+    fallbackIcon: ImageVector,
+    modifier: Modifier = Modifier,
+    iconSize: Int = 48,
+    tint: Color = Color.White
+) {
+    if (imageUrl != null) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(imageUrl)
+                .crossfade(true)
+                .build(),
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = ContentScale.Fit
+        )
+    } else {
+        Icon(
+            imageVector = fallbackIcon,
+            contentDescription = null,
+            modifier = modifier.size(iconSize.dp),
+            tint = tint
+        )
+    }
+}
+
+@Composable
+fun TelegramAuthApp() {
+    var currentScreen by remember { mutableStateOf<AuthScreen>(AuthScreen.Welcome) }
+    var userData by remember { mutableStateOf(UserData()) }
+
+    AnimatedContent(
+        targetState = currentScreen,
+        transitionSpec = {
+            when {
+                targetState is AuthScreen.Welcome -> {
+                    fadeIn(animationSpec = tween(300)) togetherWith
+                            fadeOut(animationSpec = tween(300))
+                }
+                initialState is AuthScreen.Welcome -> {
+                    slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = tween(400, easing = FastOutSlowInEasing)
+                    ) + fadeIn() togetherWith
+                            slideOutVertically(
+                                targetOffsetY = { -it / 3 },
+                                animationSpec = tween(400)
+                            ) + fadeOut()
+                }
+                targetState is AuthScreen.PhoneInput && initialState !is AuthScreen.Welcome -> {
+                    slideInHorizontally { -it } + fadeIn() togetherWith
+                            slideOutHorizontally { it } + fadeOut()
+                }
+                else -> {
+                    slideInHorizontally { it } + fadeIn() togetherWith
+                            slideOutHorizontally { -it } + fadeOut()
+                }
+            }
+        },
+        label = "screen_transition"
+    ) { screen ->
+        when (screen) {
+            is AuthScreen.Welcome -> {
+                WelcomeScreen(
+                    onStartMessaging = { currentScreen = AuthScreen.PhoneInput }
+                )
+            }
+            is AuthScreen.PhoneInput -> {
+                LoginScreen(
+                    onBack = { currentScreen = AuthScreen.Welcome },
+                    onContinue = { phoneNumber, countryCode ->
+                        userData = userData.copy(phoneNumber = "$countryCode $phoneNumber")
+                        currentScreen = AuthScreen.CodeVerification(phoneNumber, countryCode)
+                    }
+                )
+            }
+            is AuthScreen.CodeVerification -> {
+                CodeVerificationScreen(
+                    phoneNumber = screen.phoneNumber,
+                    countryCode = screen.countryCode,
+                    onBack = { currentScreen = AuthScreen.PhoneInput },
+                    onCodeVerified = { isNewUser ->
+                        currentScreen = if (isNewUser) {
+                            AuthScreen.Registration(screen.phoneNumber)
+                        } else {
+                            AuthScreen.Success
+                        }
+                    },
+                    onPasswordRequired = {
+                        currentScreen = AuthScreen.Password(screen.phoneNumber)
+                    }
+                )
+            }
+            is AuthScreen.Password -> {
+                PasswordScreen(
+                    phoneNumber = screen.phoneNumber,
+                    onBack = { currentScreen = AuthScreen.PhoneInput },
+                    onSuccess = { currentScreen = AuthScreen.Success }
+                )
+            }
+            is AuthScreen.Registration -> {
+                RegistrationScreen(
+                    phoneNumber = screen.phoneNumber,
+                    userData = userData,
+                    onUserDataChanged = { userData = it },
+                    onBack = { currentScreen = AuthScreen.PhoneInput },
+                    onComplete = { currentScreen = AuthScreen.Success }
+                )
+            }
+            is AuthScreen.Success -> {
+                SuccessScreen(
+                    userData = userData,
+                    onLogout = {
+                        userData = UserData()
+                        currentScreen = AuthScreen.Welcome
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun WelcomeScreen(
+    onStartMessaging: () -> Unit
+) {
+    val pages = listOf(
+        OnboardingPage(
+            imageUrl = AppImages.ONBOARDING_MESSENGER,
+            fallbackIcon = Icons.AutoMirrored.Filled.Send,
+            title = "Messenger",
+            description = "Самый быстрый мессенджер в мире.\nБесплатный и безопасный.",
+            gradient = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+        ),
+        OnboardingPage(
+            imageUrl = AppImages.ONBOARDING_SECURITY,
+            fallbackIcon = Icons.Default.Lock,
+            title = "Безопасность",
+            description = "Сквозное шифрование и секретные чаты для полной конфиденциальности.",
+            gradient = listOf(TelegramColors.GradientPurple, Color(0xFF8E44AD))
+        ),
+        OnboardingPage(
+            imageUrl = AppImages.ONBOARDING_CLOUD,
+            fallbackIcon = Icons.Default.Cloud,
+            title = "Облачное хранение",
+            description = "Неограниченное хранилище для ваших сообщений, фото и файлов.",
+            gradient = listOf(TelegramColors.GradientGreen, Color(0xFF2ECC71))
+        ),
+        OnboardingPage(
+            imageUrl = AppImages.ONBOARDING_GROUPS,
+            fallbackIcon = Icons.Default.Groups,
+            title = "Группы и каналы",
+            description = "Создавайте группы до 200 000 участников и каналы с неограниченной аудиторией.",
+            gradient = listOf(TelegramColors.GradientOrange, Color(0xFFF39C12))
+        ),
+        OnboardingPage(
+            imageUrl = AppImages.ONBOARDING_ROCKET,
+            fallbackIcon = Icons.Default.RocketLaunch,
+            title = "Быстрый старт",
+            description = "Начните общение прямо сейчас — это займёт всего минуту!",
+            gradient = listOf(TelegramColors.GradientPink, Color(0xFFC0392B))
+        )
+    )
+
+    val pagerState = rememberPagerState(pageCount = { pages.size })
+    val coroutineScope = rememberCoroutineScope()
+
+    // Автопрокрутка
+    LaunchedEffect(pagerState.currentPage) {
+        delay(4000)
+        val nextPage = (pagerState.currentPage + 1) % pages.size
+        pagerState.animateScrollToPage(nextPage)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(60.dp))
+
+            // Пейджер с анимацией
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) { page ->
+                val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+
+                OnboardingPageContent(
+                    page = pages[page],
+                    pageOffset = pageOffset
+                )
+            }
+
+            // Индикаторы страниц
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(pages.size) { index ->
+                    val isSelected = pagerState.currentPage == index
+                    val width by animateDpAsState(
+                        targetValue = if (isSelected) 24.dp else 8.dp,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                        label = "indicator_width"
+                    )
+                    val color by animateColorAsState(
+                        targetValue = if (isSelected) TelegramColors.Primary else TelegramColors.Divider,
+                        label = "indicator_color"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .height(8.dp)
+                            .width(width)
+                            .clip(CircleShape)
+                            .background(color)
+                            .clickable {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(index)
+                                }
+                            }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Кнопка начать
+            Button(
+                onClick = onStartMessaging,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp)
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TelegramColors.Primary
+                ),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 4.dp,
+                    pressedElevation = 8.dp
+                )
+            ) {
+                Text(
+                    text = "Начать общение",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Ссылка на QR-код
+            TextButton(
+                onClick = { /* TODO: QR вход */ }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.QrCode,
+                    contentDescription = null,
+                    tint = TelegramColors.Link,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Войти по QR-коду",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.Link
+                )
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+}
+
+@Composable
+fun OnboardingPageContent(
+    page: OnboardingPage,
+    pageOffset: Float
+) {
+    val scale by animateFloatAsState(
+        targetValue = 1f - (pageOffset.absoluteValue * 0.15f),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
+        label = "scale"
+    )
+
+    val alpha by animateFloatAsState(
+        targetValue = 1f - (pageOffset.absoluteValue * 0.5f),
+        label = "alpha"
+    )
+
+    // Анимация вращения иконки
+    val infiniteTransition = rememberInfiniteTransition(label = "infinite")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = -5f,
+        targetValue = 5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "rotation"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                this.alpha = alpha
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Анимированная иконка
+        Box(
+            modifier = Modifier
+                .size(160.dp)
+                .rotate(rotation)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.linearGradient(colors = page.gradient)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            AppIcon(
+                imageUrl = page.imageUrl,
+                fallbackIcon = page.fallbackIcon,
+                modifier = if (page.imageUrl != null) Modifier.size(100.dp) else Modifier,
+                iconSize = 72,
+                tint = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Text(
+            text = page.title,
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = page.description,
+            style = MaterialTheme.typography.bodyLarge,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center,
+            lineHeight = 24.sp
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LoginScreen(
+    onBack: () -> Unit,
+    onContinue: (String, String) -> Unit
+) {
+    var selectedCountry by remember { mutableStateOf(countries[0]) }
+    var phoneNumber by remember { mutableStateOf("") }
+    var showCountryPicker by remember { mutableStateOf(false) }
+    var syncContacts by remember { mutableStateOf(true) }
+    var isAnimating by remember { mutableStateOf(false) }
+
+    // Анимация появления
+    val logoScale by animateFloatAsState(
+        targetValue = if (isAnimating) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "logo_scale"
+    )
+
+    LaunchedEffect(Unit) {
+        isAnimating = true
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        // Верхняя панель
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Назад",
+                    tint = TelegramColors.Primary
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Логотип Telegram с анимацией
+            Box(
+                modifier = Modifier.scale(logoScale)
+            ) {
+                TelegramLogo()
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Заголовок
+            Text(
+                text = "Ваш телефон",
+                style = MaterialTheme.typography.headlineLarge,
+                color = TelegramColors.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Описание
+            Text(
+                text = "Пожалуйста, подтвердите код страны\nи введите свой номер телефона.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Карточка с полями ввода
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = TelegramColors.Surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column {
+                    // Выбор страны
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showCountryPicker = true }
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = selectedCountry.flag, fontSize = 28.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = selectedCountry.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TelegramColors.TextPrimary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Выбрать страну",
+                            tint = TelegramColors.TextSecondary
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = TelegramColors.Divider,
+                        thickness = 0.5.dp
+                    )
+
+                    // Ввод номера телефона
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(56.dp)
+                                .clickable { showCountryPicker = true }
+                        ) {
+                            Text(
+                                text = selectedCountry.phoneCode,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = TelegramColors.Primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        BasicTextField(
+                            value = phoneNumber,
+                            onValueChange = { newValue ->
+                                val filtered = newValue.filter { it.isDigit() }
+                                if (filtered.length <= 15) {
+                                    phoneNumber = filtered
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(28.dp),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                color = TelegramColors.TextPrimary,
+                                fontSize = 18.sp
+                            ),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            singleLine = true,
+                            cursorBrush = SolidColor(TelegramColors.Primary),
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (phoneNumber.isEmpty()) {
+                                        Text(
+                                            text = "Номер телефона",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = TelegramColors.TextSecondary
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+
+                        // Иконка очистки
+                        AnimatedVisibility(
+                            visible = phoneNumber.isNotEmpty(),
+                            enter = fadeIn() + scaleIn(),
+                            exit = fadeOut() + scaleOut()
+                        ) {
+                            IconButton(
+                                onClick = { phoneNumber = "" },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Очистить",
+                                    tint = TelegramColors.TextSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Чекбокс синхронизации
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { syncContacts = !syncContacts }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = syncContacts,
+                    onCheckedChange = { syncContacts = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = TelegramColors.Primary,
+                        uncheckedColor = TelegramColors.TextSecondary
+                    )
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Синхронизировать контакты",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.TextPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Кнопка продолжить
+            Button(
+                onClick = { onContinue(phoneNumber, selectedCountry.phoneCode) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TelegramColors.Primary,
+                    disabledContainerColor = TelegramColors.Primary.copy(alpha = 0.5f)
+                ),
+                enabled = phoneNumber.length >= 6
+            ) {
+                Text(
+                    text = "Продолжить",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(48.dp))
+        }
+    }
+
+    if (showCountryPicker) {
+        CountryPickerDialog(
+            countries = countries,
+            selectedCountry = selectedCountry,
+            onCountrySelected = { country ->
+                selectedCountry = country
+                showCountryPicker = false
+            },
+            onDismiss = { showCountryPicker = false }
+        )
+    }
+}
+
+@Composable
+fun CodeVerificationScreen(
+    phoneNumber: String,
+    countryCode: String,
+    onBack: () -> Unit,
+    onCodeVerified: (Boolean) -> Unit,
+    onPasswordRequired: () -> Unit
+) {
+    var code by remember { mutableStateOf(List(5) { "" }) }
+    var isError by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var countdown by remember { mutableIntStateOf(60) }
+    val focusRequesters = remember { List(5) { FocusRequester() } }
+    val focusManager = LocalFocusManager.current
+
+    // Таймер обратного отсчёта
+    LaunchedEffect(countdown) {
+        if (countdown > 0) {
+            delay(1000)
+            countdown--
+        }
+    }
+
+    // Автофокус на первое поле
+    LaunchedEffect(Unit) {
+        delay(300)
+        focusRequesters[0].requestFocus()
+    }
+
+    // Анимация пульсации при ошибке
+    val shakeOffset by animateFloatAsState(
+        targetValue = if (isError) 10f else 0f,
+        animationSpec = if (isError) {
+            spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessHigh)
+        } else {
+            spring()
+        },
+        label = "shake"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        // Верхняя панель
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Назад",
+                    tint = TelegramColors.Primary
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Кнопка редактирования номера
+            TextButton(onClick = onBack) {
+                Text(
+                    text = "Изменить",
+                    color = TelegramColors.Link
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Иконка с анимацией
+            AnimatedMessageIcon()
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "$countryCode $phoneNumber",
+                style = MaterialTheme.typography.headlineMedium,
+                color = TelegramColors.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Мы отправили код подтверждения\nв приложение Telegram на другом устройстве",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Поля ввода кода с анимацией
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset(x = shakeOffset.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spacer(modifier = Modifier.weight(1f))
+                code.forEachIndexed { index, digit ->
+                    CodeDigitField(
+                        value = digit,
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 1 && newValue.all { it.isDigit() }) {
+                                isError = false
+                                val newCode = code.toMutableList()
+                                newCode[index] = newValue
+                                code = newCode
+
+                                if (newValue.isNotEmpty() && index < 4) {
+                                    focusRequesters[index + 1].requestFocus()
+                                }
+
+                                // Проверка кода при заполнении всех полей
+                                if (newCode.all { it.isNotEmpty() }) {
+                                    isLoading = true
+                                    val enteredCode = newCode.joinToString("")
+                                    when (enteredCode) {
+                                        "12345" -> onCodeVerified(true) // Новый пользователь
+                                        "11111" -> onCodeVerified(false) // Существующий пользователь
+                                        "00000" -> onPasswordRequired() // Требуется пароль
+                                        else -> {
+                                            isLoading = false
+                                            isError = true
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        isError = isError,
+                        focusRequester = focusRequesters[index],
+                        onBackspace = {
+                            if (digit.isEmpty() && index > 0) {
+                                focusRequesters[index - 1].requestFocus()
+                                val newCode = code.toMutableList()
+                                newCode[index - 1] = ""
+                                code = newCode
+                            }
+                        }
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            // Сообщение об ошибке
+            AnimatedVisibility(
+                visible = isError,
+                enter = fadeIn() + slideInVertically(),
+                exit = fadeOut() + slideOutVertically()
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Неверный код. Попробуйте ещё раз.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TelegramColors.Error
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Таймер и повторная отправка
+            if (countdown > 0) {
+                Text(
+                    text = "Запросить код повторно через $countdown сек",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.TextSecondary
+                )
+            } else {
+                Text(
+                    text = "Отправить код повторно",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.Link,
+                    modifier = Modifier.clickable {
+                        countdown = 60
+                        code = List(5) { "" }
+                        isError = false
+                        focusRequesters[0].requestFocus()
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            TextButton(onClick = { /* TODO */ }) {
+                Icon(
+                    imageVector = Icons.Default.Phone,
+                    contentDescription = null,
+                    tint = TelegramColors.Link,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Получить код по SMS",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.Link
+                )
+            }
+
+            if (isLoading) {
+                Spacer(modifier = Modifier.height(32.dp))
+                CircularProgressIndicator(
+                    color = TelegramColors.Primary,
+                    modifier = Modifier.size(36.dp),
+                    strokeWidth = 3.dp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Подсказка
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = TelegramColors.Primary.copy(alpha = 0.08f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = null,
+                        tint = TelegramColors.Primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Тестовые коды:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TelegramColors.Primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "12345 — новый пользователь\n11111 — существующий\n00000 — требуется пароль",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TelegramColors.Primary.copy(alpha = 0.8f),
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AnimatedMessageIcon() {
+    val infiniteTransition = rememberInfiniteTransition(label = "message_animation")
+
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(100.dp)
+            .scale(scale)
+            .clip(CircleShape)
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        AppIcon(
+            imageUrl = AppImages.MESSAGE_ICON,
+            fallbackIcon = Icons.Default.MarkChatRead,
+            iconSize = 48,
+            tint = Color.White
+        )
+    }
+}
+
+@Composable
+fun CodeDigitField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    isError: Boolean,
+    focusRequester: FocusRequester,
+    onBackspace: () -> Unit
+) {
+    val borderColor by animateColorAsState(
+        targetValue = when {
+            isError -> TelegramColors.Error
+            value.isNotEmpty() -> TelegramColors.Primary
+            else -> TelegramColors.Divider
+        },
+        animationSpec = tween(200),
+        label = "border_color"
+    )
+
+    val scale by animateFloatAsState(
+        targetValue = if (value.isNotEmpty()) 1.05f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "digit_scale"
+    )
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier
+            .size(52.dp)
+            .scale(scale)
+            .clip(RoundedCornerShape(14.dp))
+            .background(TelegramColors.Surface)
+            .border(
+                width = 2.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .focusRequester(focusRequester),
+        textStyle = MaterialTheme.typography.headlineLarge.copy(
+            color = TelegramColors.TextPrimary,
+            textAlign = TextAlign.Center,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        ),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Next
+        ),
+        singleLine = true,
+        cursorBrush = SolidColor(TelegramColors.Primary),
+        decorationBox = { innerTextField ->
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                innerTextField()
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PasswordScreen(
+    phoneNumber: String,
+    onBack: () -> Unit,
+    onSuccess: () -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var isError by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        delay(300)
+        focusRequester.requestFocus()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        // Верхняя панель
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Назад",
+                    tint = TelegramColors.Primary
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Иконка замка
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(TelegramColors.GradientPurple, Color(0xFF8E44AD))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                AppIcon(
+                    imageUrl = AppImages.LOCK_ICON,
+                    fallbackIcon = Icons.Default.Lock,
+                    iconSize = 48,
+                    tint = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Введите пароль",
+                style = MaterialTheme.typography.headlineLarge,
+                color = TelegramColors.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "У вас включена двухэтапная аутентификация.\nВведите ваш пароль.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Поле пароля
+            OutlinedTextField(
+                value = password,
+                onValueChange = {
+                    password = it
+                    isError = false
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+                label = { Text("Пароль") },
+                placeholder = { Text("Введите пароль") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = TelegramColors.Primary
+                    )
+                },
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (passwordVisible) "Скрыть пароль" else "Показать пароль",
+                            tint = TelegramColors.TextSecondary
+                        )
+                    }
+                },
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                isError = isError,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = TelegramColors.Primary,
+                    unfocusedBorderColor = TelegramColors.Divider,
+                    focusedContainerColor = TelegramColors.Surface,
+                    unfocusedContainerColor = TelegramColors.Surface,
+                    errorBorderColor = TelegramColors.Error
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (password == "password") {
+                            onSuccess()
+                        } else {
+                            isError = true
+                        }
+                    }
+                ),
+                singleLine = true
+            )
+
+            if (isError) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Неверный пароль",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TelegramColors.Error
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            TextButton(onClick = { /* TODO: Восстановление пароля */ }) {
+                Text(
+                    text = "Забыли пароль?",
+                    color = TelegramColors.Link
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Подсказка
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = TelegramColors.Primary.copy(alpha = 0.08f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = null,
+                        tint = TelegramColors.Primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Тестовый пароль: password",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TelegramColors.Primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = {
+                    isLoading = true
+                    if (password == "password") {
+                        onSuccess()
+                    } else {
+                        isLoading = false
+                        isError = true
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TelegramColors.Primary,
+                    disabledContainerColor = TelegramColors.Primary.copy(alpha = 0.5f)
+                ),
+                enabled = password.isNotEmpty() && !isLoading
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = "Войти",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(48.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RegistrationScreen(
+    phoneNumber: String,
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onBack: () -> Unit,
+    onComplete: () -> Unit
+) {
+    var currentStep by remember { mutableIntStateOf(0) }
+
+    val totalSteps = 3
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        // Верхняя панель
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = {
+                if (currentStep > 0) {
+                    currentStep--
+                } else {
+                    onBack()
+                }
+            }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Назад",
+                    tint = TelegramColors.Primary
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Индикатор шагов
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(totalSteps) { index ->
+                    val isCompleted = index < currentStep
+                    val isCurrent = index == currentStep
+
+                    Box(
+                        modifier = Modifier
+                            .size(if (isCurrent) 10.dp else 8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    isCompleted -> TelegramColors.Success
+                                    isCurrent -> TelegramColors.Primary
+                                    else -> TelegramColors.Divider
+                                }
+                            )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(56.dp))
+        }
+
+        // Индикатор прогресса
+        LinearProgressIndicator(
+            progress = { (currentStep + 1).toFloat() / totalSteps },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(3.dp),
+            color = TelegramColors.Primary,
+            trackColor = TelegramColors.Divider,
+        )
+
+        AnimatedContent(
+            targetState = currentStep,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    slideInHorizontally { it } + fadeIn() togetherWith
+                            slideOutHorizontally { -it } + fadeOut()
+                } else {
+                    slideInHorizontally { -it } + fadeIn() togetherWith
+                            slideOutHorizontally { it } + fadeOut()
+                }
+            },
+            label = "step_transition"
+        ) { step ->
+            when (step) {
+                0 -> NameInputStep(
+                    userData = userData,
+                    onUserDataChanged = onUserDataChanged,
+                    onNext = { currentStep++ }
+                )
+                1 -> BirthdayInputStep(
+                    userData = userData,
+                    onUserDataChanged = onUserDataChanged,
+                    onNext = { currentStep++ }
+                )
+                2 -> ProfilePhotoStep(
+                    userData = userData,
+                    onUserDataChanged = onUserDataChanged,
+                    onComplete = onComplete
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun NameInputStep(
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onNext: () -> Unit
+) {
+    var firstName by remember { mutableStateOf(userData.firstName) }
+    var lastName by remember { mutableStateOf(userData.lastName) }
+    val focusManager = LocalFocusManager.current
+    val firstNameFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        delay(300)
+        firstNameFocusRequester.requestFocus()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Иконка
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            AppIcon(
+                imageUrl = AppImages.USER_ICON,
+                fallbackIcon = Icons.Default.Person,
+                iconSize = 48,
+                tint = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Ваше имя",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Введите ваше имя и фамилию",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Поле имени
+        OutlinedTextField(
+            value = firstName,
+            onValueChange = { firstName = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(firstNameFocusRequester),
+            label = { Text("Имя") },
+            placeholder = { Text("Введите имя") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Поле фамилии
+        OutlinedTextField(
+            value = lastName,
+            onValueChange = { lastName = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Фамилия") },
+            placeholder = { Text("Введите фамилию (необязательно)") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Outlined.Person,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = { focusManager.clearFocus() }
+            ),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = {
+                onUserDataChanged(userData.copy(firstName = firstName, lastName = lastName))
+                onNext()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = TelegramColors.Primary,
+                disabledContainerColor = TelegramColors.Primary.copy(alpha = 0.5f)
+            ),
+            enabled = firstName.isNotBlank()
+        ) {
+            Text(
+                text = "Продолжить",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+    }
+}
+
+@Composable
+fun BirthdayInputStep(
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onNext: () -> Unit
+) {
+    var day by remember { mutableStateOf(userData.birthDay) }
+    var month by remember { mutableStateOf(userData.birthMonth) }
+    var year by remember { mutableStateOf(userData.birthYear) }
+    var skipBirthday by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+
+    val months = listOf(
+        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+    )
+
+    var showMonthPicker by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Иконка
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(TelegramColors.GradientOrange, Color(0xFFF39C12))
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            AppIcon(
+                imageUrl = AppImages.BIRTHDAY_ICON,
+                fallbackIcon = Icons.Default.Cake,
+                iconSize = 48,
+                tint = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Дата рождения",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Укажите дату вашего рождения.\nДрузья смогут поздравить вас!",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center,
+            lineHeight = 20.sp
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Поля даты
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // День
+            OutlinedTextField(
+                value = day,
+                onValueChange = {
+                    if (it.length <= 2 && it.all { char -> char.isDigit() }) {
+                        day = it
+                        if (it.length == 2) focusManager.moveFocus(FocusDirection.Right)
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                label = { Text("День") },
+                placeholder = { Text("ДД") },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = TelegramColors.Primary,
+                    unfocusedBorderColor = TelegramColors.Divider,
+                    focusedContainerColor = TelegramColors.Surface,
+                    unfocusedContainerColor = TelegramColors.Surface
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                ),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center)
+            )
+
+            // Месяц
+            Box(modifier = Modifier.weight(2f)) {
+                OutlinedTextField(
+                    value = if (month.isNotEmpty()) months[month.toInt() - 1] else "",
+                    onValueChange = { },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Месяц") },
+                    placeholder = { Text("Выберите") },
+                    readOnly = true,
+                    enabled = false,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledBorderColor = TelegramColors.Divider,
+                        disabledContainerColor = TelegramColors.Surface,
+                        disabledTextColor = TelegramColors.TextPrimary,
+                        disabledLabelColor = TelegramColors.TextSecondary
+                    ),
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = TelegramColors.TextSecondary
+                        )
+                    },
+                    singleLine = true
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable { showMonthPicker = true }
+                )
+            }
+
+            // Год
+            OutlinedTextField(
+                value = year,
+                onValueChange = {
+                    if (it.length <= 4 && it.all { char -> char.isDigit() }) {
+                        year = it
+                    }
+                },
+                modifier = Modifier.weight(1.5f),
+                label = { Text("Год") },
+                placeholder = { Text("ГГГГ") },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = TelegramColors.Primary,
+                    unfocusedBorderColor = TelegramColors.Divider,
+                    focusedContainerColor = TelegramColors.Surface,
+                    unfocusedContainerColor = TelegramColors.Surface
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = { focusManager.clearFocus() }
+                ),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Чекбокс пропустить
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { skipBirthday = !skipBirthday }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = skipBirthday,
+                onCheckedChange = { skipBirthday = it },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = TelegramColors.Primary,
+                    uncheckedColor = TelegramColors.TextSecondary
+                )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Пропустить этот шаг",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextPrimary
+            )
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = {
+                onUserDataChanged(userData.copy(
+                    birthDay = day,
+                    birthMonth = month,
+                    birthYear = year
+                ))
+                onNext()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = TelegramColors.Primary,
+                disabledContainerColor = TelegramColors.Primary.copy(alpha = 0.5f)
+            ),
+            enabled = skipBirthday || (day.isNotBlank() && month.isNotBlank() && year.length == 4)
+        ) {
+            Text(
+                text = "Продолжить",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+    }
+
+    // Диалог выбора месяца
+    if (showMonthPicker) {
+        MonthPickerDialog(
+            months = months,
+            selectedMonth = if (month.isNotEmpty()) month.toInt() - 1 else -1,
+            onMonthSelected = { index ->
+                month = (index + 1).toString()
+                showMonthPicker = false
+            },
+            onDismiss = { showMonthPicker = false }
+        )
+    }
+}
+
+@Composable
+fun MonthPickerDialog(
+    months: List<String>,
+    selectedMonth: Int,
+    onMonthSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = TelegramColors.Surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                Text(
+                    text = "Выберите месяц",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TelegramColors.TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
+                )
+
+                HorizontalDivider(color = TelegramColors.Divider)
+
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 400.dp)
+                ) {
+                    items(months.size) { index ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onMonthSelected(index) }
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = months[index],
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (index == selectedMonth) TelegramColors.Primary else TelegramColors.TextPrimary,
+                                fontWeight = if (index == selectedMonth) FontWeight.SemiBold else FontWeight.Normal,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (index == selectedMonth) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = TelegramColors.Primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfilePhotoStep(
+    userData: UserData,
+    onUserDataChanged: (UserData) -> Unit,
+    onComplete: () -> Unit
+) {
+    var bio by remember { mutableStateOf(userData.bio) }
+    var username by remember { mutableStateOf(userData.username) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Аватар с кнопкой добавления фото
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                        )
+                    )
+                    .clickable { /* TODO: Открыть галерею */ },
+                contentAlignment = Alignment.Center
+            ) {
+                if (userData.firstName.isNotEmpty()) {
+                    Text(
+                        text = userData.firstName.first().uppercase() +
+                                (userData.lastName.firstOrNull()?.uppercase() ?: ""),
+                        fontSize = 40.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(60.dp)
+                    )
+                }
+            }
+
+            // Кнопка камеры
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 4.dp, y = 4.dp)
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(TelegramColors.Primary)
+                    .border(3.dp, TelegramColors.Background, CircleShape)
+                    .clickable { /* TODO: Открыть камеру */ },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = "Добавить фото",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Ваш профиль",
+            style = MaterialTheme.typography.headlineLarge,
+            color = TelegramColors.TextPrimary,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Добавьте фото и расскажите о себе",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TelegramColors.TextSecondary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Имя пользователя
+        OutlinedTextField(
+            value = username,
+            onValueChange = {
+                val filtered = it.filter { char ->
+                    char.isLetterOrDigit() || char == '_'
+                }.lowercase()
+                if (filtered.length <= 32) {
+                    username = filtered
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Имя пользователя") },
+            placeholder = { Text("username") },
+            prefix = {
+                Text(
+                    "@",
+                    color = TelegramColors.Primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.AlternateEmail,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            supportingText = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (username.length >= 5) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = TelegramColors.Success,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Имя доступно",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TelegramColors.Success
+                        )
+                    } else {
+                        Text(
+                            text = "Минимум 5 символов. Можно a-z, 0-9, _",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TelegramColors.TextSecondary
+                        )
+                    }
+                }
+            },
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Био
+        OutlinedTextField(
+            value = bio,
+            onValueChange = { if (it.length <= 70) bio = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("О себе") },
+            placeholder = { Text("Расскажите о себе...") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = null,
+                    tint = TelegramColors.Primary
+                )
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TelegramColors.Primary,
+                unfocusedBorderColor = TelegramColors.Divider,
+                focusedContainerColor = TelegramColors.Surface,
+                unfocusedContainerColor = TelegramColors.Surface
+            ),
+            supportingText = {
+                Text(
+                    text = "${bio.length}/70",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (bio.length > 60) TelegramColors.Error else TelegramColors.TextSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.End
+                )
+            },
+            maxLines = 3
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = {
+                onUserDataChanged(userData.copy(bio = bio, username = username))
+                onComplete()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = TelegramColors.Primary)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = Color.White
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Завершить регистрацию",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        TextButton(onClick = onComplete) {
+            Text(
+                text = "Пропустить",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.Link
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun SuccessScreen(
+    userData: UserData,
+    onLogout: () -> Unit
+) {
+    // Анимация появления
+    var isVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(100)
+        isVisible = true
+    }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "scale"
+    )
+
+    val alpha by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = tween(500),
+        label = "alpha"
+    )
+
+    // Конфетти анимация
+    val infiniteTransition = rememberInfiniteTransition(label = "confetti")
+    val confettiOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "confetti_offset"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TelegramColors.Background)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp)
+                .alpha(alpha),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Анимированная галочка
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .scale(scale)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(TelegramColors.Success, Color(0xFF2ECC71))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                AppIcon(
+                    imageUrl = AppImages.SUCCESS_ICON,
+                    fallbackIcon = Icons.Default.Check,
+                    iconSize = 60,
+                    tint = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = "Добро пожаловать!",
+                style = MaterialTheme.typography.headlineLarge,
+                color = TelegramColors.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Иконка празднования
+            AppIcon(
+                imageUrl = AppImages.CELEBRATION_ICON,
+                fallbackIcon = Icons.Default.Celebration,
+                modifier = Modifier.size(32.dp),
+                iconSize = 32,
+                tint = TelegramColors.GradientOrange
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Информация о пользователе
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = TelegramColors.Surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Аватар
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = userData.firstName.firstOrNull()?.uppercase() ?: "?",
+                            fontSize = 32.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "${userData.firstName} ${userData.lastName}".trim().ifEmpty { "Пользователь" },
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = TelegramColors.TextPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    if (userData.username.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "@${userData.username}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TelegramColors.Link
+                        )
+                    }
+
+                    if (userData.phoneNumber.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Phone,
+                                contentDescription = null,
+                                tint = TelegramColors.TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = userData.phoneNumber,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TelegramColors.TextSecondary
+                            )
+                        }
+                    }
+
+                    if (userData.birthDay.isNotEmpty() && userData.birthMonth.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        val months = listOf(
+                            "января", "февраля", "марта", "апреля", "мая", "июня",
+                            "июля", "августа", "сентября", "октября", "ноября", "декабря"
+                        )
+                        val monthName = months.getOrElse(userData.birthMonth.toInt() - 1) { "" }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Cake,
+                                contentDescription = null,
+                                tint = TelegramColors.TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "${userData.birthDay} $monthName ${userData.birthYear}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TelegramColors.TextSecondary
+                            )
+                        }
+                    }
+
+                    if (userData.bio.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = TelegramColors.Divider)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = userData.bio,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TelegramColors.TextPrimary,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = "Ваш аккаунт успешно создан!\nТеперь вы можете начать общение.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 22.sp
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            Button(
+                onClick = { /* TODO: Перейти к чатам */ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = TelegramColors.Primary)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = Color.White
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Начать общение",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            TextButton(onClick = onLogout) {
+                Icon(
+                    imageVector = Icons.Default.Logout,
+                    contentDescription = null,
+                    tint = TelegramColors.Error,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Выйти из аккаунта",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TelegramColors.Error
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun TelegramLogo() {
     val infiniteTransition = rememberInfiniteTransition(label = "logo_animation")
@@ -13,37 +2510,210 @@ fun TelegramLogo() {
         label = "rotation"
     )
 
-    // ЕСЛИ ЕСТЬ КАРТИНКА - показываем БЕЗ синего круга
-    if (AppImages.TELEGRAM_LOGO != null) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(AppImages.TELEGRAM_LOGO)
-                .crossfade(true)
-                .build(),
-            contentDescription = null,
-            modifier = Modifier.size(140.dp), // Увеличенный размер, БЕЗ фона
-            contentScale = ContentScale.Fit
+    Box(
+        modifier = Modifier
+            .size(100.dp)
+            .rotate(rotation)
+            .clip(CircleShape)
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        AppIcon(
+            imageUrl = AppImages.TELEGRAM_LOGO,
+            fallbackIcon = Icons.AutoMirrored.Filled.Send,
+            iconSize = 48,
+            tint = Color.White
         )
-    } else {
-        // ЕСЛИ НЕТ КАРТИНКИ - показываем иконку С синим фоном
-        Box(
-            modifier = Modifier
-                .size(100.dp)
-                .rotate(rotation)
-                .clip(CircleShape)
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(TelegramColors.GradientStart, TelegramColors.GradientEnd)
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.Send,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = Color.White
-            )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CountryPickerDialog(
+    countries: List<Country>,
+    selectedCountry: Country,
+    onCountrySelected: (Country) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredCountries = remember(searchQuery) {
+        if (searchQuery.isEmpty()) {
+            countries
+        } else {
+            countries.filter { country ->
+                country.name.contains(searchQuery, ignoreCase = true) ||
+                        country.phoneCode.contains(searchQuery)
+            }
         }
     }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 48.dp),
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            color = TelegramColors.Background
+        ) {
+            Column {
+                Surface(
+                    color = TelegramColors.Surface,
+                    shadowElevation = 2.dp
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Выберите страну",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = TelegramColors.TextPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Закрыть",
+                                    tint = TelegramColors.TextSecondary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = {
+                                Text(text = "Поиск страны...", color = TelegramColors.TextSecondary)
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Поиск",
+                                    tint = TelegramColors.TextSecondary
+                                )
+                            },
+                            trailingIcon = {
+                                AnimatedVisibility(
+                                    visible = searchQuery.isNotEmpty(),
+                                    enter = fadeIn() + scaleIn(),
+                                    exit = fadeOut() + scaleOut()
+                                ) {
+                                    IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = "Очистить",
+                                            tint = TelegramColors.TextSecondary
+                                        )
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = TelegramColors.Primary,
+                                unfocusedBorderColor = TelegramColors.Divider,
+                                focusedContainerColor = TelegramColors.Surface,
+                                unfocusedContainerColor = TelegramColors.Surface
+                            ),
+                            singleLine = true
+                        )
+                    }
+                }
+
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(filteredCountries) { country ->
+                        CountryItem(
+                            country = country,
+                            isSelected = country == selectedCountry,
+                            onClick = { onCountrySelected(country) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CountryItem(
+    country: Country,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isSelected) {
+            TelegramColors.Primary.copy(alpha = 0.1f)
+        } else {
+            TelegramColors.Surface
+        },
+        label = "background_color"
+    )
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = backgroundColor
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = country.flag, fontSize = 32.sp)
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = country.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TelegramColors.TextPrimary,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
+
+            Text(
+                text = country.phoneCode,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TelegramColors.Primary,
+                fontWeight = FontWeight.Medium
+            )
+
+            AnimatedVisibility(
+                visible = isSelected,
+                enter = fadeIn() + scaleIn(),
+                exit = fadeOut() + scaleOut()
+            ) {
+                Row {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Выбрано",
+                        tint = TelegramColors.Primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+        }
+    }
+
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 68.dp),
+        color = TelegramColors.Divider,
+        thickness = 0.5.dp
+    )
 }
