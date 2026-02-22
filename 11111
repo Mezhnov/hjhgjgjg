@@ -1,270 +1,161 @@
-namespace MauiApp3
-{
-    public partial class MainPage : ContentPage
-    {
-        public MainPage()
-        {
-            InitializeComponent();
-            InitializeMockData();
-        }
+#!/usr/bin/env python3
+"""
+Сервер для трансляции экрана ПК на Android устройство
+Запуск: python screen_server.py
+"""
 
-        private void InitializeMockData()
-        {
-            SceneObjectsList.ItemsSource = new List<SceneObject>
-            {
-                new SceneObject { Name = "Lighting", Icon = "💡" },
-                new SceneObject { Name = "DirectionalLight", Icon = "☀️" },
-                new SceneObject { Name = "SkyLight", Icon = "🌤" },
-                new SceneObject { Name = "ExponentialHeightFog", Icon = "🌫" },
-                new SceneObject { Name = "SphereReflectionCapture", Icon = "🔮" },
-                new SceneObject { Name = "FirstPersonCharacter", Icon = "🧍" },
-                new SceneObject { Name = "Linear Stair Brush", Icon = "🪜" },
-                new SceneObject { Name = "SM_Couch", Icon = "🛋" },
-                new SceneObject { Name = "TemplateLabel", Icon = "🏷" }
-            };
-        }
+import socket
+import struct
+import threading
+import json
+from io import BytesIO
+from PIL import ImageGrab
+import pyautogui
 
-        private void OnSaveClicked(object sender, EventArgs e)
-        {
-            DisplayAlert("Engine", "Saved.", "OK");
-        }
 
-        public class SceneObject
-        {
-            public string? Name { get; set; }
-            public string? Icon { get; set; }
-        }
-    }
-}
-<?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="MauiApp3.MainPage"
-             BackgroundColor="#3C3F41">
+class ScreenServer:
+    def __init__(self, host='0.0.0.0', port=5000):
+        self.host = host
+        self.port = port
+        self.quality = 50
+        self.running = False
+        self.clients = []
+        self.screen_width, self.screen_height = pyautogui.size()
 
-    <ContentPage.Resources>
-        <!-- Цвета из UE4 -->
-        <Color x:Key="BgMain">#3C3F41</Color>
-        <Color x:Key="BgPanel">#2D2D30</Color>
-        <Color x:Key="BgHeader">#3E3E42</Color>
-        <Color x:Key="BgInput">#1E1E1E</Color>
-        <Color x:Key="TextWhite">#FFFFFF</Color>
-        <Color x:Key="TextGray">#CCCCCC</Color>
-        <Color x:Key="TextDim">#888888</Color>
-        <Color x:Key="Border">#555555</Color>
-        <Color x:Key="Accent">#0078D7</Color>
-        <Color x:Key="PlayGreen">#4CAF50</Color>
+    def start(self):
+        self.running = True
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.bind((self.host, self.port))
+        self.server_socket.listen(5)
 
-        <Style x:Key="LblHeader" TargetType="Label">
-            <Setter Property="TextColor" Value="{StaticResource TextWhite}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontAttributes" Value="Bold"/>
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="BackgroundColor" Value="{StaticResource BgHeader}"/>
-        </Style>
+        print(f"🖥️  Сервер трансляции экрана запущен")
+        print(f"📡 Адрес: {self.get_local_ip()}:{self.port}")
+        print(f"⏳ Ожидание подключений...")
 
-        <Style x:Key="LblTab" TargetType="Label">
-            <Setter Property="TextColor" Value="{StaticResource TextGray}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="BackgroundColor" Value="{StaticResource BgPanel}"/>
-        </Style>
+        while self.running:
+            try:
+                client_socket, address = self.server_socket.accept()
+                print(f"✅ Подключен клиент: {address}")
 
-        <Style x:Key="LblTabActive" TargetType="Label">
-            <Setter Property="TextColor" Value="{StaticResource TextWhite}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="BackgroundColor" Value="{StaticResource BgHeader}"/>
-        </Style>
-    </ContentPage.Resources>
+                client_thread = threading.Thread(
+                    target=self.handle_client,
+                    args=(client_socket, address)
+                )
+                client_thread.daemon = True
+                client_thread.start()
 
-    <!-- Основная сетка: Верх(30) - Тело(*) - Низ(150) -->
-    <Grid RowDefinitions="30, *, 150" ColumnDefinitions="*" BackgroundColor="{StaticResource BgMain}">
+            except Exception as e:
+                if self.running:
+                    print(f"Ошибка: {e}")
 
-        <!-- === ВЕРХНИЙ TOOLBAR (как в UE4) === -->
-        <Grid Grid.Row="0" BackgroundColor="{StaticResource BgHeader}" ColumnDefinitions="Auto,*,Auto">
-            <!-- Меню -->
-            <HorizontalStackLayout Grid.Column="0" Spacing="15" VerticalOptions="Center" Margin="10,0">
-                <Label Text="File" TextColor="{StaticResource TextGray}" FontSize="12"/>
-                <Label Text="Edit" TextColor="{StaticResource TextGray}" FontSize="12"/>
-                <Label Text="Window" TextColor="{StaticResource TextGray}" FontSize="12"/>
-                <Label Text="Help" TextColor="{StaticResource TextGray}" FontSize="12"/>
-            </HorizontalStackLayout>
+    def get_local_ip(self):
+        """Получение локального IP адреса"""
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('8.8.8.8', 80))
+            ip = s.getsockname()[0]
+        except:
+            ip = '127.0.0.1'
+        finally:
+            s.close()
+        return ip
 
-            <!-- Кнопки toolbar -->
-            <HorizontalStackLayout Grid.Column="1" Spacing="5" HorizontalOptions="Center" VerticalOptions="Center">
-                <Button Text="💾" BackgroundColor="Transparent" TextColor="{StaticResource TextGray}" WidthRequest="30" HeightRequest="24" CornerRadius="2" Padding="0" FontSize="14"/>
-                <Button Text="📁" BackgroundColor="Transparent" TextColor="{StaticResource TextGray}" WidthRequest="30" HeightRequest="24" CornerRadius="2" Padding="0" FontSize="14"/>
-                <Button Text="🛒" BackgroundColor="Transparent" TextColor="{StaticResource TextGray}" WidthRequest="30" HeightRequest="24" CornerRadius="2" Padding="0" FontSize="14"/>
-                <Button Text="⚙" BackgroundColor="Transparent" TextColor="{StaticResource TextGray}" WidthRequest="30" HeightRequest="24" CornerRadius="2" Padding="0" FontSize="14"/>
-                <Button Text="🧩" BackgroundColor="Transparent" TextColor="{StaticResource TextGray}" WidthRequest="30" HeightRequest="24" CornerRadius="2" Padding="0" FontSize="14"/>
-                <Button Text="🎬" BackgroundColor="Transparent" TextColor="{StaticResource TextGray}" WidthRequest="30" HeightRequest="24" CornerRadius="2" Padding="0" FontSize="14"/>
-                <Button Text="🏗" BackgroundColor="Transparent" TextColor="{StaticResource TextGray}" WidthRequest="30" HeightRequest="24" CornerRadius="2" Padding="0" FontSize="14"/>
-                <Button Text="▶" BackgroundColor="{StaticResource PlayGreen}" TextColor="White" WidthRequest="40" HeightRequest="24" CornerRadius="2" Padding="0" FontSize="14" FontAttributes="Bold"/>
-                <Button Text="🚀" BackgroundColor="Transparent" TextColor="{StaticResource TextGray}" WidthRequest="30" HeightRequest="24" CornerRadius="2" Padding="0" FontSize="14"/>
-            </HorizontalStackLayout>
+    def handle_client(self, client_socket, address):
+        """Обработка клиента"""
+        self.clients.append(client_socket)
 
-            <!-- Правая часть -->
-            <HorizontalStackLayout Grid.Column="2" Spacing="10" VerticalOptions="Center" Margin="0,0,10,0">
-                <Label Text="👤" TextColor="{StaticResource TextGray}" FontSize="14"/>
-                <Label Text="❓" TextColor="{StaticResource TextGray}" FontSize="14"/>
-            </HorizontalStackLayout>
-        </Grid>
+        # Запускаем поток для приема команд
+        command_thread = threading.Thread(
+            target=self.receive_commands,
+            args=(client_socket,)
+        )
+        command_thread.daemon = True
+        command_thread.start()
 
-        <!-- === РАБОЧАЯ ОБЛАСТЬ === -->
-        <Grid Grid.Row="1" ColumnDefinitions="200, *, 300" RowDefinitions="*, *" BackgroundColor="{StaticResource BgMain}">
+        try:
+            while self.running:
+                # Захват экрана
+                screenshot = ImageGrab.grab()
 
-            <!-- 1. ЛЕВАЯ ПАНЕЛЬ (MODES) -->
-            <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" BackgroundColor="{StaticResource BgPanel}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="26"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+                # Уменьшаем размер для лучшей производительности
+                max_width = 1280
+                if screenshot.width > max_width:
+                    ratio = max_width / screenshot.width
+                    new_size = (max_width, int(screenshot.height * ratio))
+                    screenshot = screenshot.resize(new_size)
 
-                <Label Grid.Row="0" Text="Modes" Style="{StaticResource LblHeader}"/>
+                # Сжимаем в JPEG
+                buffer = BytesIO()
+                screenshot.save(buffer, format='JPEG', quality=self.quality)
+                frame_data = buffer.getvalue()
 
-                <VerticalStackLayout Grid.Row="1" Padding="5" Spacing="8">
-                    <Grid ColumnDefinitions="30,*">
-                        <Label Grid.Column="0" Text="📦" FontSize="16" VerticalOptions="Center"/>
-                        <Label Grid.Column="1" Text="Basic" TextColor="{StaticResource TextGray}" FontSize="11" VerticalOptions="Center"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="30,*">
-                        <Label Grid.Column="0" Text="💡" FontSize="16" VerticalOptions="Center"/>
-                        <Label Grid.Column="1" Text="Lights" TextColor="{StaticResource TextGray}" FontSize="11" VerticalOptions="Center"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="30,*">
-                        <Label Grid.Column="0" Text="🎥" FontSize="16" VerticalOptions="Center"/>
-                        <Label Grid.Column="1" Text="Cinematic" TextColor="{StaticResource TextGray}" FontSize="11" VerticalOptions="Center"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="30,*">
-                        <Label Grid.Column="0" Text="🖼" FontSize="16" VerticalOptions="Center"/>
-                        <Label Grid.Column="1" Text="Visual Effects" TextColor="{StaticResource TextGray}" FontSize="11" VerticalOptions="Center"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="30,*">
-                        <Label Grid.Column="0" Text="📐" FontSize="16" VerticalOptions="Center"/>
-                        <Label Grid.Column="1" Text="Geometry" TextColor="{StaticResource TextGray}" FontSize="11" VerticalOptions="Center"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="30,*">
-                        <Label Grid.Column="0" Text="📦" FontSize="16" VerticalOptions="Center"/>
-                        <Label Grid.Column="1" Text="Volumes" TextColor="{StaticResource TextGray}" FontSize="11" VerticalOptions="Center"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="30,*">
-                        <Label Grid.Column="0" Text="🔍" FontSize="16" VerticalOptions="Center"/>
-                        <Label Grid.Column="1" Text="All Classes" TextColor="{StaticResource TextGray}" FontSize="11" VerticalOptions="Center"/>
-                    </Grid>
-                </VerticalStackLayout>
-            </Grid>
+                # Отправляем размер кадра (4 байта) + данные
+                size_data = struct.pack('>I', len(frame_data))
+                client_socket.sendall(size_data + frame_data)
 
-            <!-- 2. ЦЕНТР (VIEWPORT) -->
-            <Grid Grid.Row="0" Grid.Column="1" BackgroundColor="#505050" Margin="1">
-                <!-- Сетка -->
-                <Grid>
-                    <BoxView WidthRequest="1" HeightRequest="1" BackgroundColor="#777" HorizontalOptions="Center" VerticalOptions="Center"/>
-                    <BoxView WidthRequest="150" HeightRequest="1" BackgroundColor="#666" HorizontalOptions="Center" VerticalOptions="Center"/>
-                    <BoxView WidthRequest="1" HeightRequest="150" BackgroundColor="#666" HorizontalOptions="Center" VerticalOptions="Center"/>
-                </Grid>
+        except Exception as e:
+            print(f"❌ Клиент отключен {address}: {e}")
+        finally:
+            if client_socket in self.clients:
+                self.clients.remove(client_socket)
+            client_socket.close()
 
-                <!-- Объекты (имитация) -->
-                <Grid HorizontalOptions="Center" VerticalOptions="Center">
-                    <BoxView WidthRequest="60" HeightRequest="60" BackgroundColor="#888" CornerRadius="2"/>
-                    <BoxView WidthRequest="40" HeightRequest="40" BackgroundColor="#AAA" CornerRadius="2" Margin="80,0,0,0"/>
-                    <BoxView WidthRequest="100" HeightRequest="20" BackgroundColor="#999" CornerRadius="2" Margin="-50,60,0,0"/>
-                </Grid>
+    def receive_commands(self, client_socket):
+        """Прием команд от клиента"""
+        try:
+            while self.running:
+                # Читаем размер команды
+                size_data = client_socket.recv(4)
+                if not size_data:
+                    break
 
-                <!-- Тулбар Viewport -->
-                <Grid HorizontalOptions="Center" VerticalOptions="Start" Margin="0,10,0,0" BackgroundColor="{StaticResource BgHeader}" ColumnDefinitions="Auto,Auto,Auto,Auto">
-                    <Label Text="Perspective" TextColor="{StaticResource TextWhite}" FontSize="10" Padding="10,4" BackgroundColor="{StaticResource Accent}"/>
-                    <Label Text="Lit" TextColor="{StaticResource TextGray}" FontSize="10" Padding="10,4"/>
-                    <Label Text="Show" TextColor="{StaticResource TextGray}" FontSize="10" Padding="10,4"/>
-                    <Label Text="0.25" TextColor="{StaticResource TextGray}" FontSize="10" Padding="10,4"/>
-                </Grid>
-            </Grid>
+                size = struct.unpack('>I', size_data)[0]
 
-            <!-- 3. ПРАВАЯ ПАНЕЛЬ (WORLD OUTLINER + DETAILS) -->
-            <Grid Grid.Row="0" Grid.Column="2" BackgroundColor="{StaticResource BgPanel}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="26"/>
-                    <RowDefinition Height="150"/>
-                    <RowDefinition Height="4"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+                # Отрицательный размер = команда
+                if size > 0x80000000:  # Signed negative
+                    size = 0xFFFFFFFF - size + 1
+                    command_data = client_socket.recv(size)
+                    command = json.loads(command_data.decode('utf-8'))
+                    self.process_command(command)
 
-                <!-- World Outliner Header -->
-                <Label Grid.Row="0" Text="World Outliner" Style="{StaticResource LblHeader}"/>
+        except Exception as e:
+            pass
 
-                <!-- World Outliner List -->
-                <CollectionView Grid.Row="1" x:Name="SceneObjectsList" BackgroundColor="{StaticResource BgMain}">
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Padding="8,4" ColumnDefinitions="20,*,20">
-                                <Label Grid.Column="0" Text="{Binding Icon}" FontSize="11"/>
-                                <Label Grid.Column="1" Text="{Binding Name}" TextColor="{StaticResource TextGray}" FontSize="11"/>
-                                <Label Grid.Column="2" Text="👁" TextColor="{StaticResource TextDim}" FontSize="10" HorizontalOptions="End"/>
-                            </Grid>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
+    def process_command(self, command):
+        """Обработка команды от клиента"""
+        cmd_type = command.get('type')
 
-                <!-- Разделитель -->
-                <BoxView Grid.Row="2" BackgroundColor="{StaticResource Border}" HeightRequest="1"/>
+        if cmd_type == 'touch':
+            # Обработка касания (эмуляция мыши)
+            action = command.get('action')
+            x = command.get('x', 0) * self.screen_width
+            y = command.get('y', 0) * self.screen_height
 
-                <!-- Details Header -->
-                <Label Grid.Row="3" Text="Details" Style="{StaticResource LblHeader}" Grid.RowSpan="2"/>
+            if action == 'down':
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown()
+            elif action == 'up':
+                pyautogui.mouseUp()
+            elif action == 'move':
+                pyautogui.moveTo(x, y)
 
-                <!-- Details Content -->
-                <ScrollView Grid.Row="4" BackgroundColor="{StaticResource BgMain}">
-                    <VerticalStackLayout Padding="8" Spacing="10">
-                        <Entry Text="Linear Stair Brush" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="11" HeightRequest="24" Margin="0,0,0,5"/>
+        elif cmd_type == 'quality':
+            # Изменение качества
+            self.quality = command.get('value', 50)
+            print(f"📊 Качество изменено на: {self.quality}")
 
-                        <Label Text="Transform" TextColor="{StaticResource Accent}" FontSize="10" FontAttributes="Bold" Margin="0,5,0,2"/>
+    def stop(self):
+        self.running = False
+        self.server_socket.close()
+        for client in self.clients:
+            client.close()
 
-                        <Grid ColumnDefinitions="50,*,*,*" ColumnSpacing="4">
-                            <Label Text="Location" TextColor="{StaticResource TextGray}" FontSize="10" VerticalOptions="Center"/>
-                            <Entry Grid.Column="1" Text="480.0" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="10" HeightRequest="22"/>
-                            <Entry Grid.Column="2" Text="330.0" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="10" HeightRequest="22"/>
-                            <Entry Grid.Column="3" Text="190.0" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="10" HeightRequest="22"/>
-                        </Grid>
 
-                        <Grid ColumnDefinitions="50,*,*,*" ColumnSpacing="4">
-                            <Label Text="Rotation" TextColor="{StaticResource TextGray}" FontSize="10" VerticalOptions="Center"/>
-                            <Entry Grid.Column="1" Text="0.0°" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="10" HeightRequest="22"/>
-                            <Entry Grid.Column="2" Text="0.0°" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="10" HeightRequest="22"/>
-                            <Entry Grid.Column="3" Text="0.0°" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="10" HeightRequest="22"/>
-                        </Grid>
-
-                        <Grid ColumnDefinitions="50,*,*,*" ColumnSpacing="4">
-                            <Label Text="Scale" TextColor="{StaticResource TextGray}" FontSize="10" VerticalOptions="Center"/>
-                            <Entry Grid.Column="1" Text="1.0" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="10" HeightRequest="22"/>
-                            <Entry Grid.Column="2" Text="1.0" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="10" HeightRequest="22"/>
-                            <Entry Grid.Column="3" Text="1.0" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="10" HeightRequest="22"/>
-                        </Grid>
-
-                        <BoxView HeightRequest="1" BackgroundColor="{StaticResource Border}" Margin="0,8"/>
-
-                        <Label Text="Surface Materials" TextColor="{StaticResource Accent}" FontSize="10" FontAttributes="Bold" Margin="0,0,0,5"/>
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Text="Element 0" TextColor="{StaticResource TextGray}" FontSize="10" VerticalOptions="Center"/>
-                            <Border Grid.Column="1" StrokeShape="RoundRectangle 3" Stroke="{StaticResource Border}" BackgroundColor="#2D502D" WidthRequest="40" HeightRequest="24" HorizontalOptions="End"/>
-                        </Grid>
-                    </VerticalStackLayout>
-                </ScrollView>
-            </Grid>
-        </Grid>
-
-        <!-- === CONTENT BROWSER (НИЖНЯЯ ПАНЕЛЬ) === -->
-        <Grid Grid.Row="2" BackgroundColor="{StaticResource BgPanel}" ColumnDefinitions="Auto,*,Auto">
-            <!-- Кнопки -->
-            <HorizontalStackLayout Grid.Column="0" Spacing="5" VerticalOptions="Center" Margin="10,0">
-                <Button Text="+ Add New" BackgroundColor="{StaticResource PlayGreen}" TextColor="White" WidthRequest="80" HeightRequest="24" CornerRadius="2" Padding="0" FontSize="11"/>
-                <Button Text="Import" BackgroundColor="Transparent" TextColor="{StaticResource TextGray}" WidthRequest="60" HeightRequest="24" BorderColor="{StaticResource Border}" BorderWidth="1" CornerRadius="2" Padding="0" FontSize="11"/>
-                <Button Text="Save All" BackgroundColor="Transparent" TextColor="{StaticResource TextGray}" WidthRequest="60" HeightRequest="24" BorderColor="{StaticResource Border}" BorderWidth="1" CornerRadius="2" Padding="0" FontSize="11"/>
-            </HorizontalStackLayout>
-
-            <!-- Поиск -->
-            <Entry Grid.Column="1" Placeholder="Search Content..." PlaceholderColor="{StaticResource TextDim}" TextColor="{StaticResource TextWhite}" BackgroundColor="{StaticResource BgInput}" FontSize="11" HeightRequest="24" Margin="10,0"/>
-
-            <!-- Путь -->
-            <Label Grid.Column="2" Text="Content" TextColor="{StaticResource TextGray}" FontSize="11" VerticalOptions="Center" Margin="0,0,10,0"/>
-        </Grid>
-    </Grid>
-</ContentPage>
+if __name__ == '__main__':
+    server = ScreenServer()
+    try:
+        server.start()
+    except KeyboardInterrupt:
+        print("\n🛑 Сервер остановлен")
+        server.stop()
