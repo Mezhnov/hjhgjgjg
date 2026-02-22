@@ -1,0 +1,1343 @@
+
+package com.example.playstore
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.animation.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+
+// ==================== MAIN ACTIVITY ====================
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            PlayStoreTheme {
+                PlayStoreApp()
+            }
+        }
+    }
+}
+
+// ==================== THEME ====================
+@Composable
+fun PlayStoreTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = lightColorScheme(
+            primary = Color(0xFF01875F),
+            secondary = Color(0xFF1A73E8),
+            surface = Color.White,
+            background = Color(0xFFF8F9FA)
+        ),
+        content = content
+    )
+}
+
+// ==================== DATA MODELS ====================
+data class App(
+    val id: Int,
+    val name: String,
+    val developer: String,
+    val rating: Float,
+    val reviews: String,
+    val size: String,
+    val downloads: String,
+    val category: String,
+    val iconUrl: String,
+    val screenshotUrls: List<String>,
+    val description: String,
+    val version: String,
+    val ageRating: String,
+    val price: String = "Бесплатно",
+    val containsAds: Boolean = true,
+    val inAppPurchases: Boolean = true
+)
+
+data class Category(
+    val name: String,
+    val icon: ImageVector
+)
+
+// ==================== SAMPLE DATA ====================
+object SampleData {
+    val categories = listOf(
+        Category("Для вас", Icons.Filled.Person),
+        Category("Лучшие", Icons.Filled.TrendingUp),
+        Category("Игры", Icons.Filled.SportsEsports),
+        Category("Дети", Icons.Filled.ChildCare),
+        Category("Фильмы", Icons.Filled.Movie),
+        Category("Книги", Icons.Filled.Book)
+    )
+    
+    val apps = listOf(
+        App(
+            id = 1,
+            name = "Telegram",
+            developer = "Telegram FZ-LLC",
+            rating = 4.5f,
+            reviews = "12M",
+            size = "45 MB",
+            downloads = "1B+",
+            category = "Общение",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Telegram_logo.svg/512px-Telegram_logo.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/ZU9cSsyIJZo6Oy7HTHiEPwZg0m2Crep-d5ZrfajqtsH-qgUXSqKpNA2FpPDTn-7qA5Q=w526-h296",
+                "https://play-lh.googleusercontent.com/5MXj6dfe0arj1jGv9J-7t5hcfUU6jfJGmQlPCrC9xPU_6pXdgF9mTvZe6dPKaJbYLw=w526-h296"
+            ),
+            description = "Telegram — это мессенджер, ориентированный на скорость и безопасность. Он очень быстрый, простой и бесплатный. Telegram можно использовать на всех устройствах одновременно — ваши сообщения синхронизируются между любым количеством телефонов, планшетов или компьютеров.",
+            version = "10.5.0",
+            ageRating = "16+"
+        ),
+        App(
+            id = 2,
+            name = "YouTube",
+            developer = "Google LLC",
+            rating = 4.2f,
+            reviews = "150M",
+            size = "120 MB",
+            downloads = "10B+",
+            category = "Видео",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/512px-YouTube_full-color_icon_%282017%29.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/vA4tG0v4aasE7oIvRIvTkOYTwom07DfqHdUPr6k7jmrDwy_qA_SonqZkw6KX0OXKAdA=w526-h296"
+            ),
+            description = "Смотрите любимые видео, слушайте любимые песни, загружайте собственный контент и делитесь им с друзьями, семьёй и всем миром на YouTube.",
+            version = "18.45.41",
+            ageRating = "12+"
+        ),
+        App(
+            id = 3,
+            name = "WhatsApp",
+            developer = "WhatsApp LLC",
+            rating = 4.3f,
+            reviews = "180M",
+            size = "65 MB",
+            downloads = "5B+",
+            category = "Общение",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/WhatsApp.svg/512px-WhatsApp.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/bYtqbOcTYOlgc6gqZ2rwb8lptHuwlNE75zYJu6Bn076-hTmvd96HH-6v7S0YUAAJXoJN=w526-h296"
+            ),
+            description = "WhatsApp от Meta — это бесплатное приложение для обмена сообщениями и видеозвонков. Им пользуется более 2 миллиардов человек в более чем 180 странах.",
+            version = "2.24.2.7",
+            ageRating = "12+"
+        ),
+        App(
+            id = 4,
+            name = "Spotify",
+            developer = "Spotify AB",
+            rating = 4.4f,
+            reviews = "28M",
+            size = "85 MB",
+            downloads = "1B+",
+            category = "Музыка",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/512px-Spotify_logo_without_text.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/UrY7BAZ-XfXGpfkeWg0zCCeo-7ras4DCoRalC_WXXWTK9q5b0Iw7B0YQMsVxZaNB7DM=w526-h296"
+            ),
+            description = "Spotify — это сервис для прослушивания музыки и подкастов. Слушайте миллионы песен бесплатно!",
+            version = "8.8.96.364",
+            ageRating = "12+"
+        ),
+        App(
+            id = 5,
+            name = "Instagram",
+            developer = "Meta Platforms, Inc.",
+            rating = 4.0f,
+            reviews = "130M",
+            size = "95 MB",
+            downloads = "5B+",
+            category = "Социальные",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/512px-Instagram_logo_2016.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/7-rCSBvT2rYQR3lYjLMCr3bJfvZ5mALlDBr2JY8etv3ZFPwJnP1JvV-h4lW8JvJqLw=w526-h296"
+            ),
+            description = "Instagram от Meta позволяет вам общаться с друзьями, делиться новостями и смотреть интересный контент со всего мира.",
+            version = "312.0.0.0.8",
+            ageRating = "12+"
+        ),
+        App(
+            id = 6,
+            name = "TikTok",
+            developer = "TikTok Pte. Ltd.",
+            rating = 4.5f,
+            reviews = "45M",
+            size = "150 MB",
+            downloads = "1B+",
+            category = "Развлечения",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/en/thumb/a/a9/TikTok_logo.svg/512px-TikTok_logo.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/EfCPHbVnYZjDC0rqA5qO4lOr7p-f0Ty7J76uoJnj4dPYK5q-9Ug4gXf9f4MaKAFv8A=w526-h296"
+            ),
+            description = "TikTok — это платформа для коротких мобильных видео. Наша миссия — вдохновлять творчество и приносить радость.",
+            version = "32.5.3",
+            ageRating = "12+"
+        ),
+        App(
+            id = 7,
+            name = "Netflix",
+            developer = "Netflix, Inc.",
+            rating = 4.3f,
+            reviews = "12M",
+            size = "60 MB",
+            downloads = "1B+",
+            category = "Развлечения",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Netflix_2015_N_logo.svg/512px-Netflix_2015_N_logo.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/K2cLhMXJHT3b-3qJi3u8Zd3Yp8V3Xe8ywZJMHO0pQXKC4qNOBmMt7uYm5VhXnG8f9g=w526-h296"
+            ),
+            description = "Netflix — это ведущий стриминговый сервис с тысячами фильмов и сериалов без рекламы.",
+            version = "8.89.0",
+            ageRating = "16+",
+            price = "Подписка",
+            containsAds = false
+        ),
+        App(
+            id = 8,
+            name = "Duolingo",
+            developer = "Duolingo",
+            rating = 4.6f,
+            reviews = "15M",
+            size = "55 MB",
+            downloads = "500M+",
+            category = "Образование",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Duolingo_logo.svg/512px-Duolingo_logo.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/xUgM-CWzYLg9pAHjTOyKM2rHMc7bv9mMHwJHj4L8E7pNSK9z8jqNLYxVjH8nXvP8zA=w526-h296"
+            ),
+            description = "Учите языки бесплатно! Duolingo — это научный подход к изучению языков в игровой форме.",
+            version = "5.125.3",
+            ageRating = "3+"
+        )
+    )
+}
+
+// ==================== MAIN APP COMPOSABLE ====================
+@Composable
+fun PlayStoreApp() {
+    var selectedTab by remember { mutableStateOf(0) }
+    var selectedApp by remember { mutableStateOf<App?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showSearch by remember { mutableStateOf(false) }
+    
+    Scaffold(
+        bottomBar = {
+            if (selectedApp == null) {
+                BottomNavigationBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it }
+                )
+            }
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
+            AnimatedContent(
+                targetState = selectedApp,
+                transitionSpec = {
+                    slideInHorizontally { it } togetherWith slideOutHorizontally { -it }
+                }
+            ) { app ->
+                if (app != null) {
+                    AppDetailScreen(
+                        app = app,
+                        onBackClick = { selectedApp = null }
+                    )
+                } else {
+                    when (selectedTab) {
+                        0 -> GamesScreen(
+                            showSearch = showSearch,
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = { searchQuery = it },
+                            onSearchToggle = { showSearch = !showSearch },
+                            onAppClick = { selectedApp = it }
+                        )
+                        1 -> AppsScreen(
+                            showSearch = showSearch,
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = { searchQuery = it },
+                            onSearchToggle = { showSearch = !showSearch },
+                            onAppClick = { selectedApp = it }
+                        )
+                        2 -> BooksScreen()
+                        3 -> ProfileScreen()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==================== BOTTOM NAVIGATION ====================
+@Composable
+fun BottomNavigationBar(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit
+) {
+    NavigationBar(
+        containerColor = Color.White,
+        tonalElevation = 8.dp
+    ) {
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.SportsEsports, contentDescription = "Игры") },
+            label = { Text("Игры") },
+            selected = selectedTab == 0,
+            onClick = { onTabSelected(0) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF01875F),
+                selectedTextColor = Color(0xFF01875F)
+            )
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Apps, contentDescription = "Приложения") },
+            label = { Text("Приложения") },
+            selected = selectedTab == 1,
+            onClick = { onTabSelected(1) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF01875F),
+                selectedTextColor = Color(0xFF01875F)
+            )
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Book, contentDescription = "Книги") },
+            label = { Text("Книги") },
+            selected = selectedTab == 2,
+            onClick = { onTabSelected(2) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF01875F),
+                selectedTextColor = Color(0xFF01875F)
+            )
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Person, contentDescription = "Профиль") },
+            label = { Text("Профиль") },
+            selected = selectedTab == 3,
+            onClick = { onTabSelected(3) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF01875F),
+                selectedTextColor = Color(0xFF01875F)
+            )
+        )
+    }
+}
+
+// ==================== TOP APP BAR ====================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlayStoreTopBar(
+    showSearch: Boolean,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchToggle: () -> Unit
+) {
+    TopAppBar(
+        title = {
+            if (showSearch) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    placeholder = { Text("Поиск приложений и игр") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF01875F),
+                        cursorColor = Color(0xFF01875F)
+                    )
+                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        tint = Color(0xFF01875F),
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Google Play",
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 20.sp
+                    )
+                }
+            }
+        },
+        actions = {
+            IconButton(onClick = onSearchToggle) {
+                Icon(
+                    if (showSearch) Icons.Filled.Close else Icons.Filled.Search,
+                    contentDescription = "Поиск"
+                )
+            }
+            if (!showSearch) {
+                IconButton(onClick = { }) {
+                    Icon(Icons.Filled.Notifications, contentDescription = "Уведомления")
+                }
+                IconButton(onClick = { }) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF01875F)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("U", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.White
+        )
+    )
+}
+
+// ==================== GAMES SCREEN ====================
+@Composable
+fun GamesScreen(
+    showSearch: Boolean,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchToggle: () -> Unit,
+    onAppClick: (App) -> Unit
+) {
+    Column {
+        PlayStoreTopBar(
+            showSearch = showSearch,
+            searchQuery = searchQuery,
+            onSearchQueryChange = onSearchQueryChange,
+            onSearchToggle = onSearchToggle
+        )
+        
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Категории
+            item {
+                CategoryChips()
+            }
+            
+            // Баннер
+            item {
+                PromoBanner()
+            }
+            
+            // Рекомендуемые
+            item {
+                SectionHeader("Рекомендуем для вас")
+                HorizontalAppList(
+                    apps = SampleData.apps.filter { 
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true) 
+                    },
+                    onAppClick = onAppClick
+                )
+            }
+            
+            // Топ игр
+            item {
+                SectionHeader("Топ бесплатных игр")
+                TopAppsList(
+                    apps = SampleData.apps.take(5).filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+            }
+            
+            // Новые
+            item {
+                SectionHeader("Новинки")
+                HorizontalAppList(
+                    apps = SampleData.apps.reversed().filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+// ==================== APPS SCREEN ====================
+@Composable
+fun AppsScreen(
+    showSearch: Boolean,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchToggle: () -> Unit,
+    onAppClick: (App) -> Unit
+) {
+    Column {
+        PlayStoreTopBar(
+            showSearch = showSearch,
+            searchQuery = searchQuery,
+            onSearchQueryChange = onSearchQueryChange,
+            onSearchToggle = onSearchToggle
+        )
+        
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            item {
+                CategoryChips()
+            }
+            
+            item {
+                SectionHeader("Лучшие приложения")
+                HorizontalAppList(
+                    apps = SampleData.apps.filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+            }
+            
+            item {
+                SectionHeader("Топ бесплатных приложений")
+                TopAppsList(
+                    apps = SampleData.apps.filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+            }
+            
+            item {
+                SectionHeader("Выбор редакции")
+                HorizontalAppList(
+                    apps = SampleData.apps.shuffled().filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+// ==================== CATEGORY CHIPS ====================
+@Composable
+fun CategoryChips() {
+    var selectedCategory by remember { mutableStateOf(0) }
+    
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        itemsIndexed(SampleData.categories) { index, category ->
+            FilterChip(
+                onClick = { selectedCategory = index },
+                label = { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            category.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(category.name)
+                    }
+                },
+                selected = selectedCategory == index,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFE8F5E9),
+                    selectedLabelColor = Color(0xFF01875F)
+                )
+            )
+        }
+    }
+}
+
+// ==================== PROMO BANNER ====================
+@Composable
+fun PromoBanner() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .height(160.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF01875F)
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            Color(0xFF01875F),
+                            Color(0xFF1A73E8)
+                        )
+                    )
+                )
+                .padding(20.dp)
+        ) {
+            Column {
+                Text(
+                    "Лучшие приложения 2026",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Откройте для себя самые популярные приложения года",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Button(
+                    onClick = { },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White
+                    )
+                ) {
+                    Text("Смотреть", color = Color(0xFF01875F))
+                }
+            }
+        }
+    }
+}
+
+// ==================== SECTION HEADER ====================
+@Composable
+fun SectionHeader(title: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            title,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        TextButton(onClick = { }) {
+            Text("Ещё", color = Color(0xFF01875F))
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = Color(0xFF01875F)
+            )
+        }
+    }
+}
+
+// ==================== HORIZONTAL APP LIST ====================
+@Composable
+fun HorizontalAppList(
+    apps: List<App>,
+    onAppClick: (App) -> Unit
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(apps) { app ->
+            AppCard(app = app, onClick = { onAppClick(app) })
+        }
+    }
+}
+
+// ==================== APP CARD ====================
+@Composable
+fun AppCard(
+    app: App,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(100.dp)
+            .clickable(onClick = onClick)
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(app.iconUrl)
+                .crossfade(true)
+                .build(),
+            contentDescription = app.name,
+            modifier = Modifier
+                .size(100.dp)
+                .clip(RoundedCornerShape(20.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            app.name,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${app.rating}",
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
+            Icon(
+                Icons.Filled.Star,
+                contentDescription = null,
+                modifier = Modifier.size(12.dp),
+                tint = Color.Gray
+            )
+        }
+    }
+}
+
+// ==================== TOP APPS LIST ====================
+@Composable
+fun TopAppsList(
+    apps: List<App>,
+    onAppClick: (App) -> Unit
+) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        apps.forEachIndexed { index, app ->
+            TopAppItem(
+                app = app,
+                position = index + 1,
+                onClick = { onAppClick(app) }
+            )
+            if (index < apps.lastIndex) {
+                Divider(
+                    modifier = Modifier.padding(start = 72.dp),
+                    color = Color.LightGray.copy(alpha = 0.5f)
+                )
+            }
+        }
+    }
+}
+
+// ==================== TOP APP ITEM ====================
+@Composable
+fun TopAppItem(
+    app: App,
+    position: Int,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "$position",
+            modifier = Modifier.width(24.dp),
+            fontSize = 14.sp,
+            color = Color.Gray
+        )
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(app.iconUrl)
+                .crossfade(true)
+                .build(),
+            contentDescription = app.name,
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(12.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                app.name,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                app.category,
+                fontSize = 13.sp,
+                color = Color.Gray
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${app.rating}",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = Color.Gray
+                )
+                Text(
+                    " • ${app.size}",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+        IconButton(onClick = { }) {
+            Icon(
+                Icons.Outlined.MoreVert,
+                contentDescription = "Меню"
+            )
+        }
+    }
+}
+
+// ==================== APP DETAIL SCREEN ====================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppDetailScreen(
+    app: App,
+    onBackClick: () -> Unit
+) {
+    var isInstalled by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Filled.Search, contentDescription = "Поиск")
+                    }
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = "Меню")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White
+                )
+            )
+        }
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // App Header
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(app.iconUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = app.name,
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            app.name,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            app.developer,
+                            fontSize = 14.sp,
+                            color = Color(0xFF01875F)
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (app.containsAds) "Реклама" else "",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                            if (app.containsAds && app.inAppPurchases) {
+                                Text(" • ", fontSize = 12.sp, color = Color.Gray)
+                            }
+                            Text(
+                                if (app.inAppPurchases) "Покупки в приложении" else "",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // Stats Row
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    StatItem(
+                        value = "${app.rating}★",
+                        label = "${app.reviews} отзывов"
+                    )
+                    VerticalDivider()
+                    StatItem(
+                        value = app.downloads,
+                        label = "Скачиваний"
+                    )
+                    VerticalDivider()
+                    StatItem(
+                        value = app.ageRating,
+                        label = "Возраст"
+                    )
+                }
+            }
+            
+            // Install Button
+            item {
+                Button(
+                    onClick = {
+                        if (!isInstalled) {
+                            isLoading = true
+                            // Симуляция установки
+                        } else {
+                            // Открыть приложение
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF01875F)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            if (isInstalled) "Открыть" else "Установить",
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+            }
+            
+            // Action Buttons
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    ActionButton(icon = Icons.Outlined.Share, label = "Поделиться")
+                    ActionButton(icon = Icons.Outlined.BookmarkBorder, label = "В список")
+                }
+            }
+            
+            // Screenshots
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(app.screenshotUrls) { url ->
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(url)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Screenshot",
+                            modifier = Modifier
+                                .height(200.dp)
+                                .width(100.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+            }
+            
+            // About Section
+            item {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Об этом приложении",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        app.description,
+                        fontSize = 14.sp,
+                        color = Color.DarkGray,
+                        lineHeight = 22.sp
+                    )
+                }
+            }
+            
+            // App Info
+            item {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Информация о приложении",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    InfoRow("Версия", app.version)
+                    InfoRow("Размер", app.size)
+                    InfoRow("Разработчик", app.developer)
+                    InfoRow("Категория", app.category)
+                }
+            }
+            
+            // Ratings & Reviews
+            item {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Оценки и отзывы",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        IconButton(onClick = { }) {
+                            Icon(Icons.Filled.ChevronRight, contentDescription = null)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    RatingOverview(rating = app.rating)
+                }
+            }
+            
+            // Sample Reviews
+            item {
+                ReviewItem(
+                    userName = "Пользователь",
+                    rating = 5,
+                    date = "15 февраля 2026",
+                    text = "Отличное приложение! Пользуюсь каждый день, очень удобно и функционально."
+                )
+                ReviewItem(
+                    userName = "Android User",
+                    rating = 4,
+                    date = "10 февраля 2026",
+                    text = "Хорошее приложение, но хотелось бы видеть больше функций."
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+    }
+}
+
+// ==================== HELPER COMPOSABLES ====================
+@Composable
+fun StatItem(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            value,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            label,
+            fontSize = 12.sp,
+            color = Color.Gray
+        )
+    }
+}
+
+@Composable
+fun VerticalDivider() {
+    Box(
+        modifier = Modifier
+            .height(40.dp)
+            .width(1.dp)
+            .background(Color.LightGray)
+    )
+}
+
+@Composable
+fun ActionButton(icon: ImageVector, label: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { }
+    ) {
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = Color(0xFF01875F)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            label,
+            fontSize = 12.sp,
+            color = Color(0xFF01875F)
+        )
+    }
+}
+
+@Composable
+fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = Color.Gray, fontSize = 14.sp)
+        Text(value, fontSize = 14.sp)
+    }
+}
+
+@Composable
+fun RatingOverview(rating: Float) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                String.format("%.1f", rating),
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Light
+            )
+            Row {
+                repeat(5) { index ->
+                    Icon(
+                        if (index < rating.toInt()) Icons.Filled.Star else Icons.Outlined.Star,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (index < rating.toInt()) Color(0xFF01875F) else Color.Gray
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(24.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            for (i in 5 downTo 1) {
+                RatingBar(
+                    stars = i,
+                    progress = when(i) {
+                        5 -> 0.6f
+                        4 -> 0.25f
+                        3 -> 0.1f
+                        2 -> 0.03f
+                        else -> 0.02f
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun RatingBar(stars: Int, progress: Float) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 2.dp)
+    ) {
+        Text("$stars", fontSize = 12.sp, color = Color.Gray)
+        Spacer(modifier = Modifier.width(8.dp))
+        LinearProgressIndicator(
+            progress = progress,
+            modifier = Modifier
+                .weight(1f)
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            color = Color(0xFF01875F),
+            trackColor = Color.LightGray.copy(alpha = 0.5f)
+        )
+    }
+}
+
+@Composable
+fun ReviewItem(
+    userName: String,
+    rating: Int,
+    date: String,
+    text: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF01875F)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    userName.first().toString(),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(userName, fontWeight = FontWeight.Medium)
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(onClick = { }) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = "Меню")
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            repeat(5) { index ->
+                Icon(
+                    if (index < rating) Icons.Filled.Star else Icons.Outlined.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = if (index < rating) Color(0xFF01875F) else Color.Gray
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(date, fontSize = 12.sp, color = Color.Gray)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text,
+            fontSize = 14.sp,
+            lineHeight = 20.sp
+        )
+    }
+}
+
+// ==================== OTHER SCREENS ====================
+@Composable
+fun BooksScreen() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            Icons.Filled.Book,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = Color(0xFF01875F)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "Книги",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            "Раздел в разработке",
+            fontSize = 14.sp,
+            color = Color.Gray
+        )
+    }
+}
+
+@Composable
+fun ProfileScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF01875F)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "U",
+                    color = Color.White,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    "Пользователь",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    "user@gmail.com",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        ProfileMenuItem(Icons.Filled.Download, "Мои приложения и игры")
+        ProfileMenuItem(Icons.Filled.Payment, "Платежи и подписки")
+        ProfileMenuItem(Icons.Filled.CardGiftcard, "Play Points")
+        ProfileMenuItem(Icons.Filled.Redeem, "Промокод")
+        ProfileMenuItem(Icons.Filled.FamilyRestroom, "Семейная подписка")
+        ProfileMenuItem(Icons.Filled.Settings, "Настройки")
+        ProfileMenuItem(Icons.Filled.Help, "Справка")
+    }
+}
+
+@Composable
+fun ProfileMenuItem(icon: ImageVector, text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { }
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = Color.DarkGray
+        )
+        Spacer(modifier = Modifier.width(24.dp))
+        Text(text, fontSize = 15.sp)
+    }
+}
