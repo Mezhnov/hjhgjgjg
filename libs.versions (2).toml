@@ -1,45 +1,1695 @@
-[versions]
-# Android & Kotlin
-agp = "8.7.3"
-kotlin = "2.0.21"
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-# AndroidX Core
-coreKtx = "1.15.0"
-appcompat = "1.7.0"
-lifecycleRuntimeKtx = "2.8.7"
-activityCompose = "1.9.3"
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-# Compose
-composeBom = "2024.12.01"
-material3 = "1.3.1"
-materialIconsExtended = "1.7.6"
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PlayStore"
+        android:usesCleartextTraffic="true"
+        tools:targetApi="31">
 
-# Image Loading
-coil = "2.5.0"
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.PlayStore">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
 
-[libraries]
-# AndroidX Core
-androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
-androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
-androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
-androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+</manifest>
 
-# Compose BOM
-androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
-androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
-androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
-androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
-androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
-androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 
-# Material3
-androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
-androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIconsExtended" }
+package com.example.playstore
+import androidx.compose.material3.ExperimentalMaterial3Api
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.animation.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
-# Coil for Images
-coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+// ==================== MAIN ACTIVITY ====================
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            PlayStoreTheme {
+                PlayStoreApp()
+            }
+        }
+    }
+}
 
-[plugins]
-android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+// ==================== THEME ====================
+@Composable
+fun PlayStoreTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = lightColorScheme(
+            primary = Color(0xFF01875F),
+            secondary = Color(0xFF1A73E8),
+            surface = Color.White,
+            background = Color(0xFFF8F9FA)
+        ),
+        content = content
+    )
+}
+
+// ==================== DATA MODELS ====================
+data class App(
+    val id: Int,
+    val name: String,
+    val developer: String,
+    val rating: Float,
+    val reviews: String,
+    val size: String,
+    val downloads: String,
+    val category: String,
+    val iconUrl: String,
+    val screenshotUrls: List<String>,
+    val description: String,
+    val version: String,
+    val ageRating: String,
+    val price: String = "Бесплатно",
+    val containsAds: Boolean = true,
+    val inAppPurchases: Boolean = true
+)
+
+data class Category(
+    val name: String,
+    val icon: ImageVector
+)
+
+// ==================== SAMPLE DATA ====================
+object SampleData {
+    val categories = listOf(
+        Category("Для вас", Icons.Filled.Person),
+        Category("Лучшие", Icons.Filled.TrendingUp),
+        Category("Игры", Icons.Filled.SportsEsports),
+        Category("Дети", Icons.Filled.ChildCare),
+        Category("Фильмы", Icons.Filled.Movie),
+        Category("Книги", Icons.Filled.Book)
+    )
+
+    val apps = listOf(
+        App(
+            id = 1,
+            name = "Telegram",
+            developer = "Telegram FZ-LLC",
+            rating = 4.5f,
+            reviews = "12M",
+            size = "45 MB",
+            downloads = "1B+",
+            category = "Общение",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Telegram_logo.svg/512px-Telegram_logo.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/ZU9cSsyIJZo6Oy7HTHiEPwZg0m2Crep-d5ZrfajqtsH-qgUXSqKpNA2FpPDTn-7qA5Q=w526-h296",
+                "https://play-lh.googleusercontent.com/5MXj6dfe0arj1jGv9J-7t5hcfUU6jfJGmQlPCrC9xPU_6pXdgF9mTvZe6dPKaJbYLw=w526-h296"
+            ),
+            description = "Telegram — это мессенджер, ориентированный на скорость и безопасность. Он очень быстрый, простой и бесплатный. Telegram можно использовать на всех устройствах одновременно — ваши сообщения синхронизируются между любым количеством телефонов, планшетов или компьютеров.",
+            version = "10.5.0",
+            ageRating = "16+"
+        ),
+        App(
+            id = 2,
+            name = "YouTube",
+            developer = "Google LLC",
+            rating = 4.2f,
+            reviews = "150M",
+            size = "120 MB",
+            downloads = "10B+",
+            category = "Видео",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/512px-YouTube_full-color_icon_%282017%29.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/vA4tG0v4aasE7oIvRIvTkOYTwom07DfqHdUPr6k7jmrDwy_qA_SonqZkw6KX0OXKAdA=w526-h296"
+            ),
+            description = "Смотрите любимые видео, слушайте любимые песни, загружайте собственный контент и делитесь им с друзьями, семьёй и всем миром на YouTube.",
+            version = "18.45.41",
+            ageRating = "12+"
+        ),
+        App(
+            id = 3,
+            name = "WhatsApp",
+            developer = "WhatsApp LLC",
+            rating = 4.3f,
+            reviews = "180M",
+            size = "65 MB",
+            downloads = "5B+",
+            category = "Общение",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/WhatsApp.svg/512px-WhatsApp.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/bYtqbOcTYOlgc6gqZ2rwb8lptHuwlNE75zYJu6Bn076-hTmvd96HH-6v7S0YUAAJXoJN=w526-h296"
+            ),
+            description = "WhatsApp от Meta — это бесплатное приложение для обмена сообщениями и видеозвонков. Им пользуется более 2 миллиардов человек в более чем 180 странах.",
+            version = "2.24.2.7",
+            ageRating = "12+"
+        ),
+        App(
+            id = 4,
+            name = "Spotify",
+            developer = "Spotify AB",
+            rating = 4.4f,
+            reviews = "28M",
+            size = "85 MB",
+            downloads = "1B+",
+            category = "Музыка",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/512px-Spotify_logo_without_text.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/UrY7BAZ-XfXGpfkeWg0zCCeo-7ras4DCoRalC_WXXWTK9q5b0Iw7B0YQMsVxZaNB7DM=w526-h296"
+            ),
+            description = "Spotify — это сервис для прослушивания музыки и подкастов. Слушайте миллионы песен бесплатно!",
+            version = "8.8.96.364",
+            ageRating = "12+"
+        ),
+        App(
+            id = 5,
+            name = "Instagram",
+            developer = "Meta Platforms, Inc.",
+            rating = 4.0f,
+            reviews = "130M",
+            size = "95 MB",
+            downloads = "5B+",
+            category = "Социальные",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/512px-Instagram_logo_2016.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/7-rCSBvT2rYQR3lYjLMCr3bJfvZ5mALlDBr2JY8etv3ZFPwJnP1JvV-h4lW8JvJqLw=w526-h296"
+            ),
+            description = "Instagram от Meta позволяет вам общаться с друзьями, делиться новостями и смотреть интересный контент со всего мира.",
+            version = "312.0.0.0.8",
+            ageRating = "12+"
+        ),
+        App(
+            id = 6,
+            name = "TikTok",
+            developer = "TikTok Pte. Ltd.",
+            rating = 4.5f,
+            reviews = "45M",
+            size = "150 MB",
+            downloads = "1B+",
+            category = "Развлечения",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/en/thumb/a/a9/TikTok_logo.svg/512px-TikTok_logo.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/EfCPHbVnYZjDC0rqA5qO4lOr7p-f0Ty7J76uoJnj4dPYK5q-9Ug4gXf9f4MaKAFv8A=w526-h296"
+            ),
+            description = "TikTok — это платформа для коротких мобильных видео. Наша миссия — вдохновлять творчество и приносить радость.",
+            version = "32.5.3",
+            ageRating = "12+"
+        ),
+        App(
+            id = 7,
+            name = "Netflix",
+            developer = "Netflix, Inc.",
+            rating = 4.3f,
+            reviews = "12M",
+            size = "60 MB",
+            downloads = "1B+",
+            category = "Развлечения",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Netflix_2015_N_logo.svg/512px-Netflix_2015_N_logo.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/K2cLhMXJHT3b-3qJi3u8Zd3Yp8V3Xe8ywZJMHO0pQXKC4qNOBmMt7uYm5VhXnG8f9g=w526-h296"
+            ),
+            description = "Netflix — это ведущий стриминговый сервис с тысячами фильмов и сериалов без рекламы.",
+            version = "8.89.0",
+            ageRating = "16+",
+            price = "Подписка",
+            containsAds = false
+        ),
+        App(
+            id = 8,
+            name = "Duolingo",
+            developer = "Duolingo",
+            rating = 4.6f,
+            reviews = "15M",
+            size = "55 MB",
+            downloads = "500M+",
+            category = "Образование",
+            iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Duolingo_logo.svg/512px-Duolingo_logo.svg.png",
+            screenshotUrls = listOf(
+                "https://play-lh.googleusercontent.com/xUgM-CWzYLg9pAHjTOyKM2rHMc7bv9mMHwJHj4L8E7pNSK9z8jqNLYxVjH8nXvP8zA=w526-h296"
+            ),
+            description = "Учите языки бесплатно! Duolingo — это научный подход к изучению языков в игровой форме.",
+            version = "5.125.3",
+            ageRating = "3+"
+        )
+    )
+}
+
+// ==================== MAIN APP COMPOSABLE ====================
+@Composable
+fun PlayStoreApp() {
+    var selectedTab by remember { mutableStateOf(0) }
+    var selectedApp by remember { mutableStateOf<App?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showSearch by remember { mutableStateOf(false) }
+
+    Scaffold(
+        bottomBar = {
+            if (selectedApp == null) {
+                BottomNavigationBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it }
+                )
+            }
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
+            AnimatedContent(
+                targetState = selectedApp,
+                transitionSpec = {
+                    slideInHorizontally { it } togetherWith slideOutHorizontally { -it }
+                }
+            ) { app ->
+                if (app != null) {
+                    AppDetailScreen(
+                        app = app,
+                        onBackClick = { selectedApp = null }
+                    )
+                } else {
+                    when (selectedTab) {
+                        0 -> GamesScreen(
+                            showSearch = showSearch,
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = { searchQuery = it },
+                            onSearchToggle = { showSearch = !showSearch },
+                            onAppClick = { selectedApp = it }
+                        )
+                        1 -> AppsScreen(
+                            showSearch = showSearch,
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = { searchQuery = it },
+                            onSearchToggle = { showSearch = !showSearch },
+                            onAppClick = { selectedApp = it }
+                        )
+                        2 -> BooksScreen()
+                        3 -> ProfileScreen()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==================== BOTTOM NAVIGATION ====================
+@Composable
+fun BottomNavigationBar(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit
+) {
+    NavigationBar(
+        containerColor = Color.White,
+        tonalElevation = 8.dp
+    ) {
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.SportsEsports, contentDescription = "Игры") },
+            label = { Text("Игры") },
+            selected = selectedTab == 0,
+            onClick = { onTabSelected(0) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF01875F),
+                selectedTextColor = Color(0xFF01875F)
+            )
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Apps, contentDescription = "Приложения") },
+            label = { Text("Приложения") },
+            selected = selectedTab == 1,
+            onClick = { onTabSelected(1) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF01875F),
+                selectedTextColor = Color(0xFF01875F)
+            )
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Book, contentDescription = "Книги") },
+            label = { Text("Книги") },
+            selected = selectedTab == 2,
+            onClick = { onTabSelected(2) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF01875F),
+                selectedTextColor = Color(0xFF01875F)
+            )
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Person, contentDescription = "Профиль") },
+            label = { Text("Профиль") },
+            selected = selectedTab == 3,
+            onClick = { onTabSelected(3) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF01875F),
+                selectedTextColor = Color(0xFF01875F)
+            )
+        )
+    }
+}
+
+// ==================== TOP APP BAR ====================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlayStoreTopBar(
+    showSearch: Boolean,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchToggle: () -> Unit
+) {
+    TopAppBar(
+        title = {
+            if (showSearch) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    placeholder = { Text("Поиск приложений и игр") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF01875F),
+                        cursorColor = Color(0xFF01875F)
+                    )
+                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        tint = Color(0xFF01875F),
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Google Play",
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 20.sp
+                    )
+                }
+            }
+        },
+        actions = {
+            IconButton(onClick = onSearchToggle) {
+                Icon(
+                    if (showSearch) Icons.Filled.Close else Icons.Filled.Search,
+                    contentDescription = "Поиск"
+                )
+            }
+            if (!showSearch) {
+                IconButton(onClick = { }) {
+                    Icon(Icons.Filled.Notifications, contentDescription = "Уведомления")
+                }
+                IconButton(onClick = { }) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF01875F)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("U", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.White
+        )
+    )
+}
+
+// ==================== GAMES SCREEN ====================
+@Composable
+fun GamesScreen(
+    showSearch: Boolean,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchToggle: () -> Unit,
+    onAppClick: (App) -> Unit
+) {
+    Column {
+        PlayStoreTopBar(
+            showSearch = showSearch,
+            searchQuery = searchQuery,
+            onSearchQueryChange = onSearchQueryChange,
+            onSearchToggle = onSearchToggle
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Категории
+            item {
+                CategoryChips()
+            }
+
+            // Баннер
+            item {
+                PromoBanner()
+            }
+
+            // Рекомендуемые
+            item {
+                SectionHeader("Рекомендуем для вас")
+                HorizontalAppList(
+                    apps = SampleData.apps.filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+            }
+
+            // Топ игр
+            item {
+                SectionHeader("Топ бесплатных игр")
+                TopAppsList(
+                    apps = SampleData.apps.take(5).filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+            }
+
+            // Новые
+            item {
+                SectionHeader("Новинки")
+                HorizontalAppList(
+                    apps = SampleData.apps.reversed().filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+// ==================== APPS SCREEN ====================
+@Composable
+fun AppsScreen(
+    showSearch: Boolean,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchToggle: () -> Unit,
+    onAppClick: (App) -> Unit
+) {
+    Column {
+        PlayStoreTopBar(
+            showSearch = showSearch,
+            searchQuery = searchQuery,
+            onSearchQueryChange = onSearchQueryChange,
+            onSearchToggle = onSearchToggle
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            item {
+                CategoryChips()
+            }
+
+            item {
+                SectionHeader("Лучшие приложения")
+                HorizontalAppList(
+                    apps = SampleData.apps.filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+            }
+
+            item {
+                SectionHeader("Топ бесплатных приложений")
+                TopAppsList(
+                    apps = SampleData.apps.filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+            }
+
+            item {
+                SectionHeader("Выбор редакции")
+                HorizontalAppList(
+                    apps = SampleData.apps.shuffled().filter {
+                        searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true)
+                    },
+                    onAppClick = onAppClick
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+// ==================== CATEGORY CHIPS ====================
+@Composable
+fun CategoryChips() {
+    var selectedCategory by remember { mutableStateOf(0) }
+
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        itemsIndexed(SampleData.categories) { index, category ->
+            FilterChip(
+                onClick = { selectedCategory = index },
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            category.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(category.name)
+                    }
+                },
+                selected = selectedCategory == index,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFE8F5E9),
+                    selectedLabelColor = Color(0xFF01875F)
+                )
+            )
+        }
+    }
+}
+
+// ==================== PROMO BANNER ====================
+@Composable
+fun PromoBanner() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .height(160.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF01875F)
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            Color(0xFF01875F),
+                            Color(0xFF1A73E8)
+                        )
+                    )
+                )
+                .padding(20.dp)
+        ) {
+            Column {
+                Text(
+                    "Лучшие приложения 2026",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Откройте для себя самые популярные приложения года",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Button(
+                    onClick = { },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White
+                    )
+                ) {
+                    Text("Смотреть", color = Color(0xFF01875F))
+                }
+            }
+        }
+    }
+}
+
+// ==================== SECTION HEADER ====================
+@Composable
+fun SectionHeader(title: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            title,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        TextButton(onClick = { }) {
+            Text("Ещё", color = Color(0xFF01875F))
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = Color(0xFF01875F)
+            )
+        }
+    }
+}
+
+// ==================== HORIZONTAL APP LIST ====================
+@Composable
+fun HorizontalAppList(
+    apps: List<App>,
+    onAppClick: (App) -> Unit
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(apps) { app ->
+            AppCard(app = app, onClick = { onAppClick(app) })
+        }
+    }
+}
+
+// ==================== APP CARD ====================
+@Composable
+fun AppCard(
+    app: App,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(100.dp)
+            .clickable(onClick = onClick)
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(app.iconUrl)
+                .crossfade(true)
+                .build(),
+            contentDescription = app.name,
+            modifier = Modifier
+                .size(100.dp)
+                .clip(RoundedCornerShape(20.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            app.name,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${app.rating}",
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
+            Icon(
+                Icons.Filled.Star,
+                contentDescription = null,
+                modifier = Modifier.size(12.dp),
+                tint = Color.Gray
+            )
+        }
+    }
+}
+
+// ==================== TOP APPS LIST ====================
+@Composable
+fun TopAppsList(
+    apps: List<App>,
+    onAppClick: (App) -> Unit
+) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        apps.forEachIndexed { index, app ->
+            TopAppItem(
+                app = app,
+                position = index + 1,
+                onClick = { onAppClick(app) }
+            )
+            if (index < apps.lastIndex) {
+                Divider(
+                    modifier = Modifier.padding(start = 72.dp),
+                    color = Color.LightGray.copy(alpha = 0.5f)
+                )
+            }
+        }
+    }
+}
+
+// ==================== TOP APP ITEM ====================
+@Composable
+fun TopAppItem(
+    app: App,
+    position: Int,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "$position",
+            modifier = Modifier.width(24.dp),
+            fontSize = 14.sp,
+            color = Color.Gray
+        )
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(app.iconUrl)
+                .crossfade(true)
+                .build(),
+            contentDescription = app.name,
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(12.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                app.name,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                app.category,
+                fontSize = 13.sp,
+                color = Color.Gray
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${app.rating}",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = Color.Gray
+                )
+                Text(
+                    " • ${app.size}",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+        IconButton(onClick = { }) {
+            Icon(
+                Icons.Outlined.MoreVert,
+                contentDescription = "Меню"
+            )
+        }
+    }
+}
+
+// ==================== APP DETAIL SCREEN ====================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppDetailScreen(
+    app: App,
+    onBackClick: () -> Unit
+) {
+    var isInstalled by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Filled.Search, contentDescription = "Поиск")
+                    }
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = "Меню")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White
+                )
+            )
+        }
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // App Header
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(app.iconUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = app.name,
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            app.name,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            app.developer,
+                            fontSize = 14.sp,
+                            color = Color(0xFF01875F)
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (app.containsAds) "Реклама" else "",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                            if (app.containsAds && app.inAppPurchases) {
+                                Text(" • ", fontSize = 12.sp, color = Color.Gray)
+                            }
+                            Text(
+                                if (app.inAppPurchases) "Покупки в приложении" else "",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Stats Row
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    StatItem(
+                        value = "${app.rating}★",
+                        label = "${app.reviews} отзывов"
+                    )
+                    VerticalDivider()
+                    StatItem(
+                        value = app.downloads,
+                        label = "Скачиваний"
+                    )
+                    VerticalDivider()
+                    StatItem(
+                        value = app.ageRating,
+                        label = "Возраст"
+                    )
+                }
+            }
+
+            // Install Button
+            item {
+                Button(
+                    onClick = {
+                        if (!isInstalled) {
+                            isLoading = true
+                            // Симуляция установки
+                        } else {
+                            // Открыть приложение
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF01875F)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            if (isInstalled) "Открыть" else "Установить",
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+            }
+
+            // Action Buttons
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    ActionButton(icon = Icons.Outlined.Share, label = "Поделиться")
+                    ActionButton(icon = Icons.Outlined.BookmarkBorder, label = "В список")
+                }
+            }
+
+            // Screenshots
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(app.screenshotUrls) { url ->
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(url)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Screenshot",
+                            modifier = Modifier
+                                .height(200.dp)
+                                .width(100.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+            }
+
+            // About Section
+            item {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Об этом приложении",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        app.description,
+                        fontSize = 14.sp,
+                        color = Color.DarkGray,
+                        lineHeight = 22.sp
+                    )
+                }
+            }
+
+            // App Info
+            item {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Информация о приложении",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    InfoRow("Версия", app.version)
+                    InfoRow("Размер", app.size)
+                    InfoRow("Разработчик", app.developer)
+                    InfoRow("Категория", app.category)
+                }
+            }
+
+            // Ratings & Reviews
+            item {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Оценки и отзывы",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        IconButton(onClick = { }) {
+                            Icon(Icons.Filled.ChevronRight, contentDescription = null)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    RatingOverview(rating = app.rating)
+                }
+            }
+
+            // Sample Reviews
+            item {
+                ReviewItem(
+                    userName = "Пользователь",
+                    rating = 5,
+                    date = "15 февраля 2026",
+                    text = "Отличное приложение! Пользуюсь каждый день, очень удобно и функционально."
+                )
+                ReviewItem(
+                    userName = "Android User",
+                    rating = 4,
+                    date = "10 февраля 2026",
+                    text = "Хорошее приложение, но хотелось бы видеть больше функций."
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+    }
+}
+
+// ==================== HELPER COMPOSABLES ====================
+@Composable
+fun StatItem(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            value,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            label,
+            fontSize = 12.sp,
+            color = Color.Gray
+        )
+    }
+}
+
+@Composable
+fun VerticalDivider() {
+    Box(
+        modifier = Modifier
+            .height(40.dp)
+            .width(1.dp)
+            .background(Color.LightGray)
+    )
+}
+
+@Composable
+fun ActionButton(icon: ImageVector, label: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { }
+    ) {
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = Color(0xFF01875F)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            label,
+            fontSize = 12.sp,
+            color = Color(0xFF01875F)
+        )
+    }
+}
+
+@Composable
+fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = Color.Gray, fontSize = 14.sp)
+        Text(value, fontSize = 14.sp)
+    }
+}
+
+@Composable
+fun RatingOverview(rating: Float) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                String.format("%.1f", rating),
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Light
+            )
+            Row {
+                repeat(5) { index ->
+                    Icon(
+                        if (index < rating.toInt()) Icons.Filled.Star else Icons.Outlined.Star,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (index < rating.toInt()) Color(0xFF01875F) else Color.Gray
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(24.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            for (i in 5 downTo 1) {
+                RatingBar(
+                    stars = i,
+                    progress = when(i) {
+                        5 -> 0.6f
+                        4 -> 0.25f
+                        3 -> 0.1f
+                        2 -> 0.03f
+                        else -> 0.02f
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun RatingBar(stars: Int, progress: Float) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 2.dp)
+    ) {
+        Text("$stars", fontSize = 12.sp, color = Color.Gray)
+        Spacer(modifier = Modifier.width(8.dp))
+        LinearProgressIndicator(
+            progress = progress,
+            modifier = Modifier
+                .weight(1f)
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            color = Color(0xFF01875F),
+            trackColor = Color.LightGray.copy(alpha = 0.5f)
+        )
+    }
+}
+
+@Composable
+fun ReviewItem(
+    userName: String,
+    rating: Int,
+    date: String,
+    text: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF01875F)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    userName.first().toString(),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(userName, fontWeight = FontWeight.Medium)
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(onClick = { }) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = "Меню")
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            repeat(5) { index ->
+                Icon(
+                    if (index < rating) Icons.Filled.Star else Icons.Outlined.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = if (index < rating) Color(0xFF01875F) else Color.Gray
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(date, fontSize = 12.sp, color = Color.Gray)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text,
+            fontSize = 14.sp,
+            lineHeight = 20.sp
+        )
+    }
+}
+
+// ==================== OTHER SCREENS ====================
+@Composable
+fun BooksScreen() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            Icons.Filled.Book,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = Color(0xFF01875F)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "Книги",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            "Раздел в разработке",
+            fontSize = 14.sp,
+            color = Color.Gray
+        )
+    }
+}
+
+@Composable
+fun ProfileScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF01875F)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "U",
+                    color = Color.White,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    "Пользователь",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    "user@gmail.com",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        ProfileMenuItem(Icons.Filled.Download, "Мои приложения и игры")
+        ProfileMenuItem(Icons.Filled.Payment, "Платежи и подписки")
+        ProfileMenuItem(Icons.Filled.CardGiftcard, "Play Points")
+        ProfileMenuItem(Icons.Filled.Redeem, "Промокод")
+        ProfileMenuItem(Icons.Filled.FamilyRestroom, "Семейная подписка")
+        ProfileMenuItem(Icons.Filled.Settings, "Настройки")
+        ProfileMenuItem(Icons.Filled.Help, "Справка")
+    }
+}
+
+@Composable
+fun ProfileMenuItem(icon: ImageVector, text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { }
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = Color.DarkGray
+        )
+        Spacer(modifier = Modifier.width(24.dp))
+        Text(text, fontSize = 15.sp)
+    }
+}
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Play Store Clone</string>
+</resources><?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.PlayStore" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "com.example.playstore"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.example.playstore"
+        minSdk = 23
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+}
+
+dependencies {
+    // Core Android
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
+
+    // Compose BOM
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+
+    // Material3
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
+
+    // Coil for Images
+    implementation(libs.coil.compose)
+
+    // Debug
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+}Starting Gradle Daemon...
+Gradle Daemon started in 1 s 349 ms
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file 'C:\Users\User\AndroidStudioProjects\MyApplication29\app\build.gradle.kts' line: 1
+
+* What went wrong:
+Error resolving plugin [id: 'org.jetbrains.kotlin.android', version: '2.0.21']
+> The request for this plugin could not be satisfied because the plugin is already on the classpath with an unknown version, so compatibility cannot be checked.
+
+* Try:
+> Run with --info or --debug option to get more log output.
+> Run with --scan to generate a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+* Exception is:
+org.gradle.api.GradleException: Error resolving plugin [id: 'org.jetbrains.kotlin.android', version: '2.0.21']
+	at org.gradle.plugin.use.internal.DefaultPluginRequestApplicator.resolvePluginRequest(DefaultPluginRequestApplicator.java:193)
+	at org.gradle.plugin.use.internal.DefaultPluginRequestApplicator.applyPlugins(DefaultPluginRequestApplicator.java:101)
+	at org.gradle.kotlin.dsl.provider.PluginRequestsHandler.handle(PluginRequestsHandler.kt:45)
+	at org.gradle.kotlin.dsl.provider.StandardKotlinScriptEvaluator$InterpreterHost.applyPluginsTo(KotlinScriptEvaluator.kt:242)
+	at org.gradle.kotlin.dsl.execution.Interpreter$ProgramHost.applyPluginsTo(Interpreter.kt:387)
+	at Program.execute(Unknown Source)
+	at org.gradle.kotlin.dsl.execution.Interpreter$ProgramHost.eval(Interpreter.kt:516)
+	at org.gradle.kotlin.dsl.execution.Interpreter.eval(Interpreter.kt:214)
+	at org.gradle.kotlin.dsl.provider.StandardKotlinScriptEvaluator.evaluate(KotlinScriptEvaluator.kt:133)
+	at org.gradle.kotlin.dsl.provider.KotlinScriptPluginFactory.create$lambda$0(KotlinScriptPluginFactory.kt:61)
+	at org.gradle.kotlin.dsl.provider.KotlinScriptPlugin.apply(KotlinScriptPlugin.kt:35)
+	at org.gradle.configuration.BuildOperationScriptPlugin$1.run(BuildOperationScriptPlugin.java:68)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:29)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:26)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:47)
+	at org.gradle.configuration.BuildOperationScriptPlugin.lambda$apply$0(BuildOperationScriptPlugin.java:65)
+	at org.gradle.internal.code.DefaultUserCodeApplicationContext.apply(DefaultUserCodeApplicationContext.java:44)
+	at org.gradle.configuration.BuildOperationScriptPlugin.apply(BuildOperationScriptPlugin.java:65)
+	at org.gradle.api.internal.project.DefaultProjectStateRegistry$ProjectStateImpl.lambda$applyToMutableState$1(DefaultProjectStateRegistry.java:446)
+	at org.gradle.api.internal.project.DefaultProjectStateRegistry$ProjectStateImpl.fromMutableState(DefaultProjectStateRegistry.java:464)
+	at org.gradle.api.internal.project.DefaultProjectStateRegistry$ProjectStateImpl.applyToMutableState(DefaultProjectStateRegistry.java:445)
+	at org.gradle.configuration.project.BuildScriptProcessor.execute(BuildScriptProcessor.java:46)
+	at org.gradle.configuration.project.BuildScriptProcessor.execute(BuildScriptProcessor.java:27)
+	at org.gradle.configuration.project.ConfigureActionsProjectEvaluator.evaluate(ConfigureActionsProjectEvaluator.java:35)
+	at org.gradle.configuration.project.LifecycleProjectEvaluator$EvaluateProject.lambda$run$0(LifecycleProjectEvaluator.java:109)
+	at org.gradle.api.internal.project.DefaultProjectStateRegistry$ProjectStateImpl.lambda$applyToMutableState$1(DefaultProjectStateRegistry.java:446)
+	at org.gradle.api.internal.project.DefaultProjectStateRegistry$ProjectStateImpl.lambda$fromMutableState$2(DefaultProjectStateRegistry.java:469)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withLocksAcquired$0(DefaultWorkerLeaseService.java:269)
+	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:42)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:267)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withReplacedLocks$3(DefaultWorkerLeaseService.java:365)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:337)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withReplacedLocks(DefaultWorkerLeaseService.java:364)
+	at org.gradle.api.internal.project.DefaultProjectStateRegistry$ProjectStateImpl.fromMutableState(DefaultProjectStateRegistry.java:469)
+	at org.gradle.api.internal.project.DefaultProjectStateRegistry$ProjectStateImpl.applyToMutableState(DefaultProjectStateRegistry.java:445)
+	at org.gradle.configuration.project.LifecycleProjectEvaluator$EvaluateProject.run(LifecycleProjectEvaluator.java:100)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:29)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:26)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:47)
+	at org.gradle.configuration.project.LifecycleProjectEvaluator.evaluate(LifecycleProjectEvaluator.java:72)
+	at org.gradle.api.internal.project.DefaultProject.evaluateUnchecked(DefaultProject.java:840)
+	at org.gradle.api.internal.project.ProjectLifecycleController.lambda$ensureSelfConfigured$2(ProjectLifecycleController.java:88)
+	at org.gradle.internal.model.StateTransitionController.lambda$doTransition$14(StateTransitionController.java:255)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:254)
+	at org.gradle.internal.model.StateTransitionController.lambda$maybeTransitionIfNotCurrentlyTransitioning$10(StateTransitionController.java:199)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:35)
+	at org.gradle.internal.model.StateTransitionController.maybeTransitionIfNotCurrentlyTransitioning(StateTransitionController.java:195)
+	at org.gradle.api.internal.project.ProjectLifecycleController.ensureSelfConfigured(ProjectLifecycleController.java:88)
+	at org.gradle.api.internal.project.DefaultProjectStateRegistry$ProjectStateImpl.ensureConfigured(DefaultProjectStateRegistry.java:411)
+	at org.gradle.execution.TaskPathProjectEvaluator.configure(TaskPathProjectEvaluator.java:70)
+	at org.gradle.execution.TaskPathProjectEvaluator.configureHierarchy(TaskPathProjectEvaluator.java:86)
+	at org.gradle.configuration.DefaultProjectsPreparer.prepareProjects(DefaultProjectsPreparer.java:50)
+	at org.gradle.configuration.BuildTreePreparingProjectsPreparer.prepareProjects(BuildTreePreparingProjectsPreparer.java:65)
+	at org.gradle.configuration.BuildOperationFiringProjectsPreparer$ConfigureBuild.run(BuildOperationFiringProjectsPreparer.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:29)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:26)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:47)
+	at org.gradle.configuration.BuildOperationFiringProjectsPreparer.prepareProjects(BuildOperationFiringProjectsPreparer.java:40)
+	at org.gradle.initialization.VintageBuildModelController.lambda$prepareProjects$2(VintageBuildModelController.java:83)
+	at org.gradle.internal.model.StateTransitionController.lambda$doTransition$14(StateTransitionController.java:255)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:254)
+	at org.gradle.internal.model.StateTransitionController.lambda$transitionIfNotPreviously$11(StateTransitionController.java:213)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:35)
+	at org.gradle.internal.model.StateTransitionController.transitionIfNotPreviously(StateTransitionController.java:209)
+	at org.gradle.initialization.VintageBuildModelController.prepareProjects(VintageBuildModelController.java:83)
+	at org.gradle.initialization.VintageBuildModelController.getConfiguredModel(VintageBuildModelController.java:63)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$withProjectsConfigured$1(DefaultBuildLifecycleController.java:133)
+	at org.gradle.internal.model.StateTransitionController.lambda$notInState$3(StateTransitionController.java:132)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:45)
+	at org.gradle.internal.model.StateTransitionController.notInState(StateTransitionController.java:128)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.withProjectsConfigured(DefaultBuildLifecycleController.java:133)
+	at org.gradle.internal.build.DefaultBuildToolingModelController.locateBuilderForTarget(DefaultBuildToolingModelController.java:58)
+	at org.gradle.internal.buildtree.DefaultBuildTreeModelCreator$DefaultBuildTreeModelController.lambda$locateBuilderForBuildTarget$0(DefaultBuildTreeModelCreator.java:146)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.withToolingModels(DefaultBuildLifecycleController.java:327)
+	at org.gradle.internal.build.AbstractBuildState.withToolingModels(AbstractBuildState.java:169)
+	at org.gradle.internal.buildtree.DefaultBuildTreeModelCreator$DefaultBuildTreeModelController.locateBuilderForBuildTarget(DefaultBuildTreeModelCreator.java:146)
+	at org.gradle.internal.buildtree.DefaultBuildTreeModelCreator$DefaultBuildTreeModelController.locateBuilderForDefaultTarget(DefaultBuildTreeModelCreator.java:131)
+	at org.gradle.internal.buildtree.DefaultBuildTreeModelCreator$DefaultBuildTreeModelController.locateBuilderForTarget(DefaultBuildTreeModelCreator.java:120)
+	at org.gradle.internal.buildtree.DefaultBuildTreeModelCreator$DefaultBuildTreeModelController.access$200(DefaultBuildTreeModelCreator.java:70)
+	at org.gradle.internal.buildtree.DefaultBuildTreeModelCreator$DefaultBuildTreeModelController$1.call(DefaultBuildTreeModelCreator.java:85)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.internal.buildtree.DefaultBuildTreeModelCreator$DefaultBuildTreeModelController.getModel(DefaultBuildTreeModelCreator.java:81)
+	at org.gradle.tooling.internal.provider.runner.DefaultBuildController.getModel(DefaultBuildController.java:104)
+	at org.gradle.tooling.internal.consumer.connection.ParameterAwareBuildControllerAdapter.getModel(ParameterAwareBuildControllerAdapter.java:40)
+	at org.gradle.tooling.internal.consumer.connection.UnparameterizedBuildController.getModel(UnparameterizedBuildController.java:116)
+	at org.gradle.tooling.internal.consumer.connection.NestedActionAwareBuildControllerAdapter.getModel(NestedActionAwareBuildControllerAdapter.java:32)
+	at org.gradle.tooling.internal.consumer.connection.UnparameterizedBuildController.getModel(UnparameterizedBuildController.java:79)
+	at org.gradle.tooling.internal.consumer.connection.NestedActionAwareBuildControllerAdapter.getModel(NestedActionAwareBuildControllerAdapter.java:32)
+	at org.gradle.tooling.internal.consumer.connection.UnparameterizedBuildController.getModel(UnparameterizedBuildController.java:64)
+	at org.gradle.tooling.internal.consumer.connection.NestedActionAwareBuildControllerAdapter.getModel(NestedActionAwareBuildControllerAdapter.java:32)
+	at com.intellij.gradle.toolingExtension.impl.modelSerialization.ToolingSerializerConverter.lambda$new$0(ToolingSerializerConverter.java:24)
+	at com.intellij.gradle.toolingExtension.impl.telemetry.GradleOpenTelemetry.callWithSpan(GradleOpenTelemetry.java:55)
+	at com.intellij.gradle.toolingExtension.impl.telemetry.GradleOpenTelemetry.callWithSpan(GradleOpenTelemetry.java:31)
+	at com.intellij.gradle.toolingExtension.impl.modelSerialization.ToolingSerializerConverter.<init>(ToolingSerializerConverter.java:23)
+	at com.intellij.gradle.toolingExtension.impl.modelAction.GradleModelFetchAction.lambda$initAction$9(GradleModelFetchAction.java:171)
+	at com.intellij.gradle.toolingExtension.impl.telemetry.GradleOpenTelemetry.callWithSpan(GradleOpenTelemetry.java:55)
+	at com.intellij.gradle.toolingExtension.impl.telemetry.GradleOpenTelemetry.callWithSpan(GradleOpenTelemetry.java:31)
+	at com.intellij.gradle.toolingExtension.impl.modelAction.GradleModelFetchAction.initAction(GradleModelFetchAction.java:170)
+	at com.intellij.gradle.toolingExtension.impl.modelAction.GradleModelFetchAction.lambda$doExecute$4(GradleModelFetchAction.java:118)
+	at com.intellij.gradle.toolingExtension.impl.telemetry.GradleOpenTelemetry.callWithSpan(GradleOpenTelemetry.java:55)
+	at com.intellij.gradle.toolingExtension.impl.telemetry.GradleOpenTelemetry.callWithSpan(GradleOpenTelemetry.java:31)
+	at com.intellij.gradle.toolingExtension.impl.modelAction.GradleModelFetchAction.doExecute(GradleModelFetchAction.java:117)
+	at com.intellij.gradle.toolingExtension.impl.modelAction.GradleModelFetchAction.lambda$execute$1(GradleModelFetchAction.java:103)
+	at com.intellij.gradle.toolingExtension.impl.telemetry.GradleOpenTelemetry.callWithSpan(GradleOpenTelemetry.java:55)
+	at com.intellij.gradle.toolingExtension.impl.telemetry.GradleOpenTelemetry.callWithSpan(GradleOpenTelemetry.java:31)
+	at com.intellij.gradle.toolingExtension.impl.modelAction.GradleModelFetchAction.lambda$execute$2(GradleModelFetchAction.java:102)
+	at com.intellij.gradle.toolingExtension.impl.modelAction.GradleModelFetchAction.withOpenTelemetry(GradleModelFetchAction.java:291)
+	at com.intellij.gradle.toolingExtension.impl.modelAction.GradleModelFetchAction.lambda$execute$3(GradleModelFetchAction.java:101)
+	at com.intellij.gradle.toolingExtension.impl.util.GradleExecutorServiceUtil.withSingleThreadExecutor(GradleExecutorServiceUtil.java:18)
+	at com.intellij.gradle.toolingExtension.impl.modelAction.GradleModelFetchAction.execute(GradleModelFetchAction.java:100)
+	at com.intellij.gradle.toolingExtension.impl.modelAction.GradleModelFetchAction.execute(GradleModelFetchAction.java:34)
+	at org.gradle.tooling.internal.consumer.connection.InternalBuildActionAdapter.execute(InternalBuildActionAdapter.java:65)
+	at org.gradle.tooling.internal.provider.runner.AbstractClientProvidedBuildActionRunner$ActionAdapter.executeAction(AbstractClientProvidedBuildActionRunner.java:108)
+	at org.gradle.tooling.internal.provider.runner.AbstractClientProvidedBuildActionRunner$ActionAdapter.runAction(AbstractClientProvidedBuildActionRunner.java:96)
+	at org.gradle.tooling.internal.provider.runner.AbstractClientProvidedBuildActionRunner$ActionAdapter.beforeTasks(AbstractClientProvidedBuildActionRunner.java:80)
+	at org.gradle.internal.buildtree.DefaultBuildTreeModelCreator.beforeTasks(DefaultBuildTreeModelCreator.java:62)
+	at org.gradle.internal.cc.impl.barrier.BarrierAwareBuildTreeModelCreator.beforeTasks$lambda$0(BarrierAwareBuildTreeModelCreator.kt:30)
+	at org.gradle.internal.cc.impl.barrier.VintageConfigurationTimeActionRunner.runConfigurationTimeAction(VintageConfigurationTimeActionRunner.kt:48)
+	at org.gradle.internal.cc.impl.barrier.BarrierAwareBuildTreeModelCreator.beforeTasks(BarrierAwareBuildTreeModelCreator.kt:29)
+	at org.gradle.internal.buildtree.DefaultBuildTreeLifecycleController.lambda$fromBuildModel$2(DefaultBuildTreeLifecycleController.java:83)
+	at org.gradle.internal.buildtree.DefaultBuildTreeLifecycleController.lambda$runBuild$4(DefaultBuildTreeLifecycleController.java:120)
+	at org.gradle.internal.model.StateTransitionController.lambda$transition$6(StateTransitionController.java:169)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.lambda$transition$7(StateTransitionController.java:169)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:45)
+	at org.gradle.internal.model.StateTransitionController.transition(StateTransitionController.java:169)
+	at org.gradle.internal.buildtree.DefaultBuildTreeLifecycleController.runBuild(DefaultBuildTreeLifecycleController.java:117)
+	at org.gradle.internal.buildtree.DefaultBuildTreeLifecycleController.fromBuildModel(DefaultBuildTreeLifecycleController.java:82)
+	at org.gradle.tooling.internal.provider.runner.AbstractClientProvidedBuildActionRunner.runClientAction(AbstractClientProvidedBuildActionRunner.java:42)
+	at org.gradle.tooling.internal.provider.runner.ClientProvidedPhasedActionRunner.run(ClientProvidedPhasedActionRunner.java:58)
+	at org.gradle.launcher.exec.ChainingBuildActionRunner.run(ChainingBuildActionRunner.java:35)
+	at org.gradle.internal.buildtree.ProblemReportingBuildActionRunner.run(ProblemReportingBuildActionRunner.java:54)
+	at org.gradle.launcher.exec.BuildOutcomeReportingBuildActionRunner.run(BuildOutcomeReportingBuildActionRunner.java:83)
+	at org.gradle.tooling.internal.provider.FileSystemWatchingBuildActionRunner.run(FileSystemWatchingBuildActionRunner.java:135)
+	at org.gradle.launcher.exec.BuildCompletionNotifyingBuildActionRunner.run(BuildCompletionNotifyingBuildActionRunner.java:54)
+	at org.gradle.launcher.exec.RootBuildLifecycleBuildActionExecutor.lambda$execute$0(RootBuildLifecycleBuildActionExecutor.java:56)
+	at org.gradle.composite.internal.DefaultRootBuildState.run(DefaultRootBuildState.java:126)
+	at org.gradle.launcher.exec.RootBuildLifecycleBuildActionExecutor.execute(RootBuildLifecycleBuildActionExecutor.java:56)
+	at org.gradle.internal.buildtree.InitDeprecationLoggingActionExecutor.execute(InitDeprecationLoggingActionExecutor.java:62)
+	at org.gradle.internal.buildtree.InitProblems.execute(InitProblems.java:36)
+	at org.gradle.internal.buildtree.DefaultBuildTreeContext.execute(DefaultBuildTreeContext.java:40)
+	at org.gradle.launcher.exec.BuildTreeLifecycleBuildActionExecutor.lambda$execute$0(BuildTreeLifecycleBuildActionExecutor.java:71)
+	at org.gradle.internal.buildtree.BuildTreeState.run(BuildTreeState.java:60)
+	at org.gradle.launcher.exec.BuildTreeLifecycleBuildActionExecutor.execute(BuildTreeLifecycleBuildActionExecutor.java:71)
+	at org.gradle.launcher.exec.RunAsBuildOperationBuildActionExecutor$2.call(RunAsBuildOperationBuildActionExecutor.java:65)
+	at org.gradle.launcher.exec.RunAsBuildOperationBuildActionExecutor$2.call(RunAsBuildOperationBuildActionExecutor.java:61)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.launcher.exec.RunAsBuildOperationBuildActionExecutor.execute(RunAsBuildOperationBuildActionExecutor.java:61)
+	at org.gradle.launcher.exec.RunAsWorkerThreadBuildActionExecutor.lambda$execute$0(RunAsWorkerThreadBuildActionExecutor.java:36)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withLocksAcquired$0(DefaultWorkerLeaseService.java:269)
+	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:42)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:267)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:259)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.launcher.exec.RunAsWorkerThreadBuildActionExecutor.execute(RunAsWorkerThreadBuildActionExecutor.java:36)
+	at org.gradle.tooling.internal.provider.continuous.ContinuousBuildActionExecutor.execute(ContinuousBuildActionExecutor.java:110)
+	at org.gradle.tooling.internal.provider.SubscribableBuildActionExecutor.execute(SubscribableBuildActionExecutor.java:64)
+	at org.gradle.internal.session.DefaultBuildSessionContext.execute(DefaultBuildSessionContext.java:46)
+	at org.gradle.internal.buildprocess.execution.BuildSessionLifecycleBuildActionExecutor$ActionImpl.apply(BuildSessionLifecycleBuildActionExecutor.java:92)
+	at org.gradle.internal.buildprocess.execution.BuildSessionLifecycleBuildActionExecutor$ActionImpl.apply(BuildSessionLifecycleBuildActionExecutor.java:80)
+	at org.gradle.internal.session.BuildSessionState.run(BuildSessionState.java:73)
+	at org.gradle.internal.buildprocess.execution.BuildSessionLifecycleBuildActionExecutor.execute(BuildSessionLifecycleBuildActionExecutor.java:62)
+	at org.gradle.internal.buildprocess.execution.BuildSessionLifecycleBuildActionExecutor.execute(BuildSessionLifecycleBuildActionExecutor.java:41)
+	at org.gradle.internal.buildprocess.execution.StartParamsValidatingActionExecutor.execute(StartParamsValidatingActionExecutor.java:57)
+	at org.gradle.internal.buildprocess.execution.StartParamsValidatingActionExecutor.execute(StartParamsValidatingActionExecutor.java:32)
+	at org.gradle.internal.buildprocess.execution.SessionFailureReportingActionExecutor.execute(SessionFailureReportingActionExecutor.java:51)
+	at org.gradle.internal.buildprocess.execution.SessionFailureReportingActionExecutor.execute(SessionFailureReportingActionExecutor.java:39)
+	at org.gradle.internal.buildprocess.execution.SetupLoggingActionExecutor.execute(SetupLoggingActionExecutor.java:47)
+	at org.gradle.internal.buildprocess.execution.SetupLoggingActionExecutor.execute(SetupLoggingActionExecutor.java:31)
+	at org.gradle.launcher.daemon.server.exec.ExecuteBuild.doBuild(ExecuteBuild.java:70)
+	at org.gradle.launcher.daemon.server.exec.BuildCommandOnly.execute(BuildCommandOnly.java:37)
+	at org.gradle.launcher.daemon.server.api.DaemonCommandExecution.proceed(DaemonCommandExecution.java:104)
+	at org.gradle.launcher.daemon.server.exec.WatchForDisconnection.execute(WatchForDisconnection.java:39)
+	at org.gradle.launcher.daemon.server.api.DaemonCommandExecution.proceed(DaemonCommandExecution.java:104)
+	at org.gradle.launcher.daemon.server.exec.ResetDeprecationLogger.execute(ResetDeprecationLogger.java:29)
+	at org.gradle.launcher.daemon.server.api.DaemonCommandExecution.proceed(DaemonCommandExecution.java:104)
+	at org.gradle.launcher.daemon.server.exec.RequestStopIfSingleUsedDaemon.execute(RequestStopIfSingleUsedDaemon.java:35)
+	at org.gradle.launcher.daemon.server.api.DaemonCommandExecution.proceed(DaemonCommandExecution.java:104)
+	at org.gradle.launcher.daemon.server.exec.ForwardClientInput.lambda$execute$0(ForwardClientInput.java:40)
+	at org.gradle.internal.daemon.clientinput.ClientInputForwarder.forwardInput(ClientInputForwarder.java:80)
+	at org.gradle.launcher.daemon.server.exec.ForwardClientInput.execute(ForwardClientInput.java:37)
+	at org.gradle.launcher.daemon.server.api.DaemonCommandExecution.proceed(DaemonCommandExecution.java:104)
+	at org.gradle.launcher.daemon.server.exec.LogAndCheckHealth.execute(LogAndCheckHealth.java:64)
+	at org.gradle.launcher.daemon.server.api.DaemonCommandExecution.proceed(DaemonCommandExecution.java:104)
+	at org.gradle.launcher.daemon.server.exec.LogToClient.doBuild(LogToClient.java:63)
+	at org.gradle.launcher.daemon.server.exec.BuildCommandOnly.execute(BuildCommandOnly.java:37)
+	at org.gradle.launcher.daemon.server.api.DaemonCommandExecution.proceed(DaemonCommandExecution.java:104)
+	at org.gradle.launcher.daemon.server.exec.EstablishBuildEnvironment.doBuild(EstablishBuildEnvironment.java:84)
+	at org.gradle.launcher.daemon.server.exec.BuildCommandOnly.execute(BuildCommandOnly.java:37)
+	at org.gradle.launcher.daemon.server.api.DaemonCommandExecution.proceed(DaemonCommandExecution.java:104)
+	at org.gradle.launcher.daemon.server.exec.StartBuildOrRespondWithBusy$1.run(StartBuildOrRespondWithBusy.java:52)
+	at org.gradle.launcher.daemon.server.DaemonStateCoordinator.lambda$runCommand$0(DaemonStateCoordinator.java:321)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
+Caused by: org.gradle.plugin.management.internal.InvalidPluginRequestException: The request for this plugin could not be satisfied because the plugin is already on the classpath with an unknown version, so compatibility cannot be checked.
+	at org.gradle.plugin.use.resolve.internal.AlreadyOnClasspathPluginResolver.resolve(AlreadyOnClasspathPluginResolver.java:88)
+	at org.gradle.plugin.use.internal.DefaultPluginRequestApplicator.resolvePluginRequest(DefaultPluginRequestApplicator.java:189)
+	... 219 more
+
+
+CONFIGURE FAILED in 5s
+и вылатает когда запускаешь приложение 
