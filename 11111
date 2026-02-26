@@ -1,172 +1,146 @@
 #include <iostream>
 #include <windows.h>
 #include <string>
-#include <vector>
 #include <fstream>
+#include <shellapi.h>
+#include <direct.h>
+
+#pragma comment(lib, "shell32.lib")
 
 using namespace std;
 
-// Отправка одного символа через SendInput
-void sendChar(char c) {
-    INPUT input[2] = {};
+// ===== НАСТРОЙКИ =====
+const int DEFAULT_DELAY = 50;
+const int PYCHARM_WAIT_SEC = 12;
+const bool CLEAR_FILE_FIRST = true;
 
-    // Для символов используем UNICODE ввод
-    input[0].type = INPUT_KEYBOARD;
-    input[0].ki.wScan = c;
-    input[0].ki.dwFlags = KEYEVENTF_UNICODE;
-
-    input[1].type = INPUT_KEYBOARD;
-    input[1].ki.wScan = c;
-    input[1].ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
-
-    SendInput(2, input, sizeof(INPUT));
-}
-
-// Отправка unicode символа (для кириллицы и спецсимволов)
+// ===== ОТПРАВКА КЛАВИШ =====
 void sendUnicodeChar(wchar_t wc) {
     INPUT input[2] = {};
-
     input[0].type = INPUT_KEYBOARD;
     input[0].ki.wScan = wc;
     input[0].ki.dwFlags = KEYEVENTF_UNICODE;
-
     input[1].type = INPUT_KEYBOARD;
     input[1].ki.wScan = wc;
     input[1].ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
-
     SendInput(2, input, sizeof(INPUT));
 }
 
-// Нажатие Enter
-void sendEnter() {
+void sendKey(WORD vk, bool extended = false) {
     INPUT input[2] = {};
-
     input[0].type = INPUT_KEYBOARD;
-    input[0].ki.wVk = VK_RETURN;
-
+    input[0].ki.wVk = vk;
+    if (extended) input[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
     input[1].type = INPUT_KEYBOARD;
-    input[1].ki.wVk = VK_RETURN;
-    input[1].ki.dwFlags = KEYEVENTF_KEYUP;
-
+    input[1].ki.wVk = vk;
+    input[1].ki.dwFlags = KEYEVENTF_KEYUP | (extended ? KEYEVENTF_EXTENDEDKEY : 0);
     SendInput(2, input, sizeof(INPUT));
 }
 
-// Нажатие Tab
-void sendTab() {
-    INPUT input[2] = {};
-
-    input[0].type = INPUT_KEYBOARD;
-    input[0].ki.wVk = VK_TAB;
-
-    input[1].type = INPUT_KEYBOARD;
-    input[1].ki.wVk = VK_TAB;
-    input[1].ki.dwFlags = KEYEVENTF_KEYUP;
-
-    SendInput(2, input, sizeof(INPUT));
+void sendCtrl(char key) {
+    keybd_event(VK_CONTROL, 0, 0, 0);
+    keybd_event(toupper(key), 0, 0, 0);
+    keybd_event(toupper(key), 0, KEYEVENTF_KEYUP, 0);
+    keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
 }
 
-// Печать строки посимвольно с задержкой
-void typeString(const wstring& text, int delayMs) {
-    for (wchar_t wc : text) {
-        if (wc == L'\n') {
-            sendEnter();
+void sendEnter() { sendKey(VK_RETURN); }
+void sendTab() { sendKey(VK_TAB); }
+void sendEscape() { sendKey(VK_ESCAPE); }
+
+// ===== УПРАВЛЕНИЕ ОКНАМИ =====
+bool waitForWindow(const wchar_t* titlePart, int timeoutSec = 30) {
+    HWND hwnd = NULL;
+    for (int i = 0; i < timeoutSec * 2; i++) {
+        hwnd = FindWindowW(NULL, titlePart);
+        if (hwnd) {
+            SetForegroundWindow(hwnd);
+            return true;
         }
-        else if (wc == L'\t') {
-            sendTab();
-        }
-        else {
-            sendUnicodeChar(wc);
-        }
-        Sleep(delayMs);
+        // Поиск по частичному совпадению
+        EnumWindows([](HWND h, LPARAM lp) -> BOOL {
+            wchar_t title[512];
+            GetWindowTextW(h, title, 512);
+            if (wcsstr(title, (const wchar_t*)lp)) {
+                SetForegroundWindow(h);
+                return FALSE;
+            }
+            return TRUE;
+            }, (LPARAM)titlePart);
+
+        Sleep(500);
     }
+    return false;
 }
 
-int main() {
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
-
-    int mode;
-    cout << "========================================" << endl;
-    cout << "   AUTO TYPER for PyCharm" << endl;
-    cout << "========================================" << endl;
-    cout << endl;
-    cout << "Режим работы:" << endl;
-    cout << "1 - Ввести код вручную (в консоли)" << endl;
-    cout << "2 - Загрузить код из файла" << endl;
-    cout << "Выбор: ";
-    cin >> mode;
-    cin.ignore();
-
-    wstring code;
-
-    if (mode == 1) {
-        cout << endl;
-        cout << "Введите код (для завершения введите END на отдельной строке):" << endl;
-        cout << "-------------------------------------------" << endl;
-
-        string line;
-        string allCode;
-        while (getline(cin, line)) {
-            if (line == "END") break;
-            allCode += line + "\n";
+bool activatePyCharm() {
+    cout << "[*] Поиск окна PyCharm... ";
+    if (waitForWindow(L"PyCharm", 20)) {
+        cout << "NAIDENO\n";
+        Sleep(500);
+        HWND hwnd = FindWindowW(NULL, L"PyCharm");
+        if (!hwnd) {
+            EnumWindows([](HWND h, LPARAM) -> BOOL {
+                wchar_t title[512];
+                GetWindowTextW(h, title, 512);
+                if (wcsstr(title, L"PyCharm")) {
+                    SetForegroundWindow(h);
+                    return FALSE;
+                }
+                return TRUE;
+                }, 0);
         }
-
-        // Конвертация string -> wstring
-        int size = MultiByteToWideChar(CP_UTF8, 0, allCode.c_str(), -1, NULL, 0);
-        wchar_t* buf = new wchar_t[size];
-        MultiByteToWideChar(CP_UTF8, 0, allCode.c_str(), -1, buf, size);
-        code = buf;
-        delete[] buf;
+        return true;
     }
-    else if (mode == 2) {
-        cout << "Введите путь к файлу: ";
-        string filepath;
-        getline(cin, filepath);
+    cout << "NE NAIDENO\n";
+    return false;
+}
 
-        ifstream file(filepath);
-        if (!file.is_open()) {
-            cout << "Ошибка: не удалось открыть файл!" << endl;
-            return 1;
-        }
+// ===== НАВИГАЦИЯ В PYCHARM =====
+void openFileInPyCharm(const string& filename) {
+    cout << "[*] Otkrivayu fail " << filename << " v redaktore...\n";
 
-        string allCode((istreambuf_iterator<char>(file)),
-                         istreambuf_iterator<char>());
-        file.close();
+    sendCtrl('O');
+    Sleep(800);
 
-        int size = MultiByteToWideChar(CP_UTF8, 0, allCode.c_str(), -1, NULL, 0);
-        wchar_t* buf = new wchar_t[size];
-        MultiByteToWideChar(CP_UTF8, 0, allCode.c_str(), -1, buf, size);
-        code = buf;
-        delete[] buf;
+    // Печатаем имя файла посимвольно
+    for (char c : filename) {
+        sendUnicodeChar(static_cast<wchar_t>(c));
+        Sleep(30);
     }
+    Sleep(300);
 
-    int delay;
-    cout << endl;
-    cout << "Задержка между символами (мс, рекомендуется 30-100): ";
-    cin >> delay;
+    sendEnter(); // Открыть файл
+    Sleep(1000);
 
-    cout << endl;
-    cout << "========================================" << endl;
-    cout << "  Переключитесь на PyCharm!" << endl;
-    cout << "  Печать начнётся через 5 секунд..." << endl;
-    cout << "  Нажмите ESC для остановки" << endl;
-    cout << "========================================" << endl;
+    sendEnter(); // Подтвердить создание если нужно
+    Sleep(500);
 
-    // Обратный отсчёт
-    for (int i = 5; i > 0; i--) {
-        cout << "  " << i << "..." << endl;
-        Sleep(1000);
-    }
+    sendEscape(); // Закрыть панели
+    Sleep(300);
 
-    cout << "  ПЕЧАТАЮ!" << endl;
+    activatePyCharm();
+    Sleep(200);
+}
 
-    // Печатаем код
-    for (wchar_t wc : code) {
-        // Проверка нажатия ESC для остановки
+void clearFileContent() {
+    sendCtrl('A');
+    Sleep(200);
+    sendKey(VK_DELETE);
+    Sleep(300);
+}
+
+// ===== ПЕЧАТЬ С АНИМАЦИЕЙ =====
+void typeWithAnimation(const wstring& text, int delayMs) {
+    cout << "\n[>] NACHINAYU PECHAT'! Smotri na PyCharm\n\n";
+
+    for (size_t i = 0; i < text.size(); i++) {
         if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
-            cout << endl << "Остановлено пользователем!" << endl;
+            cout << "\n[!] Ostanovleno polzovatelem\n";
             break;
         }
+
+        wchar_t wc = text[i];
 
         if (wc == L'\n') {
             sendEnter();
@@ -175,19 +149,186 @@ int main() {
             sendTab();
         }
         else if (wc == L'\r') {
-            continue; // пропускаем \r
+            continue;
         }
         else {
             sendUnicodeChar(wc);
         }
 
-        // Случайная задержка для реалистичности
-        int randomDelay = delay + (rand() % (delay / 2 + 1));
-        Sleep(randomDelay);
+        if (i % 10 == 0) {
+            cout << "\r[>] Napechatano: " << i << "/" << text.size();
+            cout.flush();
+        }
+
+        int randDelay = delayMs + (rand() % (delayMs / 3 + 1));
+        Sleep(randDelay);
+    }
+    cout << "\n\r[OK] Pechat' zavershena! (" << text.size() << " simvolov)\n";
+}
+
+// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+bool createFolder(const string& path) {
+    return _mkdir(path.c_str()) == 0 || GetLastError() == ERROR_ALREADY_EXISTS;
+}
+
+bool saveEmptyFile(const string& filepath) {
+    ofstream f(filepath, ios::out | ios::trunc);
+    return f.is_open();
+}
+
+bool launchPyCharm(const string& projectPath, const string& pycharmExe = "") {
+    string cmd = pycharmExe.empty() ?
+        "pycharm64.exe \"" + projectPath + "\"" :
+        "\"" + pycharmExe + "\" \"" + projectPath + "\"";
+
+    // Конвертируем в wide string для Windows API
+    wstring wcmd(cmd.begin(), cmd.end());
+    wstring wparams = L"/c start \"PyCharm\" \"" + wcmd + L"\"";
+
+    SHELLEXECUTEINFOW sei = { sizeof(sei) };
+    sei.lpFile = L"cmd.exe";  // <-- L"..." для Unicode!
+    sei.lpParameters = wparams.c_str();
+    sei.nShow = SW_SHOWNORMAL;
+
+    return ShellExecuteExW(&sei) && sei.hProcess != NULL;
+}
+
+// ===== MAIN =====
+int main() {
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    srand(GetTickCount());
+
+    cout << "========================================\n";
+    cout << "  AUTO TYPER: Vizualnaya pechat v PyCharm\n";
+    cout << "========================================\n\n";
+
+    // === СБОР ДАННЫХ ===
+    string projectName, basePath, filename, codeSourcePath;
+
+    cout << "Nazvanie proekta: ";
+    getline(cin, projectName);
+
+    cout << "Papka dlya proektov (naprimer C:\\Projects): ";
+    getline(cin, basePath);
+    string projectPath = basePath + "\\" + projectName;
+
+    cout << "Imya faila (naprimer main.py): ";
+    getline(cin, filename);
+
+    cout << "\nIstochnik koda:\n   1 - Vvesti vruchnuyu\n   2 - Iz faila\n   Vybor: ";
+    int mode;
+    cin >> mode;
+    cin.ignore();
+
+    string code;
+    if (mode == 1) {
+        cout << "\nVvodi kod. Chtoby zakonchit' - napishi END na otdelnoi stroke:\n";
+        cout << "----------------------------------------\n";
+        string line;
+        while (getline(cin, line) && line != "END") {
+            code += line + "\n";
+        }
+    }
+    else {
+        cout << "Put' k failu s kodom: ";
+        getline(cin, codeSourcePath);
+        ifstream f(codeSourcePath);
+        if (!f) {
+            cout << "NE udalos otkryt' fail!\n";
+            return 1;
+        }
+        code = string((istreambuf_iterator<char>(f)), {});
+        f.close();
     }
 
-    cout << endl;
-    cout << "Готово!" << endl;
+    cout << "\nZaderzhka mezhdu simvolami (30-80 ms): ";
+    int delay;
+    cin >> delay;
+    if (delay < 10) delay = 30;
+
+    cout << "\nPut' k pycharm64.exe (ostav' pustym, esli v PATH): ";
+    cin.ignore();
+    string pycharmPath;
+    getline(cin, pycharmPath);
+
+    // === ПОДГОТОВКА ===
+    cout << "\n----------------------------------------\n";
+    cout << "PODGOTOVKA...\n";
+
+    cout << "[1/5] Sozdayu papku proekta... ";
+    if (!createFolder(projectPath)) {
+        cout << "OSHBKA!\n";
+        return 1;
+    }
+    cout << "OK\n";
+
+    string fullFilepath = projectPath + "\\" + filename;
+    cout << "[2/5] Sozdayu pustoy fail " << filename << "... ";
+    if (!saveEmptyFile(fullFilepath)) {
+        cout << "OSHBKA!\n";
+        return 1;
+    }
+    cout << "OK\n";
+
+    cout << "[3/5] Zapuskayu PyCharm... ";
+    if (!launchPyCharm(projectPath, pycharmPath)) {
+        cout << "Ne udalos zapustit'!\n";
+        return 1;
+    }
+    cout << "OK\n";
+
+    cout << "[4/5] Ozhidanie zagruzki PyCharm (" << PYCHARM_WAIT_SEC << " sek)...\n";
+    cout << "     SОВЕТ: Ne svorachivai PyCharm!\n\n";
+
+    for (int i = PYCHARM_WAIT_SEC; i > 0; i--) {
+        cout << "\r     " << i << " sek...";
+        cout.flush();
+        Sleep(1000);
+    }
+    cout << "\n     PyCharm dolzhen byt' gotov!\n\n";
+
+    if (!activatePyCharm()) {
+        cout << "\nPyCharm ne naiden! Zapusti ego vruchnuyu i nazhmi Enter...";
+        cin.get();
+        activatePyCharm();
+    }
+
+    Sleep(500);
+
+    openFileInPyCharm(filename);
+    Sleep(500);
+
+    if (CLEAR_FILE_FIRST) {
+        cout << "[5/5] Ochishchayu fail... ";
+        clearFileContent();
+        cout << "OK\n\n";
+    }
+
+    // === ПЕЧАТЬ ===
+    int wsize = MultiByteToWideChar(CP_UTF8, 0, code.c_str(), -1, NULL, 0);
+    wchar_t* wbuf = new wchar_t[wsize];
+    MultiByteToWideChar(CP_UTF8, 0, code.c_str(), -1, wbuf, wsize);
+    wstring wcode = wbuf;
+    delete[] wbuf;
+
+    cout << "========================================\n";
+    cout << "  VNIMANIE NA OKNO PYCHARM!\n";
+    cout << "  Pechat' nachnyotsya cherez 3 sek...\n";
+    cout << "  Nazhmi ESC dlya ostanovki\n";
+    cout << "========================================\n";
+
+    for (int i = 3; i > 0; i--) {
+        cout << "\r>>> " << i << "...";
+        cout.flush();
+        Sleep(1000);
+    }
+    cout << "\n\n";
+
+    typeWithAnimation(wcode, delay);
+
+    cout << "\nGOTOVO! Kod napechatan v PyCharm.\n";
+    cout << "Ne zabud' sokhranit' fail (Ctrl+S)!\n\n";
 
     return 0;
 }
