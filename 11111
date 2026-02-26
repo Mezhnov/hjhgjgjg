@@ -1,61 +1,193 @@
-plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
+#include <iostream>
+#include <windows.h>
+#include <string>
+#include <vector>
+#include <fstream>
+
+using namespace std;
+
+// Отправка одного символа через SendInput
+void sendChar(char c) {
+    INPUT input[2] = {};
+
+    // Для символов используем UNICODE ввод
+    input[0].type = INPUT_KEYBOARD;
+    input[0].ki.wScan = c;
+    input[0].ki.dwFlags = KEYEVENTF_UNICODE;
+
+    input[1].type = INPUT_KEYBOARD;
+    input[1].ki.wScan = c;
+    input[1].ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+
+    SendInput(2, input, sizeof(INPUT));
 }
 
-android {
-    namespace = "com.example.playstore"
-    compileSdk = 35
+// Отправка unicode символа (для кириллицы и спецсимволов)
+void sendUnicodeChar(wchar_t wc) {
+    INPUT input[2] = {};
 
-    defaultConfig {
-        applicationId = "com.example.playstore"
-        minSdk = 23
-        targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
-    }
+    input[0].type = INPUT_KEYBOARD;
+    input[0].ki.wScan = wc;
+    input[0].ki.dwFlags = KEYEVENTF_UNICODE;
 
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+    input[1].type = INPUT_KEYBOARD;
+    input[1].ki.wScan = wc;
+    input[1].ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+
+    SendInput(2, input, sizeof(INPUT));
+}
+
+// Нажатие Enter
+void sendEnter() {
+    INPUT input[2] = {};
+
+    input[0].type = INPUT_KEYBOARD;
+    input[0].ki.wVk = VK_RETURN;
+
+    input[1].type = INPUT_KEYBOARD;
+    input[1].ki.wVk = VK_RETURN;
+    input[1].ki.dwFlags = KEYEVENTF_KEYUP;
+
+    SendInput(2, input, sizeof(INPUT));
+}
+
+// Нажатие Tab
+void sendTab() {
+    INPUT input[2] = {};
+
+    input[0].type = INPUT_KEYBOARD;
+    input[0].ki.wVk = VK_TAB;
+
+    input[1].type = INPUT_KEYBOARD;
+    input[1].ki.wVk = VK_TAB;
+    input[1].ki.dwFlags = KEYEVENTF_KEYUP;
+
+    SendInput(2, input, sizeof(INPUT));
+}
+
+// Печать строки посимвольно с задержкой
+void typeString(const wstring& text, int delayMs) {
+    for (wchar_t wc : text) {
+        if (wc == L'\n') {
+            sendEnter();
         }
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-
-    buildFeatures {
-        compose = true
+        else if (wc == L'\t') {
+            sendTab();
+        }
+        else {
+            sendUnicodeChar(wc);
+        }
+        Sleep(delayMs);
     }
 }
 
-dependencies {
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
+int main() {
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
 
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
+    int mode;
+    cout << "========================================" << endl;
+    cout << "   AUTO TYPER for PyCharm" << endl;
+    cout << "========================================" << endl;
+    cout << endl;
+    cout << "Режим работы:" << endl;
+    cout << "1 - Ввести код вручную (в консоли)" << endl;
+    cout << "2 - Загрузить код из файла" << endl;
+    cout << "Выбор: ";
+    cin >> mode;
+    cin.ignore();
 
-    implementation(libs.androidx.material3)
-    implementation(libs.androidx.material.icons.extended)
+    wstring code;
 
-    implementation(libs.coil.compose)
+    if (mode == 1) {
+        cout << endl;
+        cout << "Введите код (для завершения введите END на отдельной строке):" << endl;
+        cout << "-------------------------------------------" << endl;
 
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
+        string line;
+        string allCode;
+        while (getline(cin, line)) {
+            if (line == "END") break;
+            allCode += line + "\n";
+        }
+
+        // Конвертация string -> wstring
+        int size = MultiByteToWideChar(CP_UTF8, 0, allCode.c_str(), -1, NULL, 0);
+        wchar_t* buf = new wchar_t[size];
+        MultiByteToWideChar(CP_UTF8, 0, allCode.c_str(), -1, buf, size);
+        code = buf;
+        delete[] buf;
+    }
+    else if (mode == 2) {
+        cout << "Введите путь к файлу: ";
+        string filepath;
+        getline(cin, filepath);
+
+        ifstream file(filepath);
+        if (!file.is_open()) {
+            cout << "Ошибка: не удалось открыть файл!" << endl;
+            return 1;
+        }
+
+        string allCode((istreambuf_iterator<char>(file)),
+                         istreambuf_iterator<char>());
+        file.close();
+
+        int size = MultiByteToWideChar(CP_UTF8, 0, allCode.c_str(), -1, NULL, 0);
+        wchar_t* buf = new wchar_t[size];
+        MultiByteToWideChar(CP_UTF8, 0, allCode.c_str(), -1, buf, size);
+        code = buf;
+        delete[] buf;
+    }
+
+    int delay;
+    cout << endl;
+    cout << "Задержка между символами (мс, рекомендуется 30-100): ";
+    cin >> delay;
+
+    cout << endl;
+    cout << "========================================" << endl;
+    cout << "  Переключитесь на PyCharm!" << endl;
+    cout << "  Печать начнётся через 5 секунд..." << endl;
+    cout << "  Нажмите ESC для остановки" << endl;
+    cout << "========================================" << endl;
+
+    // Обратный отсчёт
+    for (int i = 5; i > 0; i--) {
+        cout << "  " << i << "..." << endl;
+        Sleep(1000);
+    }
+
+    cout << "  ПЕЧАТАЮ!" << endl;
+
+    // Печатаем код
+    for (wchar_t wc : code) {
+        // Проверка нажатия ESC для остановки
+        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+            cout << endl << "Остановлено пользователем!" << endl;
+            break;
+        }
+
+        if (wc == L'\n') {
+            sendEnter();
+        }
+        else if (wc == L'\t') {
+            sendTab();
+        }
+        else if (wc == L'\r') {
+            continue; // пропускаем \r
+        }
+        else {
+            sendUnicodeChar(wc);
+        }
+
+        // Случайная задержка для реалистичности
+        int randomDelay = delay + (rand() % (delay / 2 + 1));
+        Sleep(randomDelay);
+    }
+
+    cout << endl;
+    cout << "Готово!" << endl;
+
+    return 0;
 }
