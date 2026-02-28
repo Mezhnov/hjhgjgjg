@@ -1,1206 +1,180 @@
-/*
- * ============================================================================
- *  PROJECT: MyAstra OS — Windows 10/11 Style Desktop Simulation
- *  VERSION: 2.0 COMPLETE REWRITE
- *  FEATURES:
- *    - Полноэкранный рабочий стол с обоями (скачиваются из интернета)
- *    - Панель задач в стиле Windows 11 (центрированные иконки)
- *    - Системный трей: часы, дата, громкость, батарея, сеть, язык
- *    - Меню Пуск с анимацией, поиском, закреплёнными приложениями
- *    - Иконки рабочего стола
- *    - Всплывающие подсказки
- *    - Центр уведомлений
- * ============================================================================
- */
-
-#pragma comment(linker, "/SUBSYSTEM:WINDOWS /ENTRY:WinMainCRTStartup")
-
 #include <windows.h>
 #include <gdiplus.h>
-#include <wininet.h>
-#include <urlmon.h>
-#include <string>
-#include <sstream>
-#include <iomanip>
-#include <vector>
-#include <cmath>
+#include <stdio.h>
 
 #pragma comment(lib, "gdiplus.lib")
-#pragma comment(lib, "wininet.lib")
-#pragma comment(lib, "urlmon.lib")
-#pragma comment(lib, "ole32.lib")
-#pragma comment(lib, "uuid.lib")
-#pragma comment(lib, "Msimg32.lib")
 
 using namespace Gdiplus;
 
-// ============================================================
-//                         КОНСТАНТЫ
-// ============================================================
+Image* g_bg = nullptr;
+int g_w = 0, g_h = 0;
 
-// Цвета Windows 11
-namespace Colors {
-    const Color TaskbarBg(230, 32, 32, 32);
-    const Color TaskbarBgSolid(255, 32, 32, 32);
-    const Color StartMenuBg(255, 36, 36, 36);
-    const Color StartMenuSearch(255, 50, 50, 50);
-    const Color StartMenuItemHover(255, 55, 55, 55);
-    const Color AccentBlue(255, 0, 103, 192);
-    const Color AccentLight(255, 76, 194, 255);
-    const Color TextWhite(255, 255, 255, 255);
-    const Color TextGray(255, 157, 157, 157);
-    const Color TextDimGray(255, 120, 120, 120);
-    const Color Separator(255, 50, 50, 50);
-    const Color TrayHover(255, 55, 55, 55);
-    const Color DesktopIconHover(80, 255, 255, 255);
-    const Color DesktopIconSelect(120, 0, 103, 192);
-    const Color NotifBg(255, 44, 44, 44);
-    const Color GradientTop(255, 0, 48, 80);
-    const Color GradientBottom(255, 0, 20, 40);
-    const Color VolumeGreen(255, 76, 175, 80);
-    const Color BatteryGreen(255, 76, 175, 80);
-    const Color BatteryYellow(255, 255, 193, 7);
-    const Color BatteryRed(255, 244, 67, 54);
-}
-
-const int TASKBAR_HEIGHT = 48;
-const int START_MENU_W = 600;
-const int START_MENU_H = 680;
-const int TRAY_ICON_SIZE = 40;
-const int DESKTOP_ICON_SIZE = 70;
-const int DESKTOP_ICON_SPACING = 90;
-
-// URL обоев (несколько вариантов на случай если один не работает)
-const wchar_t* WALLPAPER_URLS[] = {
-    L"https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1920&q=80",
-    L"https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1920&q=80",
-    L"https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1920&q=80",
-};
-const int WALLPAPER_URL_COUNT = 3;
-
-// ============================================================
-//                    СТРУКТУРЫ ДАННЫХ
-// ============================================================
-
-struct DesktopIcon {
-    std::wstring name;
-    std::wstring emoji;
-    int x, y;
-    bool selected;
-};
-
-struct StartMenuItem {
-    std::wstring name;
-    std::wstring emoji;
-    bool isPinned;
-};
-
-struct TrayButton {
-    RECT rect;
-    std::wstring tooltip;
-    bool hovered;
-};
-
-// ============================================================
-//                   ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
-// ============================================================
-
-HWND g_hWnd = NULL;
-HINSTANCE g_hInst = NULL;
-int g_screenW = 0, g_screenH = 0;
-
-// GDI+
-ULONG_PTR g_gdipToken = 0;
-Image* g_wallpaperImg = nullptr;
-bool g_wallpaperLoaded = false;
-bool g_wallpaperLoading = true;
-
-// Состояние
-bool g_startMenuOpen = false;
-bool g_trayPopupOpen = false;
-bool g_calendarOpen = false;
-int g_startMenuAnimProgress = 0; // 0-100
-int g_hoveredStartItem = -1;
-int g_hoveredDesktopIcon = -1;
-int g_hoveredTrayBtn = -1;
-int g_selectedDesktopIcon = -1;
-
-// Время
-std::wstring g_timeStr = L"00:00";
-std::wstring g_dateStr = L"1 января 2024";
-std::wstring g_dayStr = L"Понедельник";
-std::wstring g_shortDateStr = L"01.01.2024";
-
-// Системные данные
-int g_batteryLevel = 78;
-int g_volumeLevel = 65;
-bool g_wifiConnected = true;
-bool g_bluetoothOn = true;
-std::wstring g_langStr = L"RUS";
-int g_brightness = 80;
-
-// Путь к временному файлу
-std::wstring g_tempWallpaperPath;
-
-// Иконки рабочего стола
-std::vector<DesktopIcon> g_desktopIcons;
-
-// Пункты меню Пуск
-std::vector<StartMenuItem> g_pinnedApps;
-std::vector<StartMenuItem> g_recommendedApps;
-
-// Кнопки трея
-std::vector<TrayButton> g_trayButtons;
-
-// Таймеры
-const UINT TIMER_CLOCK = 1;
-const UINT TIMER_ANIM = 2;
-
-// Шрифты
-Font* g_fontTime = nullptr;
-Font* g_fontDate = nullptr;
-Font* g_fontTray = nullptr;
-Font* g_fontMenu = nullptr;
-Font* g_fontMenuTitle = nullptr;
-Font* g_fontMenuSmall = nullptr;
-Font* g_fontDesktopIcon = nullptr;
-Font* g_fontEmoji = nullptr;
-Font* g_fontEmojiLarge = nullptr;
-FontFamily* g_fontFamily = nullptr;
-FontFamily* g_fontFamilyEmoji = nullptr;
-
-// ============================================================
-//                    ИНИЦИАЛИЗАЦИЯ ДАННЫХ
-// ============================================================
-
-void InitDesktopIcons()
+void DrawRoundedRect(Graphics& g, SolidBrush* brush, Pen* pen, REAL x, REAL y, REAL width, REAL height, REAL radius)
 {
-    g_desktopIcons.clear();
-    struct { std::wstring name; std::wstring emoji; } icons[] = {
-        {L"Этот компьютер", L"💻"},
-        {L"Корзина", L"🗑"},
-        {L"Документы", L"📁"},
-        {L"Браузер", L"🌐"},
-        {L"Терминал", L"⬛"},
-        {L"Магазин", L"🛒"},
-        {L"Настройки", L"⚙"},
-        {L"Фотографии", L"🖼"},
-        {L"Музыка", L"🎵"},
-        {L"Видео", L"🎬"},
-    };
-
-    int startX = 30, startY = 20;
-    for (int i = 0; i < 10; i++) {
-        DesktopIcon icon;
-        icon.name = icons[i].name;
-        icon.emoji = icons[i].emoji;
-        icon.x = startX;
-        icon.y = startY + i * DESKTOP_ICON_SPACING;
-        icon.selected = false;
-
-        if (icon.y + DESKTOP_ICON_SIZE > g_screenH - TASKBAR_HEIGHT - 50) {
-            startX += DESKTOP_ICON_SPACING + 20;
-            startY = 20;
-            icon.x = startX;
-            icon.y = startY;
-        }
-
-        g_desktopIcons.push_back(icon);
-    }
-}
-
-void InitStartMenu()
-{
-    g_pinnedApps = {
-        {L"Браузер", L"🌐", true},
-        {L"Почта", L"📧", true},
-        {L"Календарь", L"📅", true},
-        {L"Фотографии", L"📷", true},
-        {L"Музыка", L"🎵", true},
-        {L"Видео", L"🎬", true},
-        {L"Магазин", L"🛒", true},
-        {L"Карты", L"🗺", true},
-        {L"Калькулятор", L"🧮", true},
-        {L"Блокнот", L"📝", true},
-        {L"Терминал", L"⬛", true},
-        {L"Настройки", L"⚙", true},
-    };
-
-    g_recommendedApps = {
-        {L"Документ.docx", L"📄", false},
-        {L"Фото_2024.jpg", L"🖼", false},
-        {L"Презентация.pptx", L"📊", false},
-        {L"Проект.zip", L"📦", false},
-    };
-}
-
-void InitFonts(Graphics& g)
-{
-    if (g_fontFamily) return;
-    g_fontFamily = new FontFamily(L"Segoe UI");
-    g_fontFamilyEmoji = new FontFamily(L"Segoe UI Emoji");
-
-    g_fontTime = new Font(g_fontFamily, 13, FontStyleRegular, UnitPixel);
-    g_fontDate = new Font(g_fontFamily, 11, FontStyleRegular, UnitPixel);
-    g_fontTray = new Font(g_fontFamily, 10, FontStyleRegular, UnitPixel);
-    g_fontMenu = new Font(g_fontFamily, 13, FontStyleRegular, UnitPixel);
-    g_fontMenuTitle = new Font(g_fontFamily, 15, FontStyleBold, UnitPixel);
-    g_fontMenuSmall = new Font(g_fontFamily, 11, FontStyleRegular, UnitPixel);
-    g_fontDesktopIcon = new Font(g_fontFamily, 11, FontStyleRegular, UnitPixel);
-    g_fontEmoji = new Font(g_fontFamilyEmoji, 22, FontStyleRegular, UnitPixel);
-    g_fontEmojiLarge = new Font(g_fontFamilyEmoji, 30, FontStyleRegular, UnitPixel);
-}
-
-// ============================================================
-//                    ОБНОВЛЕНИЕ ВРЕМЕНИ
-// ============================================================
-
-void UpdateDateTime()
-{
-    SYSTEMTIME st;
-    GetLocalTime(&st);
-
-    // Время
-    wchar_t buf[64];
-    swprintf_s(buf, L"%02d:%02d", st.wHour, st.wMinute);
-    g_timeStr = buf;
-
-    // Короткая дата
-    swprintf_s(buf, L"%02d.%02d.%04d", st.wDay, st.wMonth, st.wYear);
-    g_shortDateStr = buf;
-
-    // Полная дата
-    const wchar_t* months[] = {
-        L"января", L"февраля", L"марта", L"апреля", L"мая", L"июня",
-        L"июля", L"августа", L"сентября", L"октября", L"ноября", L"декабря"
-    };
-    const wchar_t* days[] = {
-        L"Воскресенье", L"Понедельник", L"Вторник", L"Среда",
-        L"Четверг", L"Пятница", L"Суббота"
-    };
-
-    swprintf_s(buf, L"%d %s %d г.", st.wDay, months[st.wMonth - 1], st.wYear);
-    g_dateStr = buf;
-    g_dayStr = days[st.wDayOfWeek];
-}
-
-// ============================================================
-//                   ЗАГРУЗКА ОБОЕВ
-// ============================================================
-
-DWORD WINAPI WallpaperDownloadThread(LPVOID)
-{
-    wchar_t tempPath[MAX_PATH];
-    GetTempPathW(MAX_PATH, tempPath);
-    g_tempWallpaperPath = std::wstring(tempPath) + L"astra_wallpaper.jpg";
-
-    // Пробуем несколько URL
-    bool downloaded = false;
-    for (int i = 0; i < WALLPAPER_URL_COUNT && !downloaded; i++)
-    {
-        HRESULT hr = URLDownloadToFileW(NULL, WALLPAPER_URLS[i], g_tempWallpaperPath.c_str(), 0, NULL);
-        if (hr == S_OK)
-        {
-            // Проверяем что файл не пустой
-            HANDLE hFile = CreateFileW(g_tempWallpaperPath.c_str(), GENERIC_READ, FILE_SHARE_READ,
-                NULL, OPEN_EXISTING, 0, NULL);
-            if (hFile != INVALID_HANDLE_VALUE)
-            {
-                DWORD fileSize = GetFileSize(hFile, NULL);
-                CloseHandle(hFile);
-                if (fileSize > 1000) {
-                    downloaded = true;
-                }
-            }
-        }
-    }
-
-    if (downloaded)
-    {
-        // Загружаем через GDI+
-        g_wallpaperImg = Image::FromFile(g_tempWallpaperPath.c_str());
-        if (g_wallpaperImg && g_wallpaperImg->GetLastStatus() == Ok)
-        {
-            g_wallpaperLoaded = true;
-        }
-        else
-        {
-            if (g_wallpaperImg) { delete g_wallpaperImg; g_wallpaperImg = nullptr; }
-        }
-    }
-
-    g_wallpaperLoading = false;
-    if (g_hWnd) InvalidateRect(g_hWnd, NULL, FALSE);
-    return 0;
-}
-
-// ============================================================
-//                    ОТРИСОВКА: РАБОЧИЙ СТОЛ
-// ============================================================
-
-void DrawDesktop(Graphics& g, int w, int h)
-{
-    int desktopH = h - TASKBAR_HEIGHT;
-
-    if (g_wallpaperLoaded && g_wallpaperImg)
-    {
-        // Масштабируем обои на весь экран
-        g.DrawImage(g_wallpaperImg, 0, 0, w, desktopH);
-    }
-    else
-    {
-        // Красивый градиент как запасной фон (стиль Windows 11)
-        LinearGradientBrush bgBrush(
-            Point(0, 0), Point(w, desktopH),
-            Colors::GradientTop, Colors::GradientBottom);
-        g.FillRectangle(&bgBrush, 0, 0, w, desktopH);
-
-        // Декоративные круги
-        SolidBrush circleBrush(Color(15, 255, 255, 255));
-        g.FillEllipse(&circleBrush, w / 2 - 300, desktopH / 2 - 300, 600, 600);
-        SolidBrush circleBrush2(Color(10, 76, 194, 255));
-        g.FillEllipse(&circleBrush2, w / 2 - 200, desktopH / 2 - 200, 400, 400);
-
-        if (g_wallpaperLoading)
-        {
-            // Индикатор загрузки
-            SolidBrush textBr(Color(150, 255, 255, 255));
-            StringFormat sf;
-            sf.SetAlignment(StringAlignmentCenter);
-            sf.SetLineAlignment(StringAlignmentCenter);
-            RectF rcLoad((REAL)(w / 2 - 150), (REAL)(desktopH / 2 - 20), 300, 40);
-            g.DrawString(L"Загрузка обоев...", -1, g_fontMenu, rcLoad, &sf, &textBr);
-        }
-    }
-}
-
-// ============================================================
-//                    ОТРИСОВКА: ИКОНКИ РАБОЧЕГО СТОЛА
-// ============================================================
-
-void DrawDesktopIcons(Graphics& g)
-{
-    StringFormat sf;
-    sf.SetAlignment(StringAlignmentCenter);
-    sf.SetLineAlignment(StringAlignmentNear);
-    sf.SetTrimming(StringTrimmingEllipsisWord);
-
-    for (int i = 0; i < (int)g_desktopIcons.size(); i++)
-    {
-        auto& icon = g_desktopIcons[i];
-        int ix = icon.x, iy = icon.y;
-
-        // Фон при наведении/выделении
-        if (icon.selected || i == g_selectedDesktopIcon)
-        {
-            SolidBrush selBr(Colors::DesktopIconSelect);
-            g.FillRectangle(&selBr, ix - 5, iy - 5,
-                DESKTOP_ICON_SIZE + 10, DESKTOP_ICON_SIZE + 30);
-        }
-        else if (i == g_hoveredDesktopIcon)
-        {
-            SolidBrush hovBr(Colors::DesktopIconHover);
-            g.FillRectangle(&hovBr, ix - 5, iy - 5,
-                DESKTOP_ICON_SIZE + 10, DESKTOP_ICON_SIZE + 30);
-        }
-
-        // Эмодзи-иконка
-        SolidBrush emojiBr(Colors::TextWhite);
-        RectF emojiRect((REAL)ix, (REAL)iy, (REAL)DESKTOP_ICON_SIZE, (REAL)(DESKTOP_ICON_SIZE - 10));
-        StringFormat sfCenter;
-        sfCenter.SetAlignment(StringAlignmentCenter);
-        sfCenter.SetLineAlignment(StringAlignmentCenter);
-        g.DrawString(icon.emoji.c_str(), -1, g_fontEmojiLarge, emojiRect, &sfCenter, &emojiBr);
-
-        // Название
-        SolidBrush textBr(Colors::TextWhite);
-        RectF textRect((REAL)(ix - 10), (REAL)(iy + DESKTOP_ICON_SIZE - 10),
-            (REAL)(DESKTOP_ICON_SIZE + 20), 30);
-        g.DrawString(icon.name.c_str(), -1, g_fontDesktopIcon, textRect, &sf, &textBr);
-    }
-}
-
-// ============================================================
-//                    ОТРИСОВКА: ПАНЕЛЬ ЗАДАЧ
-// ============================================================
-
-void DrawTaskbar(Graphics& g, int w, int h)
-{
-    int ty = h - TASKBAR_HEIGHT;
-
-    // Фон панели задач (полупрозрачный)
-    SolidBrush taskbarBr(Colors::TaskbarBg);
-    g.FillRectangle(&taskbarBr, 0, ty, w, TASKBAR_HEIGHT);
-
-    // Верхняя линия
-    Pen topLine(Color(80, 255, 255, 255), 1);
-    g.DrawLine(&topLine, 0, ty, w, ty);
-
-    // === ЦЕНТРИРОВАННЫЕ ИКОНКИ ПАНЕЛИ ЗАДАЧ (стиль Windows 11) ===
-    const wchar_t* taskbarIcons[] = {
-        L"🔍", L"📁", L"🌐", L"📧", L"🎵", L"📷", L"⬛"
-    };
-    const int iconCount = 7;
-    const int iconBtnW = 46;
-    int totalW = iconCount * iconBtnW;
-    int startX = (w - totalW) / 2;
-
-    StringFormat sfIcon;
-    sfIcon.SetAlignment(StringAlignmentCenter);
-    sfIcon.SetLineAlignment(StringAlignmentCenter);
-
-    for (int i = 0; i < iconCount; i++)
-    {
-        int bx = startX + i * iconBtnW;
-        RectF iconRect((REAL)bx, (REAL)(ty + 4), (REAL)iconBtnW, (REAL)(TASKBAR_HEIGHT - 8));
-
-        // Первая иконка — кнопка Пуск (подсвечена если меню открыто)
-        if (i == 0 && g_startMenuOpen)
-        {
-            SolidBrush activeBr(Color(60, 76, 194, 255));
-            g.FillRectangle(&activeBr, bx + 2, ty + 4, iconBtnW - 4, TASKBAR_HEIGHT - 8);
-
-            // Индикатор активности
-            SolidBrush indBr(Colors::AccentLight);
-            g.FillRectangle(&indBr, bx + 12, ty + TASKBAR_HEIGHT - 5, iconBtnW - 24, 3);
-        }
-
-        SolidBrush emBr(Colors::TextWhite);
-        g.DrawString(taskbarIcons[i], -1, g_fontEmoji, iconRect, &sfIcon, &emBr);
-
-        // Индикатор запущенного приложения (точка снизу)
-        if (i >= 1 && i <= 3)
-        {
-            SolidBrush dotBr(Colors::TextGray);
-            g.FillEllipse(&dotBr, bx + iconBtnW / 2 - 2, ty + TASKBAR_HEIGHT - 6, 4, 4);
-        }
-    }
-
-    // === СИСТЕМНЫЙ ТРЕЙ (правая часть) ===
-    g_trayButtons.clear();
-
-    int trayX = w - 10;
-    int trayY = ty + 2;
-    int trayH = TASKBAR_HEIGHT - 4;
-
-    // --- Часы и дата ---
-    trayX -= 90;
-    {
-        TrayButton btn;
-        btn.rect = { trayX, trayY, trayX + 90, trayY + trayH };
-        btn.tooltip = L"Часы";
-        btn.hovered = false;
-        g_trayButtons.push_back(btn);
-
-        if (g_hoveredTrayBtn == (int)g_trayButtons.size() - 1)
-        {
-            SolidBrush hovBr(Colors::TrayHover);
-            g.FillRectangle(&hovBr, (REAL)trayX, (REAL)(trayY + 2), 88, (REAL)(trayH - 4));
-        }
-
-        SolidBrush timeBr(Colors::TextWhite);
-        SolidBrush dateBr(Colors::TextGray);
-        StringFormat sfRight;
-        sfRight.SetAlignment(StringAlignmentCenter);
-
-        RectF timeRect((REAL)trayX, (REAL)(trayY + 4), 88, 20);
-        g.DrawString(g_timeStr.c_str(), -1, g_fontTime, timeRect, &sfRight, &timeBr);
-
-        RectF dateRect((REAL)trayX, (REAL)(trayY + 22), 88, 18);
-        g.DrawString(g_shortDateStr.c_str(), -1, g_fontDate, dateRect, &sfRight, &dateBr);
-    }
-
-    // --- Разделитель ---
-    trayX -= 8;
-    Pen sepPen(Colors::Separator, 1);
-    g.DrawLine(&sepPen, trayX + 4, trayY + 8, trayX + 4, trayY + trayH - 8);
-
-    // --- Громкость ---
-    trayX -= TRAY_ICON_SIZE;
-    {
-        TrayButton btn;
-        btn.rect = { trayX, trayY, trayX + TRAY_ICON_SIZE, trayY + trayH };
-        btn.tooltip = L"Громкость";
-        btn.hovered = false;
-        g_trayButtons.push_back(btn);
-
-        if (g_hoveredTrayBtn == (int)g_trayButtons.size() - 1)
-        {
-            SolidBrush hovBr(Colors::TrayHover);
-            g.FillRectangle(&hovBr, (REAL)trayX + 2, (REAL)(trayY + 2),
-                (REAL)(TRAY_ICON_SIZE - 4), (REAL)(trayH - 4));
-        }
-
-        // Иконка громкости
-        SolidBrush volBr(Colors::TextWhite);
-        std::wstring volIcon = g_volumeLevel > 50 ? L"🔊" : (g_volumeLevel > 0 ? L"🔉" : L"🔇");
-        RectF volRect((REAL)trayX, (REAL)(trayY + 2), (REAL)TRAY_ICON_SIZE, (REAL)(trayH - 4));
-        StringFormat sfC;
-        sfC.SetAlignment(StringAlignmentCenter);
-        sfC.SetLineAlignment(StringAlignmentCenter);
-        g.DrawString(volIcon.c_str(), -1, g_fontEmoji, volRect, &sfC, &volBr);
-    }
-
-    // --- Wi-Fi ---
-    trayX -= TRAY_ICON_SIZE;
-    {
-        TrayButton btn;
-        btn.rect = { trayX, trayY, trayX + TRAY_ICON_SIZE, trayY + trayH };
-        btn.tooltip = L"Сеть";
-        btn.hovered = false;
-        g_trayButtons.push_back(btn);
-
-        if (g_hoveredTrayBtn == (int)g_trayButtons.size() - 1)
-        {
-            SolidBrush hovBr(Colors::TrayHover);
-            g.FillRectangle(&hovBr, (REAL)trayX + 2, (REAL)(trayY + 2),
-                (REAL)(TRAY_ICON_SIZE - 4), (REAL)(trayH - 4));
-        }
-
-        SolidBrush wifiBr(g_wifiConnected ? Colors::TextWhite : Color(255, 255, 80, 80));
-        std::wstring wifiIcon = g_wifiConnected ? L"📶" : L"❌";
-        RectF wifiRect((REAL)trayX, (REAL)(trayY + 2), (REAL)TRAY_ICON_SIZE, (REAL)(trayH - 4));
-        g.DrawString(wifiIcon.c_str(), -1, g_fontEmoji, wifiRect, &sfIcon, &wifiBr);
-    }
-
-    // --- Батарея ---
-    trayX -= 50;
-    {
-        TrayButton btn;
-        btn.rect = { trayX, trayY, trayX + 50, trayY + trayH };
-        btn.tooltip = L"Батарея";
-        btn.hovered = false;
-        g_trayButtons.push_back(btn);
-
-        if (g_hoveredTrayBtn == (int)g_trayButtons.size() - 1)
-        {
-            SolidBrush hovBr(Colors::TrayHover);
-            g.FillRectangle(&hovBr, (REAL)trayX + 2, (REAL)(trayY + 2), 46, (REAL)(trayH - 4));
-        }
-
-        // Рисуем батарею
-        int bx = trayX + 8, by = trayY + 14;
-        int bw = 24, bh = 14;
-        Pen battPen(Colors::TextWhite, 1.5f);
-        g.DrawRectangle(&battPen, bx, by, bw, bh);
-        g.FillRectangle(&SolidBrush(Colors::TextWhite), bx + bw, by + 3, 3, bh - 6);
-
-        // Уровень заряда
-        Color battColor = g_batteryLevel > 50 ? Colors::BatteryGreen :
-            (g_batteryLevel > 20 ? Colors::BatteryYellow : Colors::BatteryRed);
-        int fillW = (int)((bw - 4) * g_batteryLevel / 100.0);
-        SolidBrush fillBr(battColor);
-        g.FillRectangle(&fillBr, bx + 2, by + 2, fillW, bh - 4);
-
-        // Процент
-        wchar_t battText[8];
-        swprintf_s(battText, L"%d%%", g_batteryLevel);
-        SolidBrush battTextBr(Colors::TextGray);
-        RectF battTextRect((REAL)(trayX), (REAL)(trayY + 30), 50, 14);
-        StringFormat sfBatt;
-        sfBatt.SetAlignment(StringAlignmentCenter);
-        g.DrawString(battText, -1, g_fontTray, battTextRect, &sfBatt, &battTextBr);
-    }
-
-    // --- Язык ---
-    trayX -= 40;
-    {
-        TrayButton btn;
-        btn.rect = { trayX, trayY, trayX + 40, trayY + trayH };
-        btn.tooltip = L"Язык";
-        btn.hovered = false;
-        g_trayButtons.push_back(btn);
-
-        if (g_hoveredTrayBtn == (int)g_trayButtons.size() - 1)
-        {
-            SolidBrush hovBr(Colors::TrayHover);
-            g.FillRectangle(&hovBr, (REAL)trayX + 2, (REAL)(trayY + 2), 36, (REAL)(trayH - 4));
-        }
-
-        SolidBrush langBr(Colors::TextWhite);
-        RectF langRect((REAL)trayX, (REAL)(trayY + 2), 40, (REAL)(trayH - 4));
-        g.DrawString(g_langStr.c_str(), -1, g_fontTime, langRect, &sfIcon, &langBr);
-    }
-
-    // --- Левая часть: кнопка Пуск с логотипом ---
-    // (уже нарисована в центре)
-}
-
-// ============================================================
-//                    ОТРИСОВКА: МЕНЮ ПУСК
-// ============================================================
-
-void DrawStartMenu(Graphics& g, int w, int h)
-{
-    if (!g_startMenuOpen && g_startMenuAnimProgress <= 0) return;
-
-    float progress = g_startMenuAnimProgress / 100.0f;
-    if (progress <= 0) return;
-
-    int menuX = (w - START_MENU_W) / 2;
-    int menuY = h - TASKBAR_HEIGHT - (int)(START_MENU_H * progress);
-    int menuH = (int)(START_MENU_H * progress);
-
-    // Фон меню с закруглёнными углами
     GraphicsPath path;
-    int radius = 12;
-    path.AddArc(menuX, menuY, radius * 2, radius * 2, 180, 90);
-    path.AddArc(menuX + START_MENU_W - radius * 2, menuY, radius * 2, radius * 2, 270, 90);
-    path.AddLine(menuX + START_MENU_W, menuY + radius, menuX + START_MENU_W, menuY + menuH);
-    path.AddLine(menuX + START_MENU_W, menuY + menuH, menuX, menuY + menuH);
-    path.AddLine(menuX, menuY + menuH, menuX, menuY + radius);
-
-    SolidBrush menuBg(Colors::StartMenuBg);
-    g.FillPath(&menuBg, &path);
-
-    // Рамка
-    Pen borderPen(Color(60, 255, 255, 255), 1);
-    g.DrawPath(&borderPen, &path);
-
-    if (progress < 0.9f) return; // Не рисуем контент пока анимация не завершена
-
-    // --- Поле поиска ---
-    int searchX = menuX + 30;
-    int searchY = menuY + 30;
-    int searchW = START_MENU_W - 60;
-    int searchH = 36;
-
-    SolidBrush searchBg(Colors::StartMenuSearch);
-    GraphicsPath searchPath;
-    int sr = 18;
-    searchPath.AddArc(searchX, searchY, sr * 2, sr * 2, 180, 90);
-    searchPath.AddArc(searchX + searchW - sr * 2, searchY, sr * 2, sr * 2, 270, 90);
-    searchPath.AddArc(searchX + searchW - sr * 2, searchY + searchH - sr * 2, sr * 2, sr * 2, 0, 90);
-    searchPath.AddArc(searchX, searchY + searchH - sr * 2, sr * 2, sr * 2, 90, 90);
-    g.FillPath(&searchBg, &searchPath);
-
-    Pen searchBorder(Color(40, 255, 255, 255), 1);
-    g.DrawPath(&searchBorder, &searchPath);
-
-    // Иконка поиска и текст
-    SolidBrush searchTextBr(Colors::TextDimGray);
-    StringFormat sfLeft;
-    sfLeft.SetAlignment(StringAlignmentNear);
-    sfLeft.SetLineAlignment(StringAlignmentCenter);
-    RectF searchTextRect((REAL)(searchX + 15), (REAL)searchY, (REAL)(searchW - 30), (REAL)searchH);
-    g.DrawString(L"🔍  Введите запрос для поиска", -1, g_fontMenu, searchTextRect, &sfLeft, &searchTextBr);
-
-    // --- Закреплённые приложения ---
-    int secY = searchY + searchH + 25;
-
-    SolidBrush titleBr(Colors::TextWhite);
-    g.DrawString(L"Закреплённые", -1, g_fontMenuTitle,
-        PointF((REAL)(menuX + 30), (REAL)secY), &titleBr);
-
-    SolidBrush moreBr(Colors::TextGray);
-    StringFormat sfRight;
-    sfRight.SetAlignment(StringAlignmentFar);
-    RectF moreRect((REAL)menuX, (REAL)secY, (REAL)(START_MENU_W - 30), 20);
-    g.DrawString(L"Все приложения >", -1, g_fontMenuSmall, moreRect, &sfRight, &moreBr);
-
-    secY += 30;
-
-    int cols = 6;
-    int cellW = (START_MENU_W - 60) / cols;
-    int cellH = 75;
-
-    StringFormat sfCenter;
-    sfCenter.SetAlignment(StringAlignmentCenter);
-    sfCenter.SetLineAlignment(StringAlignmentCenter);
-
-    StringFormat sfCenterName;
-    sfCenterName.SetAlignment(StringAlignmentCenter);
-    sfCenterName.SetTrimming(StringTrimmingEllipsisWord);
-
-    for (int i = 0; i < (int)g_pinnedApps.size() && i < 12; i++)
-    {
-        int col = i % cols;
-        int row = i / cols;
-        int cx = menuX + 30 + col * cellW;
-        int cy = secY + row * cellH;
-
-        // Hover эффект
-        if (g_hoveredStartItem == i)
-        {
-            SolidBrush hovBr(Colors::StartMenuItemHover);
-            GraphicsPath itemPath;
-            int ir = 6;
-            itemPath.AddArc(cx + 4, cy + 2, ir * 2, ir * 2, 180, 90);
-            itemPath.AddArc(cx + cellW - 4 - ir * 2, cy + 2, ir * 2, ir * 2, 270, 90);
-            itemPath.AddArc(cx + cellW - 4 - ir * 2, cy + cellH - 2 - ir * 2, ir * 2, ir * 2, 0, 90);
-            itemPath.AddArc(cx + 4, cy + cellH - 2 - ir * 2, ir * 2, ir * 2, 90, 90);
-            g.FillPath(&hovBr, &itemPath);
-        }
-
-        // Эмодзи
-        SolidBrush emBr(Colors::TextWhite);
-        RectF emRect((REAL)cx, (REAL)(cy + 5), (REAL)cellW, 40);
-        g.DrawString(g_pinnedApps[i].emoji.c_str(), -1, g_fontEmojiLarge, emRect, &sfCenter, &emBr);
-
-        // Название
-        SolidBrush nameBr(Colors::TextGray);
-        RectF nameRect((REAL)(cx + 2), (REAL)(cy + 48), (REAL)(cellW - 4), 22);
-        g.DrawString(g_pinnedApps[i].name.c_str(), -1, g_fontMenuSmall, nameRect, &sfCenterName, &nameBr);
-    }
-
-    // --- Рекомендации ---
-    secY += (((int)g_pinnedApps.size() + cols - 1) / cols) * cellH + 15;
-
-    // Разделитель
-    Pen sepPen(Colors::Separator, 1);
-    g.DrawLine(&sepPen, menuX + 30, secY, menuX + START_MENU_W - 30, secY);
-
-    secY += 15;
-
-    g.DrawString(L"Рекомендации", -1, g_fontMenuTitle,
-        PointF((REAL)(menuX + 30), (REAL)secY), &titleBr);
-    secY += 30;
-
-    for (int i = 0; i < (int)g_recommendedApps.size(); i++)
-    {
-        int ry = secY + i * 40;
-        int rx = menuX + 30;
-
-        // Hover
-        int hoverIdx = 100 + i;
-        if (g_hoveredStartItem == hoverIdx)
-        {
-            SolidBrush hovBr(Colors::StartMenuItemHover);
-            g.FillRectangle(&hovBr, (REAL)rx, (REAL)ry, (REAL)(START_MENU_W - 60), 36);
-        }
-
-        SolidBrush emBr(Colors::TextWhite);
-        g.DrawString(g_recommendedApps[i].emoji.c_str(), -1, g_fontEmoji,
-            PointF((REAL)rx, (REAL)(ry + 4)), &emBr);
-
-        SolidBrush nameBr(Colors::TextWhite);
-        g.DrawString(g_recommendedApps[i].name.c_str(), -1, g_fontMenu,
-            PointF((REAL)(rx + 40), (REAL)(ry + 8)), &nameBr);
-    }
-
-    // --- Нижняя панель: пользователь и выключение ---
-    int footerY = menuY + menuH - 55;
-
-    Pen footSep(Colors::Separator, 1);
-    g.DrawLine(&footSep, menuX + 20, footerY, menuX + START_MENU_W - 20, footerY);
-
-    footerY += 12;
-
-    // Аватар пользователя (круг)
-    SolidBrush avatarBr(Colors::AccentBlue);
-    g.FillEllipse(&avatarBr, menuX + 30, footerY, 32, 32);
-    SolidBrush avatarText(Colors::TextWhite);
-    RectF avatarRect((REAL)(menuX + 30), (REAL)footerY, 32, 32);
-    g.DrawString(L"A", -1, g_fontMenuTitle, avatarRect, &sfCenter, &avatarText);
-
-    // Имя
-    g.DrawString(L"Пользователь", -1, g_fontMenu,
-        PointF((REAL)(menuX + 72), (REAL)(footerY + 7)), &titleBr);
-
-    // Кнопка выключения
-    SolidBrush powerBr(Colors::TextGray);
-    g.DrawString(L"⏻", -1, g_fontEmoji,
-        PointF((REAL)(menuX + START_MENU_W - 60), (REAL)(footerY + 2)), &powerBr);
+    path.AddArc(x, y, radius * 2, radius * 2, 180, 90);
+    path.AddArc(x + width - radius * 2, y, radius * 2, radius * 2, 270, 90);
+    path.AddArc(x + width - radius * 2, y + height - radius * 2, radius * 2, radius * 2, 0, 90);
+    path.AddArc(x, y + height - radius * 2, radius * 2, radius * 2, 90, 90);
+    path.CloseFigure();
+    if (brush) g.FillPath(brush, &path);
+    if (pen) g.DrawPath(pen, &path);
 }
 
-// ============================================================
-//                    ГЛАВНАЯ ОТРИСОВКА
-// ============================================================
-
-void OnPaint(HWND hWnd)
-{
-    PAINTSTRUCT ps;
-    HDC hdc = BeginPaint(hWnd, &ps);
-
-    // Двойная буферизация
-    HDC hdcMem = CreateCompatibleDC(hdc);
-    HBITMAP hbmMem = CreateCompatibleBitmap(hdc, g_screenW, g_screenH);
-    HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
-
-    {
-        Graphics g(hdcMem);
-        g.SetSmoothingMode(SmoothingModeAntiAlias);
-        g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
-
-        InitFonts(g);
-
-        // 1. Рабочий стол
-        DrawDesktop(g, g_screenW, g_screenH);
-
-        // 2. Иконки рабочего стола
-        DrawDesktopIcons(g);
-
-        // 3. Панель задач
-        DrawTaskbar(g, g_screenW, g_screenH);
-
-        // 4. Меню Пуск (поверх всего)
-        DrawStartMenu(g, g_screenW, g_screenH);
-    }
-
-    BitBlt(hdc, 0, 0, g_screenW, g_screenH, hdcMem, 0, 0, SRCCOPY);
-
-    SelectObject(hdcMem, hbmOld);
-    DeleteObject(hbmMem);
-    DeleteDC(hdcMem);
-
-    EndPaint(hWnd, &ps);
-}
-
-// ============================================================
-//                    ОБРАБОТКА МЫШИ
-// ============================================================
-
-int HitTestStartMenuItem(int mx, int my)
-{
-    if (!g_startMenuOpen) return -1;
-
-    int menuX = (g_screenW - START_MENU_W) / 2;
-    int menuY = g_screenH - TASKBAR_HEIGHT - START_MENU_H;
-    int searchH = 36;
-    int secY = menuY + 30 + searchH + 55;
-    int cols = 6;
-    int cellW = (START_MENU_W - 60) / cols;
-    int cellH = 75;
-
-    // Закреплённые
-    for (int i = 0; i < (int)g_pinnedApps.size() && i < 12; i++)
-    {
-        int col = i % cols;
-        int row = i / cols;
-        int cx = menuX + 30 + col * cellW;
-        int cy = secY + row * cellH;
-
-        if (mx >= cx && mx < cx + cellW && my >= cy && my < cy + cellH)
-            return i;
-    }
-
-    // Рекомендации
-    int recY = secY + (((int)g_pinnedApps.size() + cols - 1) / cols) * cellH + 60;
-    for (int i = 0; i < (int)g_recommendedApps.size(); i++)
-    {
-        int ry = recY + i * 40;
-        if (mx >= menuX + 30 && mx < menuX + START_MENU_W - 30 &&
-            my >= ry && my < ry + 36)
-            return 100 + i;
-    }
-
-    return -1;
-}
-
-int HitTestDesktopIcon(int mx, int my)
-{
-    for (int i = 0; i < (int)g_desktopIcons.size(); i++)
-    {
-        auto& icon = g_desktopIcons[i];
-        if (mx >= icon.x - 5 && mx < icon.x + DESKTOP_ICON_SIZE + 5 &&
-            my >= icon.y - 5 && my < icon.y + DESKTOP_ICON_SIZE + 25)
-            return i;
-    }
-    return -1;
-}
-
-int HitTestTrayButton(int mx, int my)
-{
-    for (int i = 0; i < (int)g_trayButtons.size(); i++)
-    {
-        RECT& r = g_trayButtons[i].rect;
-        if (mx >= r.left && mx < r.right && my >= r.top && my < r.bottom)
-            return i;
-    }
-    return -1;
-}
-
-bool IsInTaskbarCenter(int mx, int my)
-{
-    int ty = g_screenH - TASKBAR_HEIGHT;
-    if (my < ty || my > g_screenH) return false;
-
-    int iconBtnW = 46;
-    int iconCount = 7;
-    int totalW = iconCount * iconBtnW;
-    int startX = (g_screenW - totalW) / 2;
-
-    return mx >= startX && mx < startX + iconBtnW; // Только кнопка Пуск (первая)
-}
-
-// ============================================================
-//                    WNDPROC
-// ============================================================
-
-LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
-    case WM_CREATE:
-    {
-        g_screenW = GetSystemMetrics(SM_CXSCREEN);
-        g_screenH = GetSystemMetrics(SM_CYSCREEN);
-
-        InitDesktopIcons();
-        InitStartMenu();
-        UpdateDateTime();
-
-        SetTimer(hWnd, TIMER_CLOCK, 1000, NULL);
-
-        // Загрузка обоев в фоновом потоке
-        CreateThread(NULL, 0, WallpaperDownloadThread, NULL, 0, NULL);
-    }
-    break;
-
-    case WM_TIMER:
-    {
-        if (wParam == TIMER_CLOCK)
-        {
-            UpdateDateTime();
-            InvalidateRect(hWnd, NULL, FALSE);
-        }
-        else if (wParam == TIMER_ANIM)
-        {
-            if (g_startMenuOpen && g_startMenuAnimProgress < 100)
-            {
-                g_startMenuAnimProgress += 12;
-                if (g_startMenuAnimProgress > 100) g_startMenuAnimProgress = 100;
-                InvalidateRect(hWnd, NULL, FALSE);
-            }
-            else if (!g_startMenuOpen && g_startMenuAnimProgress > 0)
-            {
-                g_startMenuAnimProgress -= 15;
-                if (g_startMenuAnimProgress < 0) g_startMenuAnimProgress = 0;
-                InvalidateRect(hWnd, NULL, FALSE);
-            }
-
-            if ((g_startMenuOpen && g_startMenuAnimProgress >= 100) ||
-                (!g_startMenuOpen && g_startMenuAnimProgress <= 0))
-            {
-                KillTimer(hWnd, TIMER_ANIM);
-            }
-        }
-    }
-    break;
-
     case WM_PAINT:
-        OnPaint(hWnd);
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        Graphics g(hdc);
+
+        // Фон на весь экран
+        if (g_bg) g.DrawImage(g_bg, 0, 0, g_w, g_h);
+        else {
+            SolidBrush dark(Color(10, 15, 35));
+            g.FillRectangle(&dark, 0, 0, g_w, g_h);
+        }
+
+        // ==================== НИЖНЯЯ ПАНЕЛЬ (рисованная кодом) ====================
+        int tbH = 68;
+        int tbY = g_h - tbH;
+
+        // Тёмная полупрозрачная основа (как в Win11)
+        SolidBrush tbBrush(Color(235, 32, 32, 32));
+        g.FillRectangle(&tbBrush, 0, tbY, g_w, tbH);
+
+        FontFamily ff(L"Segoe UI");
+        SolidBrush white(Color(255, 255, 255));
+        SolidBrush textBlack(Color(0, 0, 0));
+
+        // 1. Кнопка Пуск (логотип Windows 11 — 4 квадратика)
+        int startX = 12;
+        int iconY = tbY + 10;
+        int iconSz = 48;
+        SolidBrush logo(Color(255, 255, 255));
+        int sq = 11;
+        g.FillRectangle(&logo, startX + 7,  iconY + 7,  sq, sq);
+        g.FillRectangle(&logo, startX + 7 + sq + 4, iconY + 7, sq, sq);
+        g.FillRectangle(&logo, startX + 7, iconY + 7 + sq + 4, sq, sq);
+        g.FillRectangle(&logo, startX + 7 + sq + 4, iconY + 7 + sq + 4, sq, sq);
+
+        // 2. Поисковая строка
+        int searchX = 78;
+        int searchW = 440;
+        int searchH = 38;
+        SolidBrush searchBg(Color(240, 255, 255, 255));
+        Pen searchBorder(Color(80, 80, 80), 1.5f);
+        DrawRoundedRect(g, &searchBg, &searchBorder, searchX, tbY + 14, searchW, searchH, 19);
+
+        // Иконка лупы
+        Font iconFont(&ff, 22, FontStyleRegular, UnitPixel);
+        g.DrawString(L"🔍", -1, &iconFont, PointF(searchX + 12, tbY + 17), &textBlack);
+
+        // Текст "Поиск"
+        Font searchFont(&ff, 16, FontStyleRegular, UnitPixel);
+        StringFormat sf;
+        sf.SetAlignment(StringAlignmentCenter);
+        sf.SetLineAlignment(StringAlignmentCenter);
+        g.DrawString(L"Поиск", -1, &searchFont, RectF(searchX + 50, tbY + 14, searchW - 70, searchH), &sf, &textBlack);
+
+        // 3. Закреплённые иконки приложений (слева)
+        wchar_t* apps[] = { L"👥", L"📁", L"🌐", L"🛍️", L"📝", L"💻", L"📊" };
+        Color appColors[] = { Color(138,43,226), Color(255,215,0), Color(0,120,215), 
+                              Color(0,183,235), Color(0,120,215), Color(0,122,204), Color(138,43,226) };
+        int appsX = searchX + searchW + 30;
+        for (int i = 0; i < 7; i++)
+        {
+            int x = appsX + i * 58;
+            SolidBrush iconBg(appColors[i]);
+            g.FillRectangle(&iconBg, x, iconY, 42, 42);           // фон иконки
+            Font appFont(&ff, 26, FontStyleRegular, UnitPixel);
+            g.DrawString(apps[i], -1, &appFont, PointF(x + 8, iconY + 6), &white);
+        }
+
+        // 4. Системный трей справа
+        int trayRight = g_w - 20;
+        Font trayFont(&ff, 14, FontStyleRegular, UnitPixel);
+        Font clockFont(&ff, 18, FontStyleBold, UnitPixel);
+        Font dateFont(&ff, 11, FontStyleRegular, UnitPixel);
+
+        // Стрелка скрытых иконок
+        g.DrawString(L"▲", -1, &trayFont, PointF(trayRight - 340, tbY + 22), &white);
+
+        // РУС
+        SolidBrush rusBg(Color(255, 255, 255));
+        g.FillRectangle(&rusBg, trayRight - 310, tbY + 18, 46, 32);
+        g.DrawString(L"РУС", -1, &trayFont, PointF(trayRight - 305, tbY + 23), &textBlack);
+
+        // Иконки трея
+        g.DrawString(L"📶", -1, &iconFont, PointF(trayRight - 250, tbY + 18), &white);
+        g.DrawString(L"🔊", -1, &iconFont, PointF(trayRight - 205, tbY + 18), &white);
+        g.DrawString(L"🔋", -1, &iconFont, PointF(trayRight - 160, tbY + 18), &white);
+
+        // Часы и дата (живые)
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        wchar_t timeBuf[6], dateBuf[11];
+        swprintf_s(timeBuf, L"%02d:%02d", st.wHour, st.wMinute);
+        swprintf_s(dateBuf, L"%02d.%02d.%04d", st.wDay, st.wMonth, st.wYear);
+
+        g.DrawString(timeBuf, -1, &clockFont, PointF(trayRight - 110, tbY + 10), &white);
+        g.DrawString(dateBuf, -1, &dateFont, PointF(trayRight - 115, tbY + 38), &white);
+
+        EndPaint(hwnd, &ps);
         return 0;
-
-    case WM_ERASEBKGND:
-        return 1;
-
-    case WM_MOUSEMOVE:
-    {
-        int mx = LOWORD(lParam);
-        int my = HIWORD(lParam);
-
-        bool needRedraw = false;
-
-        // Hover на иконках рабочего стола
-        int newHoverIcon = HitTestDesktopIcon(mx, my);
-        if (newHoverIcon != g_hoveredDesktopIcon) {
-            g_hoveredDesktopIcon = newHoverIcon;
-            needRedraw = true;
-        }
-
-        // Hover на пунктах меню Пуск
-        int newHoverStart = HitTestStartMenuItem(mx, my);
-        if (newHoverStart != g_hoveredStartItem) {
-            g_hoveredStartItem = newHoverStart;
-            needRedraw = true;
-        }
-
-        // Hover на кнопках трея
-        int newHoverTray = HitTestTrayButton(mx, my);
-        if (newHoverTray != g_hoveredTrayBtn) {
-            g_hoveredTrayBtn = newHoverTray;
-            needRedraw = true;
-        }
-
-        if (needRedraw) InvalidateRect(hWnd, NULL, FALSE);
     }
-    break;
-
-    case WM_LBUTTONDOWN:
-    {
-        int mx = LOWORD(lParam);
-        int my = HIWORD(lParam);
-
-        // Клик по кнопке Пуск
-        if (IsInTaskbarCenter(mx, my))
-        {
-            g_startMenuOpen = !g_startMenuOpen;
-            SetTimer(hWnd, TIMER_ANIM, 16, NULL);
-            InvalidateRect(hWnd, NULL, FALSE);
-            return 0;
-        }
-
-        // Клик по меню Пуск
-        if (g_startMenuOpen)
-        {
-            int menuX = (g_screenW - START_MENU_W) / 2;
-            int menuY = g_screenH - TASKBAR_HEIGHT - START_MENU_H;
-
-            if (mx >= menuX && mx < menuX + START_MENU_W &&
-                my >= menuY && my < menuY + START_MENU_H)
-            {
-                int item = HitTestStartMenuItem(mx, my);
-                if (item >= 0 && item < 100)
-                {
-                    MessageBoxW(hWnd, g_pinnedApps[item].name.c_str(), L"Запуск приложения", MB_OK);
-                    g_startMenuOpen = false;
-                    SetTimer(hWnd, TIMER_ANIM, 16, NULL);
-                }
-                return 0;
-            }
-            else
-            {
-                // Клик вне меню — закрыть
-                g_startMenuOpen = false;
-                SetTimer(hWnd, TIMER_ANIM, 16, NULL);
-                InvalidateRect(hWnd, NULL, FALSE);
-            }
-        }
-
-        // Клик по иконке рабочего стола
-        int clickedIcon = HitTestDesktopIcon(mx, my);
-        g_selectedDesktopIcon = clickedIcon;
-        InvalidateRect(hWnd, NULL, FALSE);
-
-        // Клик по кнопкам трея
-        int clickedTray = HitTestTrayButton(mx, my);
-        if (clickedTray == 0) // Часы
-        {
-            std::wstring info = g_dayStr + L", " + g_dateStr + L"\n" + g_timeStr;
-            MessageBoxW(hWnd, info.c_str(), L"Дата и время", MB_OK);
-        }
-        else if (clickedTray == 1) // Громкость
-        {
-            g_volumeLevel = (g_volumeLevel > 0) ? 0 : 65;
-            InvalidateRect(hWnd, NULL, FALSE);
-        }
-        else if (clickedTray == 2) // Wi-Fi
-        {
-            g_wifiConnected = !g_wifiConnected;
-            InvalidateRect(hWnd, NULL, FALSE);
-        }
-        else if (clickedTray == 4) // Язык
-        {
-            g_langStr = (g_langStr == L"RUS") ? L"ENG" : L"RUS";
-            InvalidateRect(hWnd, NULL, FALSE);
-        }
-    }
-    break;
-
-    case WM_LBUTTONDBLCLK:
-    {
-        int mx = LOWORD(lParam);
-        int my = HIWORD(lParam);
-
-        int clickedIcon = HitTestDesktopIcon(mx, my);
-        if (clickedIcon >= 0)
-        {
-            MessageBoxW(hWnd, g_desktopIcons[clickedIcon].name.c_str(),
-                L"Открытие", MB_OK);
-        }
-    }
-    break;
 
     case WM_KEYDOWN:
-    {
-        if (wParam == VK_ESCAPE)
-        {
-            if (g_startMenuOpen)
-            {
-                g_startMenuOpen = false;
-                SetTimer(hWnd, TIMER_ANIM, 16, NULL);
-            }
-            else
-            {
-                if (MessageBoxW(hWnd, L"Выйти из системы?", L"MyAstra OS",
-                    MB_YESNO | MB_ICONQUESTION) == IDYES)
-                    PostQuitMessage(0);
-            }
-        }
-        else if (wParam == VK_LWIN || wParam == VK_RWIN)
-        {
-            g_startMenuOpen = !g_startMenuOpen;
-            SetTimer(hWnd, TIMER_ANIM, 16, NULL);
-            InvalidateRect(hWnd, NULL, FALSE);
-        }
-    }
-    break;
+        if (wParam == VK_ESCAPE) DestroyWindow(hwnd);
+        return 0;
 
     case WM_DESTROY:
-    {
-        KillTimer(hWnd, TIMER_CLOCK);
-        KillTimer(hWnd, TIMER_ANIM);
-
-        delete g_wallpaperImg;
-        delete g_fontTime; delete g_fontDate; delete g_fontTray;
-        delete g_fontMenu; delete g_fontMenuTitle; delete g_fontMenuSmall;
-        delete g_fontDesktopIcon; delete g_fontEmoji; delete g_fontEmojiLarge;
-        delete g_fontFamily; delete g_fontFamilyEmoji;
-
-        if (!g_tempWallpaperPath.empty())
-            DeleteFileW(g_tempWallpaperPath.c_str());
-
+        delete g_bg;
+        ShowWindow(FindWindow(L"Shell_TrayWnd", NULL), SW_SHOW); // возвращаем настоящую панель
         PostQuitMessage(0);
+        return 0;
     }
-    break;
-
-    default:
-        return DefWindowProcW(hWnd, msg, wParam, lParam);
-    }
-    return 0;
+    return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-// ============================================================
-//                    ТОЧКА ВХОДА
-// ============================================================
-
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
+int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int)
 {
-    g_hInst = hInstance;
+    GdiplusStartupInput gsi;
+    ULONG_PTR gdiToken;
+    GdiplusStartup(&gdiToken, &gsi, NULL);
 
-    // GDI+
-    GdiplusStartupInput gdipInput;
-    GdiplusStartup(&g_gdipToken, &gdipInput, NULL);
-    CoInitialize(NULL);
+    g_w = GetSystemMetrics(SM_CXSCREEN);
+    g_h = GetSystemMetrics(SM_CYSCREEN);
 
-    // Регистрация класса окна
-    WNDCLASSEXW wc = {};
-    wc.cbSize = sizeof(WNDCLASSEXW);
-    wc.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+    g_bg = new Image(L"background.jpg");   // ← твоя фотка сюда
+
+    // Прячем настоящую панель Windows
+    HWND realTB = FindWindow(L"Shell_TrayWnd", NULL);
+    if (realTB) ShowWindow(realTB, SW_HIDE);
+
+    WNDCLASS wc = {};
     wc.lpfnWndProc = WndProc;
-    wc.hInstance = hInstance;
+    wc.hInstance = hInst;
+    wc.lpszClassName = L"FakeOS2026";
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
-    wc.lpszClassName = L"MyAstraOS";
-    RegisterClassExW(&wc);
+    RegisterClass(&wc);
 
-    // Полноэкранное окно
-    g_screenW = GetSystemMetrics(SM_CXSCREEN);
-    g_screenH = GetSystemMetrics(SM_CYSCREEN);
+    HWND hwnd = CreateWindowEx(WS_EX_TOPMOST, L"FakeOS2026", L"Grok OS 2026",
+        WS_POPUP, 0, 0, g_w, g_h, NULL, NULL, hInst, NULL);
 
-    g_hWnd = CreateWindowExW(
-        WS_EX_TOPMOST,
-        L"MyAstraOS",
-        L"MyAstra OS",
-        WS_POPUP | WS_VISIBLE,
-        0, 0, g_screenW, g_screenH,
-        NULL, NULL, hInstance, NULL
-    );
+    ShowWindow(hwnd, SW_SHOWMAXIMIZED);
+    UpdateWindow(hwnd);
 
-    ShowWindow(g_hWnd, SW_SHOWMAXIMIZED);
-    UpdateWindow(g_hWnd);
-
-    // Цикл сообщений
     MSG msg;
-    while (GetMessageW(&msg, NULL, 0, 0))
+    while (GetMessage(&msg, NULL, 0, 0))
     {
         TranslateMessage(&msg);
-        DispatchMessageW(&msg);
+        DispatchMessage(&msg);
     }
 
-    GdiplusShutdown(g_gdipToken);
-    CoUninitialize();
-
-    return (int)msg.wParam;
+    GdiplusShutdown(gdiToken);
+    return 0;
 }
