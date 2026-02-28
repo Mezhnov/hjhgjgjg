@@ -1,334 +1,821 @@
-#include <iostream>
+/*
+ * ============================================================================
+ *  PROJECT: MyWindows OS Simulation (ULTIMATE VERSION - FIXED)
+ *  FEATURES: Красивое время, стильное меню ПУСК, иконки, анимации
+ *  FIXED: Исправлена загрузка обоев (убраны пробелы из URL, улучшена обработка)
+ * ============================================================================
+ */
+
+#pragma comment(linker, "/SUBSYSTEM:WINDOWS /ENTRY:WinMainCRTStartup")
+
 #include <windows.h>
+#include <gdiplus.h>
+#include <wininet.h>
 #include <string>
-#include <fstream>
-#include <shellapi.h>
-#include <direct.h>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
+#include <urlmon.h>
 
-#pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "wininet.lib")
+#pragma comment(lib, "urlmon.lib")
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "uuid.lib")
+#pragma comment(lib, "Msimg32.lib")
 
-using namespace std;
+ // ==================== КОНСТАНТЫ ====================
+const COLORREF COLOR_TASKBAR = RGB(24, 24, 24);
+const COLORREF COLOR_TASKBAR_HOVER = RGB(50, 50, 50);
+const COLORREF COLOR_START_BTN = RGB(0, 120, 215);
+const COLORREF COLOR_START_HOVER = RGB(0, 140, 235);
+const COLORREF COLOR_TEXT_WHITE = RGB(255, 255, 255);
+const COLORREF COLOR_TEXT_GRAY = RGB(180, 180, 180);
+const COLORREF COLOR_MENU_BG = RGB(32, 32, 32);
+const COLORREF COLOR_MENU_ITEM_HOVER = RGB(60, 60, 60);
+const COLORREF COLOR_ACCENT = RGB(0, 120, 215);
 
-// ===== НАСТРОЙКИ =====
-const int DEFAULT_DELAY = 50;
-const int PYCHARM_WAIT_SEC = 12;
-const bool CLEAR_FILE_FIRST = true;
+const int TASKBAR_HEIGHT = 48;
+const int START_BTN_WIDTH = 120;
+const int CLOCK_WIDTH = 200;
+const int LANG_WIDTH = 70;
+const int START_MENU_WIDTH = 350;
+const int START_MENU_HEIGHT = 500;
 
-// ===== ОТПРАВКА КЛАВИШ =====
-void sendUnicodeChar(wchar_t wc) {
-    INPUT input[2] = {};
-    input[0].type = INPUT_KEYBOARD;
-    input[0].ki.wScan = wc;
-    input[0].ki.dwFlags = KEYEVENTF_UNICODE;
-    input[1].type = INPUT_KEYBOARD;
-    input[1].ki.wScan = wc;
-    input[1].ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
-    SendInput(2, input, sizeof(INPUT));
+// ✅ ИСПРАВЛЕНО: Убраны пробелы в конце URL
+const wchar_t* WALLPAPER_URL = L"https://get.pxhere.com/photo/wilderness-prairie-adventure-travel-wildlife-wild-herd-natural-africa-park-mammal-fauna-savanna-plain-giraffe-grassland-tanzania-safari-ecosystem-serengeti-giraffidae-566643.jpg";
+
+const UINT ID_TIMER_CLOCK = 1;
+const UINT ID_MENU_ITEM_BASE = 200;
+
+// ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
+HWND g_hWndMain = NULL;
+HWND g_hWndTaskbar = NULL;
+HWND g_hWndStart = NULL;
+HWND g_hWndClock = NULL;
+HWND g_hWndDate = NULL;
+HWND g_hWndLang = NULL;
+HWND g_hWndStartMenu = NULL;
+
+HDC  g_hdcMemory = NULL;
+HBITMAP g_hbmMemory = NULL;
+HBITMAP g_hbmWallpaper = NULL;
+
+bool g_bWallpaperLoaded = false;
+bool g_bStartMenuOpen = false;
+int  g_iHoveredMenuItem = -1;
+
+std::wstring g_sCurrentLang = L"RU";
+std::wstring g_sCurrentTime = L"00:00";
+std::wstring g_sCurrentDate = L"01.01.2023";
+std::wstring g_sCurrentDay = L"Понедельник";
+
+// ✅ ИСПРАВЛЕНО: Используем переменную для пути к временному файлу
+std::wstring g_sTempImagePath;
+
+HANDLE g_hDownloadThread = NULL;
+HFONT g_hFontTime = NULL;
+HFONT g_hFontDate = NULL;
+HFONT g_hFontMenu = NULL;
+HFONT g_hFontMenuBold = NULL;
+
+// Структура пункта меню
+struct MenuItem {
+    const wchar_t* icon;
+    const wchar_t* text;
+    int id;
+    bool isSeparator;
+};
+
+MenuItem g_menuItems[] = {
+    { L"📁", L"Проводник", 201, false },
+    { L"🌐", L"Браузер", 202, false },
+    { L"📧", L"Почта", 203, false },
+    { L"📷", L"Фотографии", 204, false },
+    { L"🎵", L"Музыка", 205, false },
+    { L"🎮", L"Игры", 206, false },
+    { L"", L"", 0, true },
+    { L"⚙️", L"Параметры", 207, false },
+    { L"📝", L"Блокнот", 208, false },
+    { L"🧮", L"Калькулятор", 209, false },
+    { L"", L"", 0, true },
+    { L"🔌", L"Завершение работы", 210, false }
+};
+const int MENU_ITEM_COUNT = sizeof(g_menuItems) / sizeof(MenuItem);
+
+// ==================== СИСТЕМНЫЕ ФУНКЦИИ ====================
+void UpdateDateTime()
+{
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+
+    // Время
+    std::wstringstream ssTime;
+    ssTime << std::setfill(L'0') << std::setw(2) << st.wHour << L":"
+        << std::setfill(L'0') << std::setw(2) << st.wMinute;
+    g_sCurrentTime = ssTime.str();
+
+    // Дата
+    std::wstringstream ssDate;
+    ssDate << std::setfill(L'0') << std::setw(2) << st.wDay << L"."
+        << std::setfill(L'0') << std::setw(2) << st.wMonth << L"."
+        << st.wYear;
+    g_sCurrentDate = ssDate.str();
+
+    // День недели
+    const wchar_t* days[] = { L"Воскресенье", L"Понедельник", L"Вторник", L"Среда",
+                              L"Четверг", L"Пятница", L"Суббота" };
+    g_sCurrentDay = days[st.wDayOfWeek];
+
+    // Обновляем отображение
+    if (g_hWndClock) SetWindowTextW(g_hWndClock, g_sCurrentTime.c_str());
+    if (g_hWndDate)
+    {
+        std::wstring sDateFull = g_sCurrentDate + L", " + g_sCurrentDay;
+        SetWindowTextW(g_hWndDate, sDateFull.c_str());
+    }
 }
 
-void sendKey(WORD vk, bool extended = false) {
-    INPUT input[2] = {};
-    input[0].type = INPUT_KEYBOARD;
-    input[0].ki.wVk = vk;
-    if (extended) input[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
-    input[1].type = INPUT_KEYBOARD;
-    input[1].ki.wVk = vk;
-    input[1].ki.dwFlags = KEYEVENTF_KEYUP | (extended ? KEYEVENTF_EXTENDEDKEY : 0);
-    SendInput(2, input, sizeof(INPUT));
-}
+// ==================== ЗАГРУЗКА ОБОЕВ ====================
+class ImageDownloader
+{
+public:
+    static DWORD WINAPI DownloadThreadProc(LPVOID lpParam)
+    {
+        // ✅ ИСПРАВЛЕНО: Получаем временную папку Windows
+        wchar_t tempPath[MAX_PATH];
+        GetTempPathW(MAX_PATH, tempPath);
+        g_sTempImagePath = std::wstring(tempPath) + L"myos_wallpaper.jpg";
 
-void sendCtrl(char key) {
-    keybd_event(VK_CONTROL, 0, 0, 0);
-    keybd_event(toupper(key), 0, 0, 0);
-    keybd_event(toupper(key), 0, KEYEVENTF_KEYUP, 0);
-    keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
-}
+        // ✅ ИСПРАВЛЕНО: Загрузка с проверкой ошибки
+        HRESULT hr = URLDownloadToFileW(NULL, WALLPAPER_URL, g_sTempImagePath.c_str(), 0, NULL);
 
-void sendEnter() { sendKey(VK_RETURN); }
-void sendTab() { sendKey(VK_TAB); }
-void sendEscape() { sendKey(VK_ESCAPE); }
-
-// ===== УПРАВЛЕНИЕ ОКНАМИ =====
-bool waitForWindow(const wchar_t* titlePart, int timeoutSec = 30) {
-    HWND hwnd = NULL;
-    for (int i = 0; i < timeoutSec * 2; i++) {
-        hwnd = FindWindowW(NULL, titlePart);
-        if (hwnd) {
-            SetForegroundWindow(hwnd);
-            return true;
+        if (hr != S_OK)
+        {
+            // Загрузка не удалась - используем градиент
+            g_bWallpaperLoaded = false;
+            if (g_hWndMain) InvalidateRect(g_hWndMain, NULL, TRUE);
+            return 0;
         }
-        // Поиск по частичному совпадению
-        EnumWindows([](HWND h, LPARAM lp) -> BOOL {
-            wchar_t title[512];
-            GetWindowTextW(h, title, 512);
-            if (wcsstr(title, (const wchar_t*)lp)) {
-                SetForegroundWindow(h);
-                return FALSE;
+
+        // Инициализируем GDI+
+        Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+        ULONG_PTR gdiplusToken;
+        Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
+        // ✅ ИСПРАВЛЕНО: Загружаем изображение с проверкой
+        Gdiplus::Bitmap* bitmap = Gdiplus::Bitmap::FromFile(g_sTempImagePath.c_str());
+        if (bitmap && bitmap->GetLastStatus() == Gdiplus::Ok)
+        {
+            HBITMAP hTempBitmap = NULL;
+            // ✅ ИСПРАВЛЕНО: Используем белый фон вместо прозрачного
+            bitmap->GetHBITMAP(Gdiplus::Color(255, 255, 255, 255), &hTempBitmap);
+
+            if (hTempBitmap)
+            {
+                if (g_hbmWallpaper) DeleteObject(g_hbmWallpaper);
+                g_hbmWallpaper = hTempBitmap;
+                g_bWallpaperLoaded = true;
+
+                if (g_hWndMain) InvalidateRect(g_hWndMain, NULL, TRUE);
             }
-            return TRUE;
-            }, (LPARAM)titlePart);
-
-        Sleep(500);
-    }
-    return false;
-}
-
-bool activatePyCharm() {
-    cout << "[*] Поиск окна PyCharm... ";
-    if (waitForWindow(L"PyCharm", 20)) {
-        cout << "NAIDENO\n";
-        Sleep(500);
-        HWND hwnd = FindWindowW(NULL, L"PyCharm");
-        if (!hwnd) {
-            EnumWindows([](HWND h, LPARAM) -> BOOL {
-                wchar_t title[512];
-                GetWindowTextW(h, title, 512);
-                if (wcsstr(title, L"PyCharm")) {
-                    SetForegroundWindow(h);
-                    return FALSE;
-                }
-                return TRUE;
-                }, 0);
         }
-        return true;
+
+        delete bitmap;
+        Gdiplus::GdiplusShutdown(gdiplusToken);
+        return 0;
     }
-    cout << "NE NAIDENO\n";
-    return false;
+};
+
+// ==================== МЕНЮ ПУСК ====================
+void CreateStartMenu(HWND hWndParent, HINSTANCE hInst)
+{
+    g_hWndStartMenu = CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_LAYERED,
+        L"STATIC",
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        0, 0, START_MENU_WIDTH, START_MENU_HEIGHT,
+        hWndParent, NULL, hInst, NULL
+    );
 }
 
-// ===== НАВИГАЦИЯ В PYCHARM =====
-void openFileInPyCharm(const string& filename) {
-    cout << "[*] Otkrivayu fail " << filename << " v redaktore...\n";
+void ToggleStartMenu()
+{
+    if (g_hWndStartMenu)
+    {
+        g_bStartMenuOpen = !g_bStartMenuOpen;
+        ShowWindow(g_hWndStartMenu, g_bStartMenuOpen ? SW_SHOW : SW_HIDE);
 
-    sendCtrl('O');
-    Sleep(800);
+        // Анимация появления
+        if (g_bStartMenuOpen)
+        {
+            for (int i = 0; i <= 255; i += 25)
+            {
+                SetLayeredWindowAttributes(g_hWndStartMenu, 0, (BYTE)i, LWA_ALPHA);
+                Sleep(10);
+            }
+        }
 
-    // Печатаем имя файла посимвольно
-    for (char c : filename) {
-        sendUnicodeChar(static_cast<wchar_t>(c));
-        Sleep(30);
+        SetFocus(g_hWndMain);
+        InvalidateRect(g_hWndStartMenu, NULL, TRUE);
     }
-    Sleep(300);
-
-    sendEnter(); // Открыть файл
-    Sleep(1000);
-
-    sendEnter(); // Подтвердить создание если нужно
-    Sleep(500);
-
-    sendEscape(); // Закрыть панели
-    Sleep(300);
-
-    activatePyCharm();
-    Sleep(200);
 }
 
-void clearFileContent() {
-    sendCtrl('A');
-    Sleep(200);
-    sendKey(VK_DELETE);
-    Sleep(300);
+void CloseStartMenu()
+{
+    if (g_bStartMenuOpen && g_hWndStartMenu)
+    {
+        // Анимация исчезновения
+        for (int i = 255; i >= 0; i -= 25)
+        {
+            SetLayeredWindowAttributes(g_hWndStartMenu, 0, (BYTE)i, LWA_ALPHA);
+            Sleep(10);
+        }
+
+        g_bStartMenuOpen = false;
+        ShowWindow(g_hWndStartMenu, SW_HIDE);
+        SetLayeredWindowAttributes(g_hWndStartMenu, 0, 255, LWA_ALPHA);
+    }
 }
 
-// ===== ПЕЧАТЬ С АНИМАЦИЕЙ =====
-void typeWithAnimation(const wstring& text, int delayMs) {
-    cout << "\n[>] NACHINAYU PECHAT'! Smotri na PyCharm\n\n";
+// ==================== WNDPROC МЕНЮ ПУСК ====================
+LRESULT CALLBACK StartMenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hWnd, &ps);
+        RECT rc;
+        GetClientRect(hWnd, &rc);
 
-    for (size_t i = 0; i < text.size(); i++) {
-        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
-            cout << "\n[!] Ostanovleno polzovatelem\n";
+        // Градиентный фон меню
+        TRIVERTEX vertex[2];
+        GRADIENT_RECT gRect;
+        vertex[0].x = 0; vertex[0].y = 0;
+        vertex[0].Red = 0x2800; vertex[0].Green = 0x2800; vertex[0].Blue = 0x2800;
+        vertex[1].x = rc.right; vertex[1].y = rc.bottom;
+        vertex[1].Red = 0x1800; vertex[1].Green = 0x1800; vertex[1].Blue = 0x1800;
+        gRect.UpperLeft = 0; gRect.LowerRight = 1;
+        GradientFill(hdc, vertex, 2, &gRect, 1, GRADIENT_FILL_RECT_V);
+
+        // Боковая панель (синяя)
+        HBRUSH hBrushAccent = CreateSolidBrush(COLOR_ACCENT);
+        RECT rcSide = { 0, 0, 5, rc.bottom };
+        FillRect(hdc, &rcSide, hBrushAccent);
+        DeleteObject(hBrushAccent);
+
+        // Заголовок с именем пользователя
+        HBRUSH hBrushHeader = CreateSolidBrush(RGB(40, 40, 40));
+        RECT rcHeader = { 5, 0, rc.right, 80 };
+        FillRect(hdc, &rcHeader, hBrushHeader);
+        DeleteObject(hBrushHeader);
+
+        // Иконка пользователя (круг)
+        HBRUSH hBrushUser = CreateSolidBrush(COLOR_ACCENT);
+        HPEN hPenNone = CreatePen(PS_NULL, 0, 0);
+        SelectObject(hdc, hBrushUser);
+        SelectObject(hdc, hPenNone);
+        Ellipse(hdc, 20, 15, 60, 55);
+        DeleteObject(hBrushUser);
+        DeleteObject(hPenNone);
+
+        // Текст пользователя
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, COLOR_TEXT_WHITE);
+
+        if (!g_hFontMenuBold)
+            g_hFontMenuBold = CreateFontW(16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+
+        HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontMenuBold);
+        TextOutW(hdc, 70, 25, L"Пользователь", 10);
+
+        if (!g_hFontMenu)
+            g_hFontMenu = CreateFontW(13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+        SelectObject(hdc, g_hFontMenu);
+        SetTextColor(hdc, COLOR_TEXT_GRAY);
+        TextOutW(hdc, 70, 50, L"admin@myastra.local", 19);
+        SelectObject(hdc, hOldFont);
+
+        // Линия разделитель
+        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(50, 50, 50));
+        SelectObject(hdc, hPen);
+        MoveToEx(hdc, 5, 80, NULL);
+        LineTo(hdc, rc.right, 80);
+        DeleteObject(hPen);
+
+        // Пункты меню
+        int yPos = 95;
+        int itemHeight = 45;
+
+        for (int i = 0; i < MENU_ITEM_COUNT; i++)
+        {
+            if (g_menuItems[i].isSeparator)
+            {
+                yPos += 15;
+                HPEN hPenSep = CreatePen(PS_SOLID, 1, RGB(50, 50, 50));
+                SelectObject(hdc, hPenSep);
+                MoveToEx(hdc, 15, yPos - 5, NULL);
+                LineTo(hdc, rc.right - 10, yPos - 5);
+                DeleteObject(hPenSep);
+                yPos += 10;
+                continue;
+            }
+
+            RECT rcItem = { 10, yPos, rc.right - 10, yPos + itemHeight };
+
+            // Подсветка при наведении
+            if (i == g_iHoveredMenuItem)
+            {
+                HBRUSH hBrushHover = CreateSolidBrush(COLOR_MENU_ITEM_HOVER);
+                FillRect(hdc, &rcItem, hBrushHover);
+                DeleteObject(hBrushHover);
+            }
+
+            // Иконка
+            SetTextColor(hdc, COLOR_TEXT_WHITE);
+            SelectObject(hdc, g_hFontMenu);
+            TextOutW(hdc, 20, yPos + 12, g_menuItems[i].icon, wcslen(g_menuItems[i].icon));
+
+            // Текст
+            TextOutW(hdc, 55, yPos + 14, g_menuItems[i].text, wcslen(g_menuItems[i].text));
+
+            yPos += itemHeight;
+        }
+
+        // Кнопка завершения внизу
+        RECT rcFooter = { 5, rc.bottom - 40, rc.right - 5, rc.bottom };
+        HBRUSH hBrushFooter = CreateSolidBrush(RGB(40, 40, 40));
+        FillRect(hdc, &rcFooter, hBrushFooter);
+        DeleteObject(hBrushFooter);
+
+        SetTextColor(hdc, COLOR_TEXT_WHITE);
+        TextOutW(hdc, 20, rc.bottom - 32, L"🔌 Завершение работы", 24);
+
+        EndPaint(hWnd, &ps);
+    }
+    break;
+
+    case WM_MOUSEMOVE:
+    {
+        POINT pt;
+        GetCursorPos(&pt);
+        ScreenToClient(hWnd, &pt);
+
+        int yPos = 95;
+        int itemHeight = 45;
+        int newHover = -1;
+
+        for (int i = 0; i < MENU_ITEM_COUNT; i++)
+        {
+            if (g_menuItems[i].isSeparator) { yPos += 25; continue; }
+
+            if (pt.y >= yPos && pt.y < yPos + itemHeight && pt.x >= 10 && pt.x <= 340)
+            {
+                newHover = i;
+            }
+            yPos += itemHeight;
+        }
+
+        if (newHover != g_iHoveredMenuItem)
+        {
+            g_iHoveredMenuItem = newHover;
+            InvalidateRect(hWnd, NULL, TRUE);
+        }
+    }
+    break;
+
+    case WM_LBUTTONDOWN:
+    {
+        POINT pt;
+        GetCursorPos(&pt);
+        ScreenToClient(hWnd, &pt);
+
+        int yPos = 95;
+        int itemHeight = 45;
+
+        for (int i = 0; i < MENU_ITEM_COUNT; i++)
+        {
+            if (g_menuItems[i].isSeparator) { yPos += 25; continue; }
+
+            if (pt.y >= yPos && pt.y < yPos + itemHeight && pt.x >= 10 && pt.x <= 340)
+            {
+                // Обработка клика по пункту меню
+                switch (g_menuItems[i].id)
+                {
+                case 210: // Завершение работы
+                    if (MessageBoxW(g_hWndMain,
+                        L"Вы действительно хотите завершить работу?",
+                        L"Завершение работы", MB_YESNO | MB_ICONQUESTION) == IDYES)
+                    {
+                        PostQuitMessage(0);
+                    }
+                    break;
+                case 207: // Параметры
+                    MessageBoxW(g_hWndMain, L"Открытие параметров системы...", L"Параметры", MB_OK);
+                    break;
+                case 201: // Проводник
+                    MessageBoxW(g_hWndMain, L"Открытие проводника...", L"Проводник", MB_OK);
+                    break;
+                default:
+                    MessageBoxW(g_hWndMain, g_menuItems[i].text, L"Запуск", MB_OK);
+                }
+                CloseStartMenu();
+                break;
+            }
+            yPos += itemHeight;
+        }
+    }
+    break;
+
+    case WM_MOUSELEAVE:
+        g_iHoveredMenuItem = -1;
+        InvalidateRect(hWnd, NULL, TRUE);
+        break;
+
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    return 0;
+}
+
+// ==================== WNDPROC ЧАСОВ ====================
+LRESULT CALLBACK ClockProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hWnd, &ps);
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, COLOR_TEXT_WHITE);
+
+        if (!g_hFontTime)
+            g_hFontTime = CreateFontW(15, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+
+        HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontTime);
+
+        wchar_t text[100];
+        GetWindowTextW(hWnd, text, 100);
+
+        DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+        SelectObject(hdc, hOldFont);
+        EndPaint(hWnd, &ps);
+    }
+    break;
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    return 0;
+}
+
+// ==================== WNDPROC ДАТЫ ====================
+LRESULT CALLBACK DateProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hWnd, &ps);
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, COLOR_TEXT_GRAY);
+
+        if (!g_hFontDate)
+            g_hFontDate = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+
+        HFONT hOldFont = (HFONT)SelectObject(hdc, g_hFontDate);
+
+        wchar_t text[100];
+        GetWindowTextW(hWnd, text, 100);
+
+        DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+        SelectObject(hdc, hOldFont);
+        EndPaint(hWnd, &ps);
+    }
+    break;
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    return 0;
+}
+
+// ==================== ОСНОВНОЙ WNDPROC ====================
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_CREATE:
+    {
+        SetTimer(hWnd, ID_TIMER_CLOCK, 1000, NULL);
+        g_hDownloadThread = CreateThread(NULL, 0, ImageDownloader::DownloadThreadProc, NULL, 0, NULL);
+
+        UpdateDateTime();
+
+        g_hFontTime = CreateFontW(15, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+        g_hFontDate = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+        g_hFontMenu = CreateFontW(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+        g_hFontMenuBold = CreateFontW(14, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+
+        SendMessage(g_hWndStart, WM_SETFONT, (WPARAM)g_hFontMenuBold, TRUE);
+        SendMessage(g_hWndLang, WM_SETFONT, (WPARAM)g_hFontMenu, TRUE);
+        SendMessage(g_hWndClock, WM_SETFONT, (WPARAM)g_hFontTime, TRUE);
+        SendMessage(g_hWndDate, WM_SETFONT, (WPARAM)g_hFontDate, TRUE);
+    }
+    break;
+
+    case WM_SIZE:
+    {
+        RECT rcParent;
+        GetClientRect(hWnd, &rcParent);
+        int width = rcParent.right - rcParent.left;
+        int height = rcParent.bottom - rcParent.top;
+
+        if (g_hWndTaskbar)
+            MoveWindow(g_hWndTaskbar, 0, height - TASKBAR_HEIGHT, width, TASKBAR_HEIGHT, TRUE);
+
+        if (g_hWndStart)
+            MoveWindow(g_hWndStart, 0, 4, START_BTN_WIDTH, TASKBAR_HEIGHT - 8, TRUE);
+
+        if (g_hWndLang)
+            MoveWindow(g_hWndLang, width - LANG_WIDTH - CLOCK_WIDTH - 220, 6, LANG_WIDTH, TASKBAR_HEIGHT - 12, TRUE);
+
+        if (g_hWndClock)
+            MoveWindow(g_hWndClock, width - CLOCK_WIDTH - LANG_WIDTH - 10, 4, CLOCK_WIDTH, 22, TRUE);
+
+        if (g_hWndDate)
+            MoveWindow(g_hWndDate, width - CLOCK_WIDTH - LANG_WIDTH - 10, 24, CLOCK_WIDTH, 20, TRUE);
+
+        if (g_hWndStartMenu)
+            MoveWindow(g_hWndStartMenu, 0, height - TASKBAR_HEIGHT - START_MENU_HEIGHT,
+                START_MENU_WIDTH, START_MENU_HEIGHT, TRUE);
+
+        if (g_hdcMemory) DeleteDC(g_hdcMemory);
+        if (g_hbmMemory) DeleteObject(g_hbmMemory);
+
+        int clientHeight = height - TASKBAR_HEIGHT;
+        g_hdcMemory = CreateCompatibleDC(NULL);
+        g_hbmMemory = CreateCompatibleBitmap(NULL, width, clientHeight);
+        SelectObject(g_hdcMemory, g_hbmMemory);
+    }
+    break;
+
+    case WM_TIMER:
+    {
+        if (wParam == ID_TIMER_CLOCK)
+        {
+            UpdateDateTime();
+        }
+    }
+    break;
+
+    case WM_COMMAND:
+    {
+        int wmId = LOWORD(wParam);
+        switch (wmId)
+        {
+        case 101:
+            ToggleStartMenu();
+            break;
+        case 102:
+            if (g_sCurrentLang == L"RU")
+            {
+                g_sCurrentLang = L"EN";
+                SetWindowTextW(g_hWndLang, L"ENG");
+                SetWindowTextW(g_hWndStart, L"▶ START");
+            }
+            else
+            {
+                g_sCurrentLang = L"RU";
+                SetWindowTextW(g_hWndLang, L"RU");
+                SetWindowTextW(g_hWndStart, L"▶ ПУСК");
+            }
             break;
         }
+    }
+    break;
 
-        wchar_t wc = text[i];
+    case WM_LBUTTONDOWN:
+        CloseStartMenu();
+        break;
 
-        if (wc == L'\n') {
-            sendEnter();
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hWnd, &ps);
+
+        RECT rcClient;
+        GetClientRect(hWnd, &rcClient);
+        int width = rcClient.right - rcClient.left;
+        int height = rcClient.bottom - rcClient.top - TASKBAR_HEIGHT;
+
+        if (g_bWallpaperLoaded && g_hbmWallpaper)
+        {
+            HDC hdcImage = CreateCompatibleDC(hdc);
+            SelectObject(hdcImage, g_hbmWallpaper);
+            StretchBlt(hdc, 0, 0, width, height, hdcImage, 0, 0, width, height, SRCCOPY);
+            DeleteDC(hdcImage);
         }
-        else if (wc == L'\t') {
-            sendTab();
-        }
-        else if (wc == L'\r') {
-            continue;
-        }
-        else {
-            sendUnicodeChar(wc);
-        }
-
-        if (i % 10 == 0) {
-            cout << "\r[>] Napechatano: " << i << "/" << text.size();
-            cout.flush();
+        else
+        {
+            // Градиентный фон (если обои не загрузились)
+            TRIVERTEX vertex[2];
+            GRADIENT_RECT gRect;
+            vertex[0].x = 0; vertex[0].y = 0;
+            vertex[0].Red = 0x0000; vertex[0].Green = 0x3000; vertex[0].Blue = 0x5000;
+            vertex[1].x = width; vertex[1].y = height;
+            vertex[1].Red = 0x0000; vertex[1].Green = 0x1000; vertex[1].Blue = 0x2000;
+            gRect.UpperLeft = 0; gRect.LowerRight = 1;
+            GradientFill(hdc, vertex, 2, &gRect, 1, GRADIENT_FILL_RECT_V);
         }
 
-        int randDelay = delayMs + (rand() % (delayMs / 3 + 1));
-        Sleep(randDelay);
+        // Панель задач
+        HDC hdcTaskbar = CreateCompatibleDC(hdc);
+        HBITMAP hbmTaskbar = CreateCompatibleBitmap(hdc, width, TASKBAR_HEIGHT);
+        SelectObject(hdcTaskbar, hbmTaskbar);
+
+        HBRUSH hbrTaskbar = CreateSolidBrush(COLOR_TASKBAR);
+        RECT rcTaskbar = { 0, 0, width, TASKBAR_HEIGHT };
+        FillRect(hdcTaskbar, &rcTaskbar, hbrTaskbar);
+        DeleteObject(hbrTaskbar);
+
+        // Линия сверху панели
+        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(60, 60, 60));
+        SelectObject(hdcTaskbar, hPen);
+        MoveToEx(hdcTaskbar, 0, 0, NULL);
+        LineTo(hdcTaskbar, width, 0);
+        DeleteObject(hPen);
+
+        BitBlt(hdc, 0, height, width, TASKBAR_HEIGHT, hdcTaskbar, 0, 0, SRCCOPY);
+
+        DeleteObject(hbmTaskbar);
+        DeleteDC(hdcTaskbar);
+
+        EndPaint(hWnd, &ps);
     }
-    cout << "\n\r[OK] Pechat' zavershena! (" << text.size() << " simvolov)\n";
-}
+    break;
 
-// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
-bool createFolder(const string& path) {
-    return _mkdir(path.c_str()) == 0 || GetLastError() == ERROR_ALREADY_EXISTS;
-}
+    case WM_ERASEBKGND:
+        return TRUE;
 
-bool saveEmptyFile(const string& filepath) {
-    ofstream f(filepath, ios::out | ios::trunc);
-    return f.is_open();
-}
+    case WM_DESTROY:
+    {
+        KillTimer(hWnd, ID_TIMER_CLOCK);
+        if (g_hDownloadThread) CloseHandle(g_hDownloadThread);
+        if (g_hbmWallpaper) DeleteObject(g_hbmWallpaper);
+        if (g_hdcMemory) DeleteDC(g_hdcMemory);
+        if (g_hbmMemory) DeleteObject(g_hbmMemory);
+        if (g_hFontTime) DeleteObject(g_hFontTime);
+        if (g_hFontDate) DeleteObject(g_hFontDate);
+        if (g_hFontMenu) DeleteObject(g_hFontMenu);
+        if (g_hFontMenuBold) DeleteObject(g_hFontMenuBold);
 
-bool launchPyCharm(const string& projectPath, const string& pycharmExe = "") {
-    string cmd = pycharmExe.empty() ?
-        "pycharm64.exe \"" + projectPath + "\"" :
-        "\"" + pycharmExe + "\" \"" + projectPath + "\"";
+        // ✅ ИСПРАВЛЕНО: Удаляем временный файл обоев
+        if (!g_sTempImagePath.empty())
+            DeleteFileW(g_sTempImagePath.c_str());
 
-    // Конвертируем в wide string для Windows API
-    wstring wcmd(cmd.begin(), cmd.end());
-    wstring wparams = L"/c start \"PyCharm\" \"" + wcmd + L"\"";
-
-    SHELLEXECUTEINFOW sei = { sizeof(sei) };
-    sei.lpFile = L"cmd.exe";  // <-- L"..." для Unicode!
-    sei.lpParameters = wparams.c_str();
-    sei.nShow = SW_SHOWNORMAL;
-
-    return ShellExecuteExW(&sei) && sei.hProcess != NULL;
-}
-
-// ===== MAIN =====
-int main() {
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
-    srand(GetTickCount());
-
-    cout << "========================================\n";
-    cout << "  AUTO TYPER: Vizualnaya pechat v PyCharm\n";
-    cout << "========================================\n\n";
-
-    // === СБОР ДАННЫХ ===
-    string projectName, basePath, filename, codeSourcePath;
-
-    cout << "Nazvanie proekta: ";
-    getline(cin, projectName);
-
-    cout << "Papka dlya proektov (naprimer C:\\Projects): ";
-    getline(cin, basePath);
-    string projectPath = basePath + "\\" + projectName;
-
-    cout << "Imya faila (naprimer main.py): ";
-    getline(cin, filename);
-
-    cout << "\nIstochnik koda:\n   1 - Vvesti vruchnuyu\n   2 - Iz faila\n   Vybor: ";
-    int mode;
-    cin >> mode;
-    cin.ignore();
-
-    string code;
-    if (mode == 1) {
-        cout << "\nVvodi kod. Chtoby zakonchit' - napishi END na otdelnoi stroke:\n";
-        cout << "----------------------------------------\n";
-        string line;
-        while (getline(cin, line) && line != "END") {
-            code += line + "\n";
-        }
+        PostQuitMessage(0);
     }
-    else {
-        cout << "Put' k failu s kodom: ";
-        getline(cin, codeSourcePath);
-        ifstream f(codeSourcePath);
-        if (!f) {
-            cout << "NE udalos otkryt' fail!\n";
-            return 1;
-        }
-        code = string((istreambuf_iterator<char>(f)), {});
-        f.close();
+    break;
+
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
     }
-
-    cout << "\nZaderzhka mezhdu simvolami (30-80 ms): ";
-    int delay;
-    cin >> delay;
-    if (delay < 10) delay = 30;
-
-    cout << "\nPut' k pycharm64.exe (ostav' pustym, esli v PATH): ";
-    cin.ignore();
-    string pycharmPath;
-    getline(cin, pycharmPath);
-
-    // === ПОДГОТОВКА ===
-    cout << "\n----------------------------------------\n";
-    cout << "PODGOTOVKA...\n";
-
-    cout << "[1/5] Sozdayu papku proekta... ";
-    if (!createFolder(projectPath)) {
-        cout << "OSHBKA!\n";
-        return 1;
-    }
-    cout << "OK\n";
-
-    string fullFilepath = projectPath + "\\" + filename;
-    cout << "[2/5] Sozdayu pustoy fail " << filename << "... ";
-    if (!saveEmptyFile(fullFilepath)) {
-        cout << "OSHBKA!\n";
-        return 1;
-    }
-    cout << "OK\n";
-
-    cout << "[3/5] Zapuskayu PyCharm... ";
-    if (!launchPyCharm(projectPath, pycharmPath)) {
-        cout << "Ne udalos zapustit'!\n";
-        return 1;
-    }
-    cout << "OK\n";
-
-    cout << "[4/5] Ozhidanie zagruzki PyCharm (" << PYCHARM_WAIT_SEC << " sek)...\n";
-    cout << "     SОВЕТ: Ne svorachivai PyCharm!\n\n";
-
-    for (int i = PYCHARM_WAIT_SEC; i > 0; i--) {
-        cout << "\r     " << i << " sek...";
-        cout.flush();
-        Sleep(1000);
-    }
-    cout << "\n     PyCharm dolzhen byt' gotov!\n\n";
-
-    if (!activatePyCharm()) {
-        cout << "\nPyCharm ne naiden! Zapusti ego vruchnuyu i nazhmi Enter...";
-        cin.get();
-        activatePyCharm();
-    }
-
-    Sleep(500);
-
-    openFileInPyCharm(filename);
-    Sleep(500);
-
-    if (CLEAR_FILE_FIRST) {
-        cout << "[5/5] Ochishchayu fail... ";
-        clearFileContent();
-        cout << "OK\n\n";
-    }
-
-    // === ПЕЧАТЬ ===
-    int wsize = MultiByteToWideChar(CP_UTF8, 0, code.c_str(), -1, NULL, 0);
-    wchar_t* wbuf = new wchar_t[wsize];
-    MultiByteToWideChar(CP_UTF8, 0, code.c_str(), -1, wbuf, wsize);
-    wstring wcode = wbuf;
-    delete[] wbuf;
-
-    cout << "========================================\n";
-    cout << "  VNIMANIE NA OKNO PYCHARM!\n";
-    cout << "  Pechat' nachnyotsya cherez 3 sek...\n";
-    cout << "  Nazhmi ESC dlya ostanovki\n";
-    cout << "========================================\n";
-
-    for (int i = 3; i > 0; i--) {
-        cout << "\r>>> " << i << "...";
-        cout.flush();
-        Sleep(1000);
-    }
-    cout << "\n\n";
-
-    typeWithAnimation(wcode, delay);
-
-    cout << "\nGOTOVO! Kod napechatan v PyCharm.\n";
-    cout << "Ne zabud' sokhranit' fail (Ctrl+S)!\n\n";
-
     return 0;
+}
+
+// ==================== ТОЧКА ВХОДА ====================
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
+    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+    ULONG_PTR gdiplusToken;
+    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+    CoInitialize(NULL);
+
+    WNDCLASSEXW wcex = {};
+    wcex.cbSize = sizeof(WNDCLASSEX);
+    wcex.style = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc = WndProc;
+    wcex.hInstance = hInstance;
+    wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wcex.lpszClassName = L"MyWindowsClass";
+    RegisterClassExW(&wcex);
+
+    WNDCLASSEXW wcMenu = {};
+    wcMenu.cbSize = sizeof(WNDCLASSEX);
+    wcMenu.style = CS_HREDRAW | CS_VREDRAW;
+    wcMenu.lpfnWndProc = StartMenuProc;
+    wcMenu.hInstance = hInstance;
+    wcMenu.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wcMenu.hbrBackground = (HBRUSH)CreateSolidBrush(COLOR_MENU_BG);
+    wcMenu.lpszClassName = L"StartMenuClass";
+    RegisterClassExW(&wcMenu);
+
+    WNDCLASSEXW wcClock = {};
+    wcClock.cbSize = sizeof(WNDCLASSEX);
+    wcClock.style = CS_HREDRAW | CS_VREDRAW;
+    wcClock.lpfnWndProc = ClockProc;
+    wcClock.hInstance = hInstance;
+    wcClock.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wcClock.hbrBackground = NULL;
+    wcClock.lpszClassName = L"ClockClass";
+    RegisterClassExW(&wcClock);
+
+    WNDCLASSEXW wcDate = {};
+    wcDate.cbSize = sizeof(WNDCLASSEX);
+    wcDate.style = CS_HREDRAW | CS_VREDRAW;
+    wcDate.lpfnWndProc = DateProc;
+    wcDate.hInstance = hInstance;
+    wcDate.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wcDate.hbrBackground = NULL;
+    wcDate.lpszClassName = L"DateClass";
+    RegisterClassExW(&wcDate);
+
+    g_hWndMain = CreateWindowExW(
+        WS_EX_TOPMOST,
+        L"MyWindowsClass",
+        L"MyWindows OS",
+        WS_POPUP | WS_VISIBLE,
+        0, 0,
+        GetSystemMetrics(SM_CXSCREEN),
+        GetSystemMetrics(SM_CYSCREEN),
+        NULL, NULL, hInstance, NULL
+    );
+
+    g_hWndTaskbar = CreateWindowExW(0, L"STATIC", L"",
+        WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, g_hWndMain, NULL, hInstance, NULL);
+
+    g_hWndStart = CreateWindowExW(0, L"BUTTON", L"▶ ПУСК",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        0, 0, START_BTN_WIDTH, TASKBAR_HEIGHT - 8,
+        g_hWndTaskbar, (HMENU)101, hInstance, NULL);
+
+    g_hWndLang = CreateWindowExW(0, L"BUTTON", L"RU",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        0, 0, LANG_WIDTH, TASKBAR_HEIGHT - 12,
+        g_hWndTaskbar, (HMENU)102, hInstance, NULL);
+
+    g_hWndClock = CreateWindowExW(0, L"ClockClass", L"00:00",
+        WS_CHILD | WS_VISIBLE,
+        0, 0, CLOCK_WIDTH, 22,
+        g_hWndTaskbar, (HMENU)103, hInstance, NULL);
+
+    g_hWndDate = CreateWindowExW(0, L"DateClass", L"01.01.2023, Понедельник",
+        WS_CHILD | WS_VISIBLE,
+        0, 0, CLOCK_WIDTH, 20,
+        g_hWndTaskbar, (HMENU)104, hInstance, NULL);
+
+    CreateStartMenu(g_hWndMain, hInstance);
+
+    // Устанавливаем прозрачность для меню
+    SetWindowLongW(g_hWndStartMenu, GWL_EXSTYLE,
+        GetWindowLongW(g_hWndStartMenu, GWL_EXSTYLE) | WS_EX_LAYERED);
+    SetLayeredWindowAttributes(g_hWndStartMenu, 0, 255, LWA_ALPHA);
+
+    ShowWindow(g_hWndMain, SW_SHOWMAXIMIZED);
+    UpdateWindow(g_hWndMain);
+
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    Gdiplus::GdiplusShutdown(gdiplusToken);
+    CoUninitialize();
+
+    return (int)msg.wParam;
 }
