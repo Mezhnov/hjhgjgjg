@@ -1,0 +1,473 @@
+
+/*
+    Простая "Операционная Система" на C++ с использованием SFML
+    Компиляция: g++ -o os_design os_design.cpp -lsfml-graphics -lsfml-window -lsfml-system
+    Для Windows с MinGW: g++ -o os_design.exe os_design.cpp -lsfml-graphics -lsfml-window -lsfml-system
+    
+    Зависимости: SFML 2.5+
+    Выход: нажмите ESC
+*/
+
+#include <SFML/Graphics.hpp>
+#include <vector>
+#include <string>
+#include <ctime>
+#include <sstream>
+#include <iomanip>
+
+// Константы
+const int WINDOW_WIDTH = 1920;
+const int WINDOW_HEIGHT = 1080;
+const int TASKBAR_HEIGHT = 48;
+const float ICON_SIZE = 32.0f;
+const float ICON_SPACING = 8.0f;
+
+// Класс для иконки на панели задач
+class TaskbarIcon {
+public:
+    sf::RectangleShape background;
+    sf::RectangleShape icon;
+    sf::Color iconColor;
+    bool isActive;
+    bool isHovered;
+    
+    TaskbarIcon(float x, float y, sf::Color color, bool active = false) {
+        iconColor = color;
+        isActive = active;
+        isHovered = false;
+        
+        background.setSize(sf::Vector2f(40, 40));
+        background.setPosition(x - 4, y - 4);
+        background.setFillColor(sf::Color::Transparent);
+        
+        icon.setSize(sf::Vector2f(ICON_SIZE, ICON_SIZE));
+        icon.setPosition(x, y);
+        icon.setFillColor(color);
+    }
+    
+    void update(sf::Vector2i mousePos) {
+        isHovered = background.getGlobalBounds().contains(mousePos.x, mousePos.y);
+        if (isHovered) {
+            background.setFillColor(sf::Color(255, 255, 255, 30));
+        } else {
+            background.setFillColor(sf::Color::Transparent);
+        }
+    }
+    
+    void draw(sf::RenderWindow& window, sf::RectangleShape* activeIndicator = nullptr) {
+        window.draw(background);
+        window.draw(icon);
+        if (isActive && activeIndicator) {
+            activeIndicator->setPosition(icon.getPosition().x + ICON_SIZE/2 - 8, 
+                                          icon.getPosition().y + ICON_SIZE + 4);
+            window.draw(*activeIndicator);
+        }
+    }
+};
+
+// Класс панели задач
+class Taskbar {
+public:
+    sf::RectangleShape background;
+    sf::RectangleShape searchBar;
+    sf::RectangleShape searchIcon;
+    sf::RectangleShape activeIndicator;
+    std::vector<TaskbarIcon> icons;
+    sf::Font font;
+    sf::Text timeText;
+    sf::Text dateText;
+    sf::Text langText;
+    sf::Text weatherTemp;
+    sf::Text weatherDesc;
+    sf::Text searchText;
+    
+    // Системные иконки справа
+    sf::RectangleShape wifiIcon;
+    sf::RectangleShape volumeIcon;
+    sf::RectangleShape batteryIcon;
+    sf::RectangleShape trayArrow;
+    
+    Taskbar() {
+        // Основной фон панели задач (полупрозрачный светлый)
+        background.setSize(sf::Vector2f(WINDOW_WIDTH, TASKBAR_HEIGHT));
+        background.setPosition(0, WINDOW_HEIGHT - TASKBAR_HEIGHT);
+        background.setFillColor(sf::Color(240, 240, 240, 230));
+        
+        // Индикатор активного приложения
+        activeIndicator.setSize(sf::Vector2f(16, 3));
+        activeIndicator.setFillColor(sf::Color(0, 120, 212));
+        
+        // Строка поиска
+        float searchX = WINDOW_WIDTH / 2 - 150;
+        float searchY = WINDOW_HEIGHT - TASKBAR_HEIGHT + 8;
+        searchBar.setSize(sf::Vector2f(200, 32));
+        searchBar.setPosition(searchX, searchY);
+        searchBar.setFillColor(sf::Color(255, 255, 255, 255));
+        searchBar.setOutlineThickness(1);
+        searchBar.setOutlineColor(sf::Color(200, 200, 200));
+        
+        // Иконка поиска (лупа - упрощенная)
+        searchIcon.setSize(sf::Vector2f(16, 16));
+        searchIcon.setPosition(searchX + 10, searchY + 8);
+        searchIcon.setFillColor(sf::Color(100, 100, 100));
+        
+        // Создание иконок приложений по центру
+        float startX = WINDOW_WIDTH / 2 - 250;
+        float iconY = WINDOW_HEIGHT - TASKBAR_HEIGHT + 8;
+        
+        // Кнопка Пуск (Windows)
+        icons.push_back(TaskbarIcon(startX, iconY, sf::Color(0, 120, 212)));
+        
+        // Иконки приложений после поиска
+        float appStartX = WINDOW_WIDTH / 2 + 70;
+        
+        // Teams (фиолетовый)
+        icons.push_back(TaskbarIcon(appStartX, iconY, sf::Color(114, 86, 156)));
+        
+        // Проводник (желтый)
+        icons.push_back(TaskbarIcon(appStartX + 48, iconY, sf::Color(255, 200, 50)));
+        
+        // Edge (голубой)
+        icons.push_back(TaskbarIcon(appStartX + 96, iconY, sf::Color(0, 173, 239)));
+        
+        // Календарь (синий)
+        icons.push_back(TaskbarIcon(appStartX + 144, iconY, sf::Color(0, 99, 177)));
+        
+        // Яндекс браузер (красный) - активный
+        icons.push_back(TaskbarIcon(appStartX + 192, iconY, sf::Color(255, 50, 50), true));
+        
+        // Другие приложения
+        icons.push_back(TaskbarIcon(appStartX + 240, iconY, sf::Color(138, 43, 226)));
+        icons.push_back(TaskbarIcon(appStartX + 288, iconY, sf::Color(186, 85, 211)));
+        
+        // Системные иконки справа
+        float rightX = WINDOW_WIDTH - 180;
+        float rightY = iconY + 4;
+        
+        // Стрелка трея
+        trayArrow.setSize(sf::Vector2f(12, 12));
+        trayArrow.setPosition(rightX, rightY);
+        trayArrow.setFillColor(sf::Color(100, 100, 100));
+        
+        // WiFi
+        wifiIcon.setSize(sf::Vector2f(18, 18));
+        wifiIcon.setPosition(rightX + 60, rightY);
+        wifiIcon.setFillColor(sf::Color(50, 50, 50));
+        
+        // Звук
+        volumeIcon.setSize(sf::Vector2f(18, 18));
+        volumeIcon.setPosition(rightX + 85, rightY);
+        volumeIcon.setFillColor(sf::Color(50, 50, 50));
+        
+        // Батарея
+        batteryIcon.setSize(sf::Vector2f(22, 14));
+        batteryIcon.setPosition(rightX + 110, rightY + 2);
+        batteryIcon.setFillColor(sf::Color(76, 175, 80));
+        batteryIcon.setOutlineThickness(1);
+        batteryIcon.setOutlineColor(sf::Color(50, 50, 50));
+    }
+    
+    bool loadFont(const std::string& fontPath) {
+        if (!font.loadFromFile(fontPath)) {
+            return false;
+        }
+        
+        // Время
+        timeText.setFont(font);
+        timeText.setCharacterSize(12);
+        timeText.setFillColor(sf::Color::Black);
+        
+        // Дата
+        dateText.setFont(font);
+        dateText.setCharacterSize(11);
+        dateText.setFillColor(sf::Color::Black);
+        
+        // Язык
+        langText.setFont(font);
+        langText.setString("RUS");
+        langText.setCharacterSize(11);
+        langText.setFillColor(sf::Color::Black);
+        langText.setPosition(WINDOW_WIDTH - 175, WINDOW_HEIGHT - TASKBAR_HEIGHT + 16);
+        
+        // Погода
+        weatherTemp.setFont(font);
+        weatherTemp.setString("-1°C");
+        weatherTemp.setCharacterSize(14);
+        weatherTemp.setFillColor(sf::Color::Black);
+        weatherTemp.setPosition(35, WINDOW_HEIGHT - TASKBAR_HEIGHT + 8);
+        
+        weatherDesc.setFont(font);
+        weatherDesc.setString("Cloudy");
+        weatherDesc.setCharacterSize(11);
+        weatherDesc.setFillColor(sf::Color(100, 100, 100));
+        weatherDesc.setPosition(35, WINDOW_HEIGHT - TASKBAR_HEIGHT + 26);
+        
+        // Текст поиска
+        searchText.setFont(font);
+        searchText.setString("Search");
+        searchText.setCharacterSize(13);
+        searchText.setFillColor(sf::Color(150, 150, 150));
+        searchText.setPosition(searchBar.getPosition().x + 35, searchBar.getPosition().y + 6);
+        
+        return true;
+    }
+    
+    void updateTime() {
+        time_t now = time(0);
+        tm* ltm = localtime(&now);
+        
+        std::stringstream timeStream;
+        timeStream << std::setfill('0') << std::setw(2) << ltm->tm_hour << ":"
+                   << std::setfill('0') << std::setw(2) << ltm->tm_min;
+        timeText.setString(timeStream.str());
+        
+        std::stringstream dateStream;
+        dateStream << std::setfill('0') << std::setw(2) << ltm->tm_mday << "."
+                   << std::setfill('0') << std::setw(2) << (ltm->tm_mon + 1) << "."
+                   << (ltm->tm_year + 1900);
+        dateText.setString(dateStream.str());
+        
+        timeText.setPosition(WINDOW_WIDTH - 60, WINDOW_HEIGHT - TASKBAR_HEIGHT + 8);
+        dateText.setPosition(WINDOW_WIDTH - 65, WINDOW_HEIGHT - TASKBAR_HEIGHT + 24);
+    }
+    
+    void update(sf::Vector2i mousePos) {
+        updateTime();
+        for (auto& icon : icons) {
+            icon.update(mousePos);
+        }
+    }
+    
+    void draw(sf::RenderWindow& window) {
+        window.draw(background);
+        
+        // Строка поиска
+        window.draw(searchBar);
+        window.draw(searchIcon);
+        window.draw(searchText);
+        
+        // Иконки приложений
+        for (auto& icon : icons) {
+            icon.draw(window, &activeIndicator);
+        }
+        
+        // Системные иконки
+        window.draw(trayArrow);
+        window.draw(wifiIcon);
+        window.draw(volumeIcon);
+        window.draw(batteryIcon);
+        
+        // Тексты
+        window.draw(timeText);
+        window.draw(dateText);
+        window.draw(langText);
+        window.draw(weatherTemp);
+        window.draw(weatherDesc);
+    }
+};
+
+// Иконка погоды (облако)
+class WeatherIcon {
+public:
+    sf::CircleShape cloud1, cloud2, cloud3;
+    sf::CircleShape notification;
+    sf::Text notifText;
+    
+    WeatherIcon(sf::Font& font) {
+        float baseX = 10;
+        float baseY = WINDOW_HEIGHT - TASKBAR_HEIGHT + 15;
+        
+        // Облако из кругов
+        cloud1.setRadius(8);
+        cloud1.setPosition(baseX, baseY);
+        cloud1.setFillColor(sf::Color(135, 206, 235));
+        
+        cloud2.setRadius(6);
+        cloud2.setPosition(baseX + 10, baseY - 2);
+        cloud2.setFillColor(sf::Color(255, 255, 255));
+        
+        cloud3.setRadius(5);
+        cloud3.setPosition(baseX + 5, baseY + 5);
+        cloud3.setFillColor(sf::Color(200, 200, 200));
+        
+        // Уведомление (красный кружок)
+        notification.setRadius(7);
+        notification.setPosition(baseX + 15, baseY - 8);
+        notification.setFillColor(sf::Color(220, 53, 69));
+        
+        notifText.setFont(font);
+        notifText.setString("3");
+        notifText.setCharacterSize(10);
+        notifText.setFillColor(sf::Color::White);
+        notifText.setPosition(baseX + 19, baseY - 7);
+    }
+    
+    void draw(sf::RenderWindow& window) {
+        window.draw(cloud1);
+        window.draw(cloud2);
+        window.draw(cloud3);
+        window.draw(notification);
+        window.draw(notifText);
+    }
+};
+
+// Главный класс ОС
+class OperatingSystem {
+private:
+    sf::RenderWindow window;
+    sf::Texture wallpaperTexture;
+    sf::Sprite wallpaperSprite;
+    Taskbar taskbar;
+    WeatherIcon* weatherIcon;
+    sf::Font systemFont;
+    
+    // Подсказка ESC
+    sf::Text escHint;
+    
+public:
+    OperatingSystem() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), 
+                                "Simple OS Design", sf::Style::Fullscreen) {
+        window.setFramerateLimit(60);
+        weatherIcon = nullptr;
+    }
+    
+    ~OperatingSystem() {
+        if (weatherIcon) delete weatherIcon;
+    }
+    
+    bool initialize(const std::string& wallpaperPath, const std::string& fontPath) {
+        // Загрузка обоев
+        if (!wallpaperTexture.loadFromFile(wallpaperPath)) {
+            // Если обои не загружены, создаем градиентный фон
+            sf::Image gradientImg;
+            gradientImg.create(WINDOW_WIDTH, WINDOW_HEIGHT - TASKBAR_HEIGHT);
+            for (int y = 0; y < WINDOW_HEIGHT - TASKBAR_HEIGHT; y++) {
+                for (int x = 0; x < WINDOW_WIDTH; x++) {
+                    // Красивый градиент синий-фиолетовый как в Windows 11
+                    sf::Uint8 r = 30 + (x * 30 / WINDOW_WIDTH);
+                    sf::Uint8 g = 60 + (y * 40 / WINDOW_HEIGHT);
+                    sf::Uint8 b = 150 + (x * 50 / WINDOW_WIDTH);
+                    gradientImg.setPixel(x, y, sf::Color(r, g, b));
+                }
+            }
+            wallpaperTexture.loadFromImage(gradientImg);
+        }
+        
+        wallpaperSprite.setTexture(wallpaperTexture);
+        
+        // Масштабирование обоев под размер экрана
+        float scaleX = (float)WINDOW_WIDTH / wallpaperTexture.getSize().x;
+        float scaleY = (float)(WINDOW_HEIGHT - TASKBAR_HEIGHT) / wallpaperTexture.getSize().y;
+        wallpaperSprite.setScale(scaleX, scaleY);
+        
+        // Загрузка шрифта
+        if (!systemFont.loadFromFile(fontPath)) {
+            // Попытка загрузить системный шрифт
+            #ifdef _WIN32
+            if (!systemFont.loadFromFile("C:\\Windows\\Fonts\\segoeui.ttf")) {
+                if (!systemFont.loadFromFile("C:\\Windows\\Fonts\\arial.ttf")) {
+                    return false;
+                }
+            }
+            #else
+            if (!systemFont.loadFromFile("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")) {
+                if (!systemFont.loadFromFile("/usr/share/fonts/TTF/DejaVuSans.ttf")) {
+                    return false;
+                }
+            }
+            #endif
+        }
+        
+        // Инициализация панели задач
+        taskbar.loadFont(fontPath);
+        taskbar.font = systemFont;
+        
+        // Повторная инициализация текстов с загруженным шрифтом
+        taskbar.timeText.setFont(systemFont);
+        taskbar.dateText.setFont(systemFont);
+        taskbar.langText.setFont(systemFont);
+        taskbar.weatherTemp.setFont(systemFont);
+        taskbar.weatherDesc.setFont(systemFont);
+        taskbar.searchText.setFont(systemFont);
+        
+        // Иконка погоды
+        weatherIcon = new WeatherIcon(systemFont);
+        
+        // Подсказка для выхода
+        escHint.setFont(systemFont);
+        escHint.setString("Press ESC to exit");
+        escHint.setCharacterSize(14);
+        escHint.setFillColor(sf::Color(255, 255, 255, 180));
+        escHint.setPosition(10, 10);
+        
+        return true;
+    }
+    
+    void run() {
+        while (window.isOpen()) {
+            handleEvents();
+            update();
+            render();
+        }
+    }
+    
+private:
+    void handleEvents() {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) {
+                window.close();
+            }
+            if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::Escape) {
+                    window.close();
+                }
+            }
+        }
+    }
+    
+    void update() {
+        sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+        taskbar.update(mousePos);
+    }
+    
+    void render() {
+        window.clear(sf::Color(30, 30, 60));
+        
+        // Обои
+        window.draw(wallpaperSprite);
+        
+        // Панель задач
+        taskbar.draw(window);
+        
+        // Иконка погоды
+        if (weatherIcon) {
+            weatherIcon->draw(window);
+        }
+        
+        // Подсказка ESC
+        window.draw(escHint);
+        
+        window.display();
+    }
+};
+
+int main() {
+    OperatingSystem os;
+    
+    // Путь к обоям - укажите свой путь или URL
+    // Для загрузки из URL используйте предварительную загрузку
+    std::string wallpaperPath = "wallpaper.jpg";
+    
+    // Путь к шрифту - будет использован системный шрифт если не найден
+    std::string fontPath = "font.ttf";
+    
+    if (!os.initialize(wallpaperPath, fontPath)) {
+        // Даже если шрифт не загружен, программа создаст градиентный фон
+        // и будет работать с базовой функциональностью
+    }
+    
+    os.run();
+    
+    return 0;
+}
