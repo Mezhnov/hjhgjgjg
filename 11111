@@ -1,180 +1,1518 @@
+/*
+ * VORTEX Desktop Environment - Unique Design
+ *
+ * Уникальные отличия от macOS:
+ * - Логотип VORTEX (вихрь) вместо Apple
+ * - Активные виджеты в верхней панели
+ * - Градиентная акцентная полоса
+ * - Системный монитор в реальном времени
+ * - Погода с анимированной иконкой
+ * - Музыкальный плеер в панели
+ * - Уведомления
+ * - Быстрые действия (Quick Actions)
+ * - Эффект свечения для активных элементов
+ */
+
+#define NOMINMAX
 #include <windows.h>
-#include <gdiplus.h>
-#include <stdio.h>
+#include <windowsx.h>
+#include <commctrl.h>
+#include <commdlg.h>
+#include <shellapi.h>
+#include <urlmon.h>
+#include <string>
+#include <vector>
+#include <cmath>
+#include <algorithm>
+#include <ctime>
+#include <sstream>
+#include <math.h>
 
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "comdlg32.lib")
+#pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "urlmon.lib")
 
+#include <gdiplus.h>
 using namespace Gdiplus;
 
-Image* g_bg = nullptr;
-int g_w = 0, g_h = 0;
-
-void DrawRoundedRect(Graphics& g, SolidBrush* brush, Pen* pen, REAL x, REAL y, REAL width, REAL height, REAL radius)
-{
-    GraphicsPath path;
-    path.AddArc(x, y, radius * 2, radius * 2, 180, 90);
-    path.AddArc(x + width - radius * 2, y, radius * 2, radius * 2, 270, 90);
-    path.AddArc(x + width - radius * 2, y + height - radius * 2, radius * 2, radius * 2, 0, 90);
-    path.AddArc(x, y + height - radius * 2, radius * 2, radius * 2, 90, 90);
-    path.CloseFigure();
-    if (brush) g.FillPath(brush, &path);
-    if (pen) g.DrawPath(pen, &path);
+// ========== ЦВЕТОВАЯ СХЕМА VORTEX ==========
+namespace VortexColors {
+    const Color Accent(255, 139, 92, 246);        // Фиолетовый акцент
+    const Color AccentLight(255, 167, 139, 250);  // Светлый фиолетовый
+    const Color AccentDark(255, 109, 40, 217);    // Темный фиолетовый
+    const Color Glow(100, 139, 92, 246);          // Свечение
+    const Color PanelBg(220, 15, 15, 25);         // Фон панели
+    const Color WidgetBg(60, 30, 30, 45);         // Фон виджетов
+    const Color TextPrimary(255, 255, 255, 255);  // Основной текст
+    const Color TextSecondary(200, 200, 200, 200);// Вторичный текст
+    const Color Success(255, 52, 211, 153);       // Успех (зеленый)
+    const Color Warning(255, 251, 191, 36);       // Предупреждение
+    const Color Danger(255, 239, 68, 68);         // Опасность
 }
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-    switch (msg)
-    {
-    case WM_PAINT:
-    {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-        Graphics g(hdc);
+const wchar_t* WALLPAPER_URL = L"https://images.wallpaperscraft.com/image/single/lake_mountains_trees_1219008_1920x1080.jpg";
+const wchar_t* WALLPAPER_CACHE_PATH = L"vortex_wallpaper_cache.jpg";
 
-        // Фон на весь экран
-        if (g_bg) g.DrawImage(g_bg, 0, 0, g_w, g_h);
-        else {
-            SolidBrush dark(Color(10, 15, 35));
-            g.FillRectangle(&dark, 0, 0, g_w, g_h);
-        }
+Color ColorFromRGB(COLORREF clr, BYTE alpha = 255) {
+    return Color(alpha, GetRValue(clr), GetGValue(clr), GetBValue(clr));
+}
 
-        // ==================== НИЖНЯЯ ПАНЕЛЬ (рисованная кодом) ====================
-        int tbH = 68;
-        int tbY = g_h - tbH;
+int GetScreenWidth() { return GetSystemMetrics(SM_CXSCREEN); }
+int GetScreenHeight() { return GetSystemMetrics(SM_CYSCREEN); }
 
-        // Тёмная полупрозрачная основа (как в Win11)
-        SolidBrush tbBrush(Color(235, 32, 32, 32));
-        g.FillRectangle(&tbBrush, 0, tbY, g_w, tbH);
+// Глобальное время для анимаций
+DWORD g_animationTime = 0;
 
-        FontFamily ff(L"Segoe UI");
-        SolidBrush white(Color(255, 255, 255));
-        SolidBrush textBlack(Color(0, 0, 0));
+void AddRoundedRect(GraphicsPath& path, int x, int y, int w, int h, int radius) {
+    int r2 = radius * 2;
+    path.AddArc(x, y, r2, r2, 180, 90);
+    path.AddArc(x + w - r2, y, r2, r2, 270, 90);
+    path.AddArc(x + w - r2, y + h - r2, r2, r2, 0, 90);
+    path.AddArc(x, y + h - r2, r2, r2, 90, 90);
+    path.CloseFigure();
+}
 
-        // 1. Кнопка Пуск (логотип Windows 11 — 4 квадратика)
-        int startX = 12;
-        int iconY = tbY + 10;
-        int iconSz = 48;
-        SolidBrush logo(Color(255, 255, 255));
-        int sq = 11;
-        g.FillRectangle(&logo, startX + 7,  iconY + 7,  sq, sq);
-        g.FillRectangle(&logo, startX + 7 + sq + 4, iconY + 7, sq, sq);
-        g.FillRectangle(&logo, startX + 7, iconY + 7 + sq + 4, sq, sq);
-        g.FillRectangle(&logo, startX + 7 + sq + 4, iconY + 7 + sq + 4, sq, sq);
+void FillRoundRect(Graphics& g, int x, int y, int w, int h, int radius, Color color) {
+    SolidBrush brush(color);
+    GraphicsPath path;
+    AddRoundedRect(path, x, y, w, h, radius);
+    g.FillPath(&brush, &path);
+}
 
-        // 2. Поисковая строка
-        int searchX = 78;
-        int searchW = 440;
-        int searchH = 38;
-        SolidBrush searchBg(Color(240, 255, 255, 255));
-        Pen searchBorder(Color(80, 80, 80), 1.5f);
-        DrawRoundedRect(g, &searchBg, &searchBorder, searchX, tbY + 14, searchW, searchH, 19);
+void DrawRoundRect(Graphics& g, int x, int y, int w, int h, int radius, Color color, float width = 1.0f) {
+    Pen pen(color, width);
+    GraphicsPath path;
+    AddRoundedRect(path, x, y, w, h, radius);
+    g.DrawPath(&pen, &path);
+}
 
-        // Иконка лупы
-        Font iconFont(&ff, 22, FontStyleRegular, UnitPixel);
-        g.DrawString(L"🔍", -1, &iconFont, PointF(searchX + 12, tbY + 17), &textBlack);
-
-        // Текст "Поиск"
-        Font searchFont(&ff, 16, FontStyleRegular, UnitPixel);
-        StringFormat sf;
-        sf.SetAlignment(StringAlignmentCenter);
-        sf.SetLineAlignment(StringAlignmentCenter);
-        g.DrawString(L"Поиск", -1, &searchFont, RectF(searchX + 50, tbY + 14, searchW - 70, searchH), &sf, &textBlack);
-
-        // 3. Закреплённые иконки приложений (слева)
-        wchar_t* apps[] = { L"👥", L"📁", L"🌐", L"🛍️", L"📝", L"💻", L"📊" };
-        Color appColors[] = { Color(138,43,226), Color(255,215,0), Color(0,120,215), 
-                              Color(0,183,235), Color(0,120,215), Color(0,122,204), Color(138,43,226) };
-        int appsX = searchX + searchW + 30;
-        for (int i = 0; i < 7; i++)
-        {
-            int x = appsX + i * 58;
-            SolidBrush iconBg(appColors[i]);
-            g.FillRectangle(&iconBg, x, iconY, 42, 42);           // фон иконки
-            Font appFont(&ff, 26, FontStyleRegular, UnitPixel);
-            g.DrawString(apps[i], -1, &appFont, PointF(x + 8, iconY + 6), &white);
-        }
-
-        // 4. Системный трей справа
-        int trayRight = g_w - 20;
-        Font trayFont(&ff, 14, FontStyleRegular, UnitPixel);
-        Font clockFont(&ff, 18, FontStyleBold, UnitPixel);
-        Font dateFont(&ff, 11, FontStyleRegular, UnitPixel);
-
-        // Стрелка скрытых иконок
-        g.DrawString(L"▲", -1, &trayFont, PointF(trayRight - 340, tbY + 22), &white);
-
-        // РУС
-        SolidBrush rusBg(Color(255, 255, 255));
-        g.FillRectangle(&rusBg, trayRight - 310, tbY + 18, 46, 32);
-        g.DrawString(L"РУС", -1, &trayFont, PointF(trayRight - 305, tbY + 23), &textBlack);
-
-        // Иконки трея
-        g.DrawString(L"📶", -1, &iconFont, PointF(trayRight - 250, tbY + 18), &white);
-        g.DrawString(L"🔊", -1, &iconFont, PointF(trayRight - 205, tbY + 18), &white);
-        g.DrawString(L"🔋", -1, &iconFont, PointF(trayRight - 160, tbY + 18), &white);
-
-        // Часы и дата (живые)
-        SYSTEMTIME st;
-        GetLocalTime(&st);
-        wchar_t timeBuf[6], dateBuf[11];
-        swprintf_s(timeBuf, L"%02d:%02d", st.wHour, st.wMinute);
-        swprintf_s(dateBuf, L"%02d.%02d.%04d", st.wDay, st.wMonth, st.wYear);
-
-        g.DrawString(timeBuf, -1, &clockFont, PointF(trayRight - 110, tbY + 10), &white);
-        g.DrawString(dateBuf, -1, &dateFont, PointF(trayRight - 115, tbY + 38), &white);
-
-        EndPaint(hwnd, &ps);
-        return 0;
+// ========== УНИКАЛЬНЫЙ ЛОГОТИП VORTEX (ВИХРЬ) ==========
+void DrawVortexLogo(Graphics& g, int x, int y, int size, Color color, bool animated = true) {
+    float rotation = 0.0f;
+    if (animated) {
+        rotation = (g_animationTime % 4000) / 4000.0f * 360.0f;
     }
+
+    int cx = x + size / 2;
+    int cy = y + size / 2;
+
+    // Внешнее свечение
+    for (int i = 3; i >= 1; i--) {
+        SolidBrush glowBrush(Color(30, color.GetRed(), color.GetGreen(), color.GetBlue()));
+        GraphicsPath glowPath;
+        AddRoundedRect(glowPath, x - i, y - i, size + i * 2, size + i * 2, size / 2);
+        g.FillPath(&glowBrush, &glowPath);
+    }
+
+    // Основной круг с градиентом
+    LinearGradientBrush circleBrush(
+        Rect(x, y, size, size),
+        VortexColors::AccentLight,
+        VortexColors::AccentDark,
+        LinearGradientModeVertical
+    );
+    g.FillEllipse(&circleBrush, x, y, size, size);
+
+    // Вращающийся вихрь
+    GraphicsState state = g.Save();
+    g.TranslateTransform((REAL)cx, (REAL)cy);
+    g.RotateTransform(rotation);
+    g.TranslateTransform(-(REAL)cx, -(REAL)cy);
+
+    Pen spiralPen(color, 2.5f);
+
+    // Рисуем спираль вихря
+    for (int arm = 0; arm < 3; arm++) {
+        GraphicsPath spiralPath;
+        float armOffset = arm * 120.0f;
+
+        for (float angle = 0; angle < 720; angle += 5) {
+            float rad = (angle + armOffset) * 3.14159f / 180.0f;
+            float r = size * 0.1f + (angle / 720.0f) * size * 0.35f;
+            float px = cx + cos(rad) * r;
+            float py = cy + sin(rad) * r;
+
+            if (angle == 0) {
+                spiralPath.AddLine(px, py, px, py);
+            }
+            else {
+            }
+        }
+        g.DrawPath(&spiralPen, &spiralPath);
+    }
+
+    g.Restore(state);
+
+    // Центральная точка
+    SolidBrush centerBrush(Color(255, 255, 255, 255));
+    g.FillEllipse(&centerBrush, cx - 3, cy - 3, 6, 6);
+}
+
+// ========== ИНДИКАТОР СИСТЕМЫ (CPU/RAM) ==========
+void DrawSystemIndicator(Graphics& g, int x, int y, int w, int h, int cpuPercent, int ramPercent) {
+    // Фон
+    GraphicsPath bgPath;
+    AddRoundedRect(bgPath, x, y, w, h, 6);
+    SolidBrush bgBrush(VortexColors::WidgetBg);
+    g.FillPath(&bgBrush, &bgPath);
+
+    // CPU бар
+    int barH = (h - 12) / 2 - 2;
+    int barY = y + 6;
+
+    SolidBrush cpuBg(Color(40, 255, 255, 255));
+    g.FillRectangle(&cpuBg, x + 28, barY, w - 34, barH);
+
+    Color cpuColor = cpuPercent > 80 ? VortexColors::Danger :
+        cpuPercent > 50 ? VortexColors::Warning : VortexColors::Success;
+    SolidBrush cpuFill(cpuColor);
+    g.FillRectangle(&cpuFill, x + 28, barY, (int)((w - 34) * cpuPercent / 100.0f), barH);
+
+    // RAM бар
+    barY += barH + 4;
+    g.FillRectangle(&cpuBg, x + 28, barY, w - 34, barH);
+
+    Color ramColor = ramPercent > 80 ? VortexColors::Danger :
+        ramPercent > 50 ? VortexColors::Warning : VortexColors::Success;
+    SolidBrush ramFill(ramColor);
+    g.FillRectangle(&ramFill, x + 28, barY, (int)((w - 34) * ramPercent / 100.0f), barH);
+
+    // Лейблы
+    FontFamily fontFamily(L"Segoe UI");
+    Font labelFont(&fontFamily, 9.0f, FontStyleBold, UnitPixel);
+    SolidBrush labelBrush(VortexColors::TextPrimary);
+
+    StringFormat format;
+    format.SetAlignment(StringAlignmentCenter);
+    format.SetLineAlignment(StringAlignmentCenter);
+
+    RectF cpuLabelRect((REAL)(x + 2), (REAL)(y + 4), 24.0f, (REAL)barH);
+    g.DrawString(L"CPU", -1, &labelFont, cpuLabelRect, &format, &labelBrush);
+
+    RectF ramLabelRect((REAL)(x + 2), (REAL)(barY), 24.0f, (REAL)barH);
+    g.DrawString(L"RAM", -1, &labelFont, ramLabelRect, &format, &labelBrush);
+}
+
+// ========== ПОГОДА С АНИМАЦИЕЙ ==========
+void DrawWeatherWidget(Graphics& g, int x, int y, bool animated = true) {
+    // Анимация солнца
+    float pulseScale = 1.0f;
+    if (animated) {
+        pulseScale = 1.0f + sin(g_animationTime / 500.0f) * 0.1f;
+    }
+
+    int sunSize = (int)(24 * pulseScale);
+    int sunX = x + 12 - (sunSize - 24) / 2;
+    int sunY = y + 1 - (sunSize - 24) / 2;
+
+    // Солнце с лучами
+    int sunCx = sunX + sunSize / 2;
+    int sunCy = sunY + sunSize / 2;
+
+    // Лучи
+    Pen rayPen(Color(255, 251, 191, 36), 2.0f);
+    for (int i = 0; i < 8; i++) {
+        float angle = i * 45.0f * 3.14159f / 180.0f;
+        float innerR = sunSize * 0.6f;
+        float outerR = sunSize * 0.9f;
+        g.DrawLine(&rayPen,
+            sunCx + cos(angle) * innerR, sunCy + sin(angle) * innerR,
+            sunCx + cos(angle) * outerR, sunCy + sin(angle) * outerR);
+    }
+
+    // Солнце
+    LinearGradientBrush sunBrush(
+        Rect(sunX, sunY, sunSize, sunSize),
+        Color(255, 253, 224, 71),
+        Color(255, 251, 146, 60),
+        LinearGradientModeVertical
+    );
+    g.FillEllipse(&sunBrush, sunX, sunY, sunSize, sunSize);
+}
+
+// ========== МУЗЫКАЛЬНЫЙ ПЛЕЕР ==========
+void DrawMusicPlayer(Graphics& g, int x, int y, int w, int h, bool isPlaying) {
+    // Фон
+    GraphicsPath bgPath;
+    AddRoundedRect(bgPath, x, y, w, h, 8);
+
+    LinearGradientBrush bgBrush(
+        Rect(x, y, w, h),
+        Color(80, 139, 92, 246),
+        Color(60, 109, 40, 217),
+        LinearGradientModeVertical
+    );
+    g.FillPath(&bgBrush, &bgPath);
+
+    // Свечение при воспроизведении
+    if (isPlaying) {
+        Pen glowPen(VortexColors::Glow, 2.0f);
+        g.DrawPath(&glowPen, &bgPath);
+    }
+
+    // Иконка воспроизведения
+    int iconSize = 20;
+    int iconX = x + 8;
+    int iconY = y + (h - iconSize) / 2;
+
+    if (isPlaying) {
+        // Pause icon
+        SolidBrush iconBrush(VortexColors::TextPrimary);
+        g.FillRectangle(&iconBrush, iconX, iconY + 2, 4, iconSize - 4);
+        g.FillRectangle(&iconBrush, iconX + 8, iconY + 2, 4, iconSize - 4);
+    }
+    else {
+        // Play icon
+        Point playPts[3] = {
+            Point(iconX, iconY),
+            Point(iconX, iconY + iconSize),
+            Point(iconX + iconSize, iconY + iconSize / 2)
+        };
+        SolidBrush iconBrush(VortexColors::TextPrimary);
+        g.FillPolygon(&iconBrush, playPts, 3);
+    }
+
+    // Название трека
+    FontFamily fontFamily(L"Segoe UI");
+    Font titleFont(&fontFamily, 10.0f, FontStyleBold, UnitPixel);
+    Font artistFont(&fontFamily, 8.0f, FontStyleRegular, UnitPixel);
+
+    SolidBrush titleBrush(VortexColors::TextPrimary);
+    SolidBrush artistBrush(VortexColors::TextSecondary);
+
+    StringFormat format;
+    format.SetAlignment(StringAlignmentNear);
+    format.SetLineAlignment(StringAlignmentNear);
+
+    RectF titleRect((REAL)(x + 34), (REAL)(y + 4), (REAL)(w - 42), 12.0f);
+    g.DrawString(L"Blinding Lights", -1, &titleFont, titleRect, &format, &titleBrush);
+
+    RectF artistRect((REAL)(x + 34), (REAL)(y + 16), (REAL)(w - 42), 12.0f);
+    g.DrawString(L"The Weeknd", -1, &artistFont, artistRect, &format, &artistBrush);
+
+    // Прогресс бар
+    int progressY = y + h - 6;
+    SolidBrush progressBg(Color(60, 255, 255, 255));
+    g.FillRectangle(&progressBg, x + 4, progressY, w - 8, 3);
+
+    SolidBrush progressFill(VortexColors::AccentLight);
+    g.FillRectangle(&progressFill, x + 4, progressY, (int)((w - 8) * 0.65f), 3);
+}
+
+// ========== УВЕДОМЛЕНИЯ ==========
+struct Notification {
+    std::wstring title;
+    std::wstring message;
+    std::wstring icon;
+    DWORD showTime;
+    float alpha;
+    float yOffset;
+    bool visible;
+};
+
+std::vector<Notification> g_notifications;
+
+void DrawNotification(Graphics& g, int screenW, int y) {
+    if (g_notifications.empty() || !g_notifications[0].visible) return;
+
+    Notification& notif = g_notifications[0];
+
+    int notifW = 320;
+    int notifH = 70;
+    int notifX = screenW - notifW - 20;
+    int notifY = (int)(40 + notif.yOffset);
+
+    // Фон с прозрачностью
+    GraphicsPath notifPath;
+    AddRoundedRect(notifPath, notifX, notifY, notifW, notifH, 12);
+
+    SolidBrush bgBrush(Color((BYTE)(220 * notif.alpha), 30, 30, 40));
+    g.FillPath(&bgBrush, &notifPath);
+
+    Pen borderPen(Color((BYTE)(60 * notif.alpha), 139, 92, 246), 1.5f);
+    g.DrawPath(&borderPen, &notifPath);
+
+    // Иконка
+    int iconX = notifX + 12;
+    int iconY = notifY + 15;
+    DrawVortexLogo(g, iconX, iconY, 40, VortexColors::AccentLight, false);
+
+    // Текст
+    FontFamily fontFamily(L"Segoe UI");
+    Font titleFont(&fontFamily, 12.0f, FontStyleBold, UnitPixel);
+    Font msgFont(&fontFamily, 10.0f, FontStyleRegular, UnitPixel);
+
+    SolidBrush titleBrush(Color((BYTE)(255 * notif.alpha), 255, 255, 255));
+    SolidBrush msgBrush(Color((BYTE)(200 * notif.alpha), 200, 200, 200));
+
+    StringFormat format;
+    format.SetAlignment(StringAlignmentNear);
+    format.SetLineAlignment(StringAlignmentNear);
+
+    RectF titleRect((REAL)(notifX + 62), (REAL)(notifY + 14), (REAL)(notifW - 80), 16.0f);
+    g.DrawString(notif.title.c_str(), -1, &titleFont, titleRect, &format, &titleBrush);
+
+    RectF msgRect((REAL)(notifX + 62), (REAL)(notifY + 32), (REAL)(notifW - 80), 30.0f);
+    g.DrawString(notif.message.c_str(), -1, &msgFont, msgRect, &format, &msgBrush);
+}
+
+// ========== БЫСТРЫЕ ДЕЙСТВИЯ (QUICK ACTIONS) ==========
+void DrawQuickActions(Graphics& g, int x, int y, bool expanded) {
+    int actionSize = 32;
+    int spacing = 8;
+    int visibleCount = expanded ? 4 : 2;
+
+    struct Action {
+        const wchar_t* name;
+        Color color;
+        bool active;
+    };
+
+    Action actions[] = {
+        { L"WiFi", VortexColors::Success, true },
+        { L"BT", VortexColors::Accent, true },
+        { L"DND", VortexColors::Danger, false },
+        { L"Night", VortexColors::Warning, false }
+    };
+
+    for (int i = 0; i < visibleCount; i++) {
+        int ax = x + i * (actionSize + spacing);
+
+        // Фон
+        GraphicsPath actionPath;
+        AddRoundedRect(actionPath, ax, y, actionSize, actionSize, 8);
+
+        Color bgColor = actions[i].active ?
+            Color(180, actions[i].color.GetRed(), actions[i].color.GetGreen(), actions[i].color.GetBlue()) :
+            Color(80, 60, 60, 70);
+
+        SolidBrush actionBrush(bgColor);
+        g.FillPath(&actionBrush, &actionPath);
+
+        if (actions[i].active) {
+            Pen glowPen(Color(100, actions[i].color.GetRed(), actions[i].color.GetGreen(), actions[i].color.GetBlue()), 2.0f);
+            g.DrawPath(&glowPen, &actionPath);
+        }
+
+        // Иконка/текст
+        FontFamily fontFamily(L"Segoe UI");
+        Font iconFont(&fontFamily, 10.0f, FontStyleBold, UnitPixel);
+        SolidBrush iconBrush(actions[i].active ? Color(255, 255, 255, 255) : Color(150, 200, 200, 200));
+
+        StringFormat format;
+        format.SetAlignment(StringAlignmentCenter);
+        format.SetLineAlignment(StringAlignmentCenter);
+
+        RectF iconRect((REAL)ax, (REAL)y, (REAL)actionSize, (REAL)actionSize);
+        g.DrawString(actions[i].name, -1, &iconFont, iconRect, &format, &iconBrush);
+    }
+}
+
+// ========== ГЛАВНОЕ МЕНЮ VORTEX ==========
+void DrawVortexMenu(Graphics& g, int x, int y, int w, int h, bool hovered) {
+    // Фон меню
+    GraphicsPath menuPath;
+    AddRoundedRect(menuPath, x, y, w, h, 10);
+
+    Color bgColor = hovered ?
+        Color(180, 139, 92, 246) :
+        Color(120, 30, 30, 45);
+
+    SolidBrush menuBrush(bgColor);
+    g.FillPath(&menuBrush, &menuPath);
+
+    if (hovered) {
+        Pen glowPen(VortexColors::Glow, 2.0f);
+        g.DrawPath(&glowPen, &menuPath);
+    }
+
+    FontFamily fontFamily(L"Segoe UI");
+    Font menuFont(&fontFamily, 11.0f, FontStyleBold, UnitPixel);
+    SolidBrush textBrush(VortexColors::TextPrimary);
+
+    StringFormat format;
+    format.SetAlignment(StringAlignmentCenter);
+    format.SetLineAlignment(StringAlignmentCenter);
+
+    RectF textRect((REAL)x, (REAL)y, (REAL)w, (REAL)h);
+    g.DrawString(L"VORTEX", -1, &menuFont, textRect, &format, &textBrush);
+}
+
+// Draw macOS style icon
+void DrawMacOSIcon(Graphics& g, int x, int y, int size, Color baseColor, const wchar_t* letter, float scale = 1.0f) {
+    int scaledSize = (int)(size * scale);
+    int offsetX = (scaledSize - size) / 2;
+    int offsetY = (scaledSize - size) / 2;
+    int px = x - offsetX;
+    int py = y - offsetY;
+    int radius = (int)(scaledSize * 0.2f);
+
+    // Shadow
+    for (int i = 2; i >= 1; i--) {
+        SolidBrush shadowBrush(Color(40 + i * 15, 0, 0, 0));
+        GraphicsPath shadowPath;
+        AddRoundedRect(shadowPath, px + i, py + i + 2, scaledSize, scaledSize, radius);
+        g.FillPath(&shadowBrush, &shadowPath);
+    }
+
+    // Gradient background
+    REAL r = (REAL)baseColor.GetRed();
+    REAL gVal = (REAL)baseColor.GetGreen();
+    REAL b = (REAL)baseColor.GetBlue();
+
+    BYTE topR = (BYTE)((r * 1.25f > 255.0f) ? 255 : (int)(r * 1.25f));
+    BYTE topG = (BYTE)((gVal * 1.25f > 255.0f) ? 255 : (int)(gVal * 1.25f));
+    BYTE topB = (BYTE)((b * 1.25f > 255.0f) ? 255 : (int)(b * 1.25f));
+    BYTE botR = (BYTE)(r * 0.75f);
+    BYTE botG = (BYTE)(gVal * 0.75f);
+    BYTE botB = (BYTE)(b * 0.75f);
+
+    LinearGradientBrush gradientBrush(
+        Rect(px, py, scaledSize, scaledSize),
+        Color(255, topR, topG, topB),
+        Color(255, botR, botG, botB),
+        LinearGradientModeVertical
+    );
+
+    GraphicsPath iconPath;
+    AddRoundedRect(iconPath, px, py, scaledSize, scaledSize, radius);
+    g.FillPath(&gradientBrush, &iconPath);
+
+    // Glossy highlight
+    GraphicsPath clipPath;
+    AddRoundedRect(clipPath, px, py, scaledSize, scaledSize, radius);
+    GraphicsState state = g.Save();
+    g.SetClip(&clipPath);
+
+    LinearGradientBrush glossBrush(
+        Rect(px, py, scaledSize, scaledSize / 2),
+        Color(70, 255, 255, 255),
+        Color(0, 255, 255, 255),
+        LinearGradientModeVertical
+    );
+    g.FillRectangle(&glossBrush, px, py, scaledSize, scaledSize / 2);
+    g.Restore(state);
+
+    // Border
+    Pen borderPen(Color(60, 255, 255, 255), 1.0f);
+    g.DrawPath(&borderPen, &iconPath);
+
+    // Letter
+    FontFamily fontFamily(L"Segoe UI");
+    Font iconFont(&fontFamily, scaledSize * 0.42f, FontStyleBold, UnitPixel);
+    SolidBrush textBrush(Color(255, 255, 255, 255));
+
+    StringFormat format;
+    format.SetAlignment(StringAlignmentCenter);
+    format.SetLineAlignment(StringAlignmentCenter);
+
+    RectF textRect;
+    textRect.X = (REAL)px;
+    textRect.Y = (REAL)py - 1;
+    textRect.Width = (REAL)scaledSize;
+    textRect.Height = (REAL)scaledSize;
+    g.DrawString(letter, -1, &iconFont, textRect, &format, &textBrush);
+}
+
+// Draw Wi-Fi icon
+void DrawWifiIcon(Graphics& g, int x, int y, int size, Color color) {
+    Pen pen(color, 2.0f);
+    SolidBrush dotBrush(color);
+
+    int cx = x + size / 2;
+    int cy = y + size - 2;
+
+    for (int i = 0; i < 3; i++) {
+        int arcR = size / 2 - i * (size / 5);
+        int arcY = cy - arcR - i * (size / 6);
+        if (arcR > 2) {
+            g.DrawArc(&pen, cx - arcR, arcY, arcR * 2, arcR * 2, 220, 100);
+        }
+    }
+
+    g.FillEllipse(&dotBrush, cx - 2, cy - 2, 4, 4);
+}
+
+// Draw Battery icon
+void DrawBatteryIcon(Graphics& g, int x, int y, int w, int h, int percent, Color color) {
+    Pen pen(color, 1.5f);
+    SolidBrush fillBrush(color);
+
+    g.DrawRectangle(&pen, x, y, w - 5, h);
+    g.DrawRectangle(&pen, x + w - 5, y + h / 4, 4, h / 2);
+
+    int fillW = (int)((w - 10) * percent / 100.0f);
+    if (fillW > 0) {
+        g.FillRectangle(&fillBrush, x + 2, y + 2, fillW, h - 4);
+    }
+}
+
+// Draw Bluetooth icon
+void DrawBluetoothIcon(Graphics& g, int x, int y, int size, Color color) {
+    Pen pen(color, 1.8f);
+
+    int cx = x + size / 2;
+    int cy = y + size / 2;
+    int h = size - 2;
+
+    g.DrawLine(&pen, cx, y + 2, cx, y + h);
+    g.DrawLine(&pen, cx, y + 2, cx + size / 3, y + h / 3);
+    g.DrawLine(&pen, cx, y + h / 2, cx + size / 3, y + h / 3);
+    g.DrawLine(&pen, cx, y + h / 2, cx + size / 3, y + h * 2 / 3);
+    g.DrawLine(&pen, cx, y + h, cx + size / 3, y + h * 2 / 3);
+}
+
+// Draw Volume icon
+void DrawVolumeIcon(Graphics& g, int x, int y, int size, Color color) {
+    SolidBrush brush(color);
+    Pen pen(color, 1.5f);
+
+    Point speaker[4] = {
+        Point(x + 2, y + size / 3),
+        Point(x + size / 3, y + size / 3),
+        Point(x + size / 3, y + size * 2 / 3),
+        Point(x + 2, y + size * 2 / 3)
+    };
+    g.FillPolygon(&brush, speaker, 4);
+
+    Point cone[3] = {
+        Point(x + size / 3, y + size / 4),
+        Point(x + size * 2 / 3, y),
+        Point(x + size * 2 / 3, y + size)
+    };
+    g.FillPolygon(&brush, cone, 3);
+
+    g.DrawArc(&pen, x + size / 2, y + size / 4, size / 3, size / 2, 300, 120);
+    g.DrawArc(&pen, x + size / 2 + 3, y + size / 6, size / 3 + 3, size * 2 / 3, 300, 120);
+}
+
+// Draw Search icon
+void DrawSearchIcon(Graphics& g, int x, int y, int size, Color color) {
+    Pen pen(color, 2.0f);
+    int circleSize = (int)(size * 0.65f);
+
+    g.DrawEllipse(&pen, x, y, circleSize, circleSize);
+    g.DrawLine(&pen, x + circleSize - 2, y + circleSize - 2, x + size - 1, y + size - 1);
+}
+
+struct AppIcon {
+    std::wstring name;
+    std::wstring executable;
+    Color color;
+    bool hovered;
+    bool running;
+    RECT bounds;
+    float currentScale;
+    float targetScale;
+};
+
+std::vector<AppIcon> g_dockApps;
+
+void InitDockApps() {
+    g_dockApps.clear();
+    AppIcon app;
+
+    app.hovered = false;
+    app.running = true;
+    app.currentScale = 1.0f;
+    app.targetScale = 1.0f;
+    memset(&app.bounds, 0, sizeof(RECT));
+
+    app.name = L"Finder"; app.executable = L"explorer.exe"; app.color = Color(255, 59, 130, 246);
+    g_dockApps.push_back(app);
+
+    app.name = L"Safari"; app.executable = L"msedge.exe"; app.color = Color(255, 0, 122, 255);
+    g_dockApps.push_back(app);
+
+    app.name = L"Messages"; app.executable = L"cmd.exe"; app.color = Color(255, 52, 199, 89);
+    g_dockApps.push_back(app);
+
+    app.name = L"Mail"; app.executable = L"notepad.exe"; app.color = Color(255, 0, 122, 245);
+    g_dockApps.push_back(app);
+
+    app.name = L"Music"; app.executable = L"wmplayer.exe"; app.color = Color(255, 252, 59, 97);
+    g_dockApps.push_back(app);
+
+    app.name = L"Photos"; app.executable = L"ms-photos:"; app.color = Color(255, 255, 149, 0);
+    g_dockApps.push_back(app);
+
+    app.name = L"Notes"; app.executable = L"notepad.exe"; app.color = Color(255, 255, 204, 0);
+    g_dockApps.push_back(app);
+
+    app.name = L"Settings"; app.executable = L"ms-settings:"; app.color = Color(255, 142, 142, 147);
+    g_dockApps.push_back(app);
+}
+
+struct Widget {
+    std::wstring title;
+    std::wstring content;
+    RECT bounds;
+};
+
+std::vector<Widget> g_widgets;
+
+void UpdateWidgets() {
+    g_widgets.clear();
+    int screenW = GetScreenWidth();
+
+    Widget timeWidget;
+    timeWidget.title = L"TIME";
+    SetRect(&timeWidget.bounds, screenW - 320, 50, screenW - 20, 190);
+
+    time_t now = time(NULL);
+    struct tm timeinfo;
+    localtime_s(&timeinfo, &now);
+
+    wchar_t timeStr[64], dateStr[64];
+    wcsftime(timeStr, 64, L"%H:%M", &timeinfo);
+    wcsftime(dateStr, 64, L"%A, %B %d", &timeinfo);
+    timeWidget.content = std::wstring(timeStr) + L"\n" + dateStr;
+    g_widgets.push_back(timeWidget);
+
+    Widget sysWidget;
+    sysWidget.title = L"SYSTEM";
+    SetRect(&sysWidget.bounds, screenW - 320, 210, screenW - 20, 350);
+
+    MEMORYSTATUSEX memStatus;
+    memStatus.dwLength = sizeof(memStatus);
+    GlobalMemoryStatusEx(&memStatus);
+
+    wchar_t sysStr[256];
+    swprintf_s(sysStr, L"CPU: %d%%\nRAM: %d%%\nDisk: 45%%", 35, (int)memStatus.dwMemoryLoad);
+    sysWidget.content = sysStr;
+    g_widgets.push_back(sysWidget);
+
+    Widget weatherWidget;
+    weatherWidget.title = L"WEATHER";
+    SetRect(&weatherWidget.bounds, screenW - 320, 370, screenW - 20, 490);
+    weatherWidget.content = L"22 C\nSunny\nMoscow, RU";
+    g_widgets.push_back(weatherWidget);
+}
+
+HWND g_hDesktop = NULL;
+bool g_showLauncher = false;
+int g_hoveredWidget = -1;
+ULONG_PTR g_gdiplusToken = 0;
+Bitmap* g_wallpaperBitmap = NULL;
+bool g_wallpaperLoaded = false;
+bool g_wallpaperLoading = false;
+
+// DIB Buffer
+HDC g_memDC = NULL;
+HBITMAP g_memBitmap = NULL;
+HBITMAP g_oldBitmap = NULL;
+void* g_bitmapBits = NULL;
+int g_bufferW = 0;
+int g_bufferH = 0;
+int g_hoveredDockIndex = -1;
+
+// VORTEX specific state
+bool g_vortexMenuHovered = false;
+bool g_musicPlaying = false;
+bool g_quickActionsExpanded = false;
+DWORD g_lastNotificationTime = 0;
+
+std::wstring GetWallpaperCachePath() {
+    wchar_t exePath[MAX_PATH];
+    GetModuleFileNameW(NULL, exePath, MAX_PATH);
+    std::wstring exeDir = exePath;
+    size_t lastSlash = exeDir.find_last_of(L"\\");
+    if (lastSlash != std::wstring::npos) exeDir = exeDir.substr(0, lastSlash);
+    return exeDir + L"\\" + WALLPAPER_CACHE_PATH;
+}
+
+bool DownloadWallpaperFromURL(const wchar_t* url, const wchar_t* localPath) {
+    HRESULT hr = URLDownloadToFileW(NULL, url, localPath, 0, NULL);
+    return SUCCEEDED(hr);
+}
+
+bool LoadWallpaperFromFile(const wchar_t* filePath) {
+    if (g_wallpaperBitmap) { delete g_wallpaperBitmap; g_wallpaperBitmap = NULL; }
+    if (GetFileAttributesW(filePath) == INVALID_FILE_ATTRIBUTES) return false;
+
+    Bitmap* loadedBitmap = new Bitmap(filePath);
+    if (loadedBitmap->GetLastStatus() != Ok) {
+        delete loadedBitmap;
+        return false;
+    }
+
+    int screenW = GetScreenWidth();
+    int screenH = GetScreenHeight();
+
+    REAL imgW = (REAL)loadedBitmap->GetWidth();
+    REAL imgH = (REAL)loadedBitmap->GetHeight();
+    REAL scaleX = (REAL)screenW / imgW;
+    REAL scaleY = (REAL)screenH / imgH;
+    REAL scale = (scaleX > scaleY) ? scaleX : scaleY;
+
+    int newW = (int)(imgW * scale);
+    int newH = (int)(imgH * scale);
+
+    g_wallpaperBitmap = new Bitmap(screenW, screenH, PixelFormat32bppARGB);
+    if (g_wallpaperBitmap->GetLastStatus() != Ok) {
+        delete loadedBitmap;
+        delete g_wallpaperBitmap;
+        g_wallpaperBitmap = NULL;
+        return false;
+    }
+
+    Graphics g(g_wallpaperBitmap);
+    g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+    g.SetSmoothingMode(SmoothingModeHighQuality);
+    g.SetCompositingQuality(CompositingQualityHighQuality);
+    g.SetPixelOffsetMode(PixelOffsetModeHighQuality);
+
+    int offsetX = (screenW - newW) / 2;
+    int offsetY = (screenH - newH) / 2;
+
+    g.DrawImage(loadedBitmap, offsetX, offsetY, newW, newH);
+
+    delete loadedBitmap;
+    return true;
+}
+
+bool LoadWallpaperFromURL(const wchar_t* url) {
+    std::wstring cachePath = GetWallpaperCachePath();
+    if (DownloadWallpaperFromURL(url, cachePath.c_str())) {
+        return LoadWallpaperFromFile(cachePath.c_str());
+    }
+    return false;
+}
+
+DWORD WINAPI LoadWallpaperThread(LPVOID param) {
+    g_wallpaperLoading = true;
+    if (LoadWallpaperFromURL(WALLPAPER_URL)) {
+        g_wallpaperLoaded = true;
+        if (g_hDesktop) InvalidateRect(g_hDesktop, NULL, FALSE);
+    }
+    g_wallpaperLoading = false;
+    return 0;
+}
+
+void StartWallpaperLoadAsync() {
+    CreateThread(NULL, 0, LoadWallpaperThread, NULL, 0, NULL);
+}
+
+void DrawWallpaper(Graphics& g, int screenW, int screenH) {
+    if (g_wallpaperBitmap && g_wallpaperLoaded) {
+        g.SetInterpolationMode(InterpolationModeNearestNeighbor);
+        g.SetSmoothingMode(SmoothingModeNone);
+        g.SetCompositingQuality(CompositingQualityDefault);
+        g.SetPixelOffsetMode(PixelOffsetModeNone);
+
+        g.DrawImage(g_wallpaperBitmap, 0, 0);
+    }
+    else {
+        LinearGradientBrush wallBrush(Point(0, 0), Point(screenW, screenH),
+            Color(255, 15, 23, 42), Color(255, 30, 41, 59));
+        g.FillRectangle(&wallBrush, 0, 0, screenW, screenH);
+
+        for (int i = 0; i < 5; i++) {
+            int cx = 200 + i * 300;
+            int cy = 200 + (i % 3) * 150;
+            int cr = 100 + i * 50;
+            SolidBrush circleBrush(Color(10, 99, 102, 241));
+            g.FillEllipse(&circleBrush, cx - cr, cy - cr, cr * 2, cr * 2);
+        }
+
+        if (g_wallpaperLoading) {
+            FontFamily fontFamily(L"Segoe UI");
+            Font loadingFont(&fontFamily, 14.0f, FontStyleRegular, UnitPixel);
+            SolidBrush loadingBrush(Color(200, 255, 255, 255));
+            StringFormat format;
+            format.SetAlignment(StringAlignmentCenter);
+            format.SetLineAlignment(StringAlignmentCenter);
+            RectF loadingRect;
+            loadingRect.X = (REAL)(screenW / 2 - 100);
+            loadingRect.Y = (REAL)(screenH / 2 - 20);
+            loadingRect.Width = 200.0f;
+            loadingRect.Height = 40.0f;
+            g.DrawString(L"Loading wallpaper...", -1, &loadingFont, loadingRect, &format, &loadingBrush);
+        }
+    }
+}
+
+// ========== УНИКАЛЬНАЯ ПАНЕЛЬ VORTEX ==========
+void DrawVortexMenuBar(Graphics& g, int screenW) {
+    // Glass background с градиентом
+    LinearGradientBrush bgBrush(
+        Rect(0, 0, screenW, 32),
+        Color(220, 20, 20, 30),
+        Color(200, 15, 15, 25),
+        LinearGradientModeVertical
+    );
+    g.FillRectangle(&bgBrush, 0, 0, screenW, 32);
+
+    // Акцентная линия сверху (фиолетовая)
+    LinearGradientBrush accentBrush(
+        Rect(0, 0, screenW, 2),
+        VortexColors::Accent,
+        VortexColors::AccentLight,
+        LinearGradientModeHorizontal
+    );
+    g.FillRectangle(&accentBrush, 0, 0, screenW, 2);
+
+    // Нижняя граница
+    Pen borderPen(Color(30, 139, 92, 246), 1.0f);
+    g.DrawLine(&borderPen, 0, 31, screenW, 31);
+
+    FontFamily fontFamily(L"Segoe UI");
+    Font menuFont(&fontFamily, 12.0f, FontStyleRegular, UnitPixel);
+    Font boldFont(&fontFamily, 12.0f, FontStyleBold, UnitPixel);
+
+    StringFormat format;
+    format.SetAlignment(StringAlignmentNear);
+    format.SetLineAlignment(StringAlignmentCenter);
+
+    // VORTEX Logo и меню
+    DrawVortexLogo(g, 10, 6, 20, VortexColors::AccentLight, true);
+
+    // Меню VORTEX
+    DrawVortexMenu(g, 36, 4, 70, 24, g_vortexMenuHovered);
+
+    // Меню элементы
+    const wchar_t* menuItems[] = { L"Apps", L"Files", L"Settings", L"Tools" };
+    int menuX = 120;
+
+    SolidBrush dimBrush(VortexColors::TextSecondary);
+
+    for (int i = 0; i < 4; i++) {
+        RectF menuRect((REAL)menuX, 0, 60, 32);
+        g.DrawString(menuItems[i], -1, &menuFont, menuRect, &format, &dimBrush);
+        menuX += 60;
+    }
+
+    // ========== ЛЕВАЯ ЧАСТЬ - СИСТЕМНЫЙ МОНИТОР ==========
+    int leftX = 400;
+
+    // CPU/RAM индикаторы
+    MEMORYSTATUSEX memStatus;
+    memStatus.dwLength = sizeof(memStatus);
+    GlobalMemoryStatusEx(&memStatus);
+    int cpuPercent = 35 + (g_animationTime / 1000) % 20;  // Симуляция
+    int ramPercent = (int)memStatus.dwMemoryLoad;
+
+    DrawSystemIndicator(g, leftX, 5, 100, 22, cpuPercent, ramPercent);
+    leftX += 110;
+
+    // Музыкальный плеер
+    DrawMusicPlayer(g, leftX, 3, 140, 26, g_musicPlaying);
+    leftX += 150;
+
+    // Быстрые действия
+    DrawQuickActions(g, leftX, 5, g_quickActionsExpanded);
+
+    // ========== ПРАВАЯ ЧАСТЬ - СТАТУС ==========
+    int rightX = screenW - 12;
+    Color iconColor = VortexColors::TextPrimary;
+
+    // Время
+    time_t now = time(NULL);
+    struct tm timeinfo;
+    localtime_s(&timeinfo, &now);
+    wchar_t timeStr[32];
+    wcsftime(timeStr, 32, L"%a %d %b  %H:%M", &timeinfo);
+
+    StringFormat rightFormat;
+    rightFormat.SetAlignment(StringAlignmentFar);
+    rightFormat.SetLineAlignment(StringAlignmentCenter);
+
+    SolidBrush textBrush(VortexColors::TextPrimary);
+    RectF timeRect((REAL)(rightX - 120), 0, 120, 32);
+    g.DrawString(timeStr, -1, &menuFont, timeRect, &rightFormat, &textBrush);
+    rightX -= 130;
+
+    // Погода
+    DrawWeatherWidget(g, rightX - 26, 5);
+    rightX -= 35;
+
+    // Battery
+    DrawBatteryIcon(g, rightX - 26, 10, 26, 12, 85, iconColor);
+    rightX -= 35;
+
+    // WiFi
+    DrawWifiIcon(g, rightX - 16, 8, 16, iconColor);
+    rightX -= 24;
+
+    // Bluetooth
+    DrawBluetoothIcon(g, rightX - 14, 8, 14, iconColor);
+    rightX -= 22;
+
+    // Volume
+    DrawVolumeIcon(g, rightX - 16, 8, 16, iconColor);
+    rightX -= 24;
+
+    // Search
+    DrawSearchIcon(g, rightX - 16, 8, 16, iconColor);
+}
+
+void DrawWidget(Graphics& g, const Widget& widget, bool hovered) {
+    int x = widget.bounds.left;
+    int y = widget.bounds.top;
+    int w = widget.bounds.right - widget.bounds.left;
+    int h = widget.bounds.bottom - widget.bounds.top;
+
+    // Glass background с акцентом VORTEX
+    GraphicsPath widgetPath;
+    AddRoundedRect(widgetPath, x, y, w, h, 16);
+
+    LinearGradientBrush bgBrush(
+        Rect(x, y, w, h),
+        Color(65, 30, 30, 50),
+        Color(55, 20, 20, 40),
+        LinearGradientModeVertical
+    );
+    g.FillPath(&bgBrush, &widgetPath);
+
+    // Акцентная граница
+    Pen borderPen(hovered ? VortexColors::Accent : Color(30, 139, 92, 246), 1.5f);
+    g.DrawPath(&borderPen, &widgetPath);
+
+    FontFamily fontFamily(L"Segoe UI");
+    Font titleFont(&fontFamily, 11.0f, FontStyleRegular, UnitPixel);
+    Font contentFont(&fontFamily, 32.0f, FontStyleRegular, UnitPixel);
+    Font smallFont(&fontFamily, 14.0f, FontStyleRegular, UnitPixel);
+
+    SolidBrush titleBrush(VortexColors::AccentLight);
+    SolidBrush textBrush(VortexColors::TextPrimary);
+
+    StringFormat format;
+    format.SetAlignment(StringAlignmentNear);
+    format.SetLineAlignment(StringAlignmentNear);
+
+    RectF titleRect;
+    titleRect.X = (REAL)(x + 20);
+    titleRect.Y = (REAL)(y + 16);
+    titleRect.Width = (REAL)(w - 40);
+    titleRect.Height = 20.0f;
+    g.DrawString(widget.title.c_str(), -1, &titleFont, titleRect, &format, &titleBrush);
+
+    std::vector<std::wstring> lines;
+    std::wistringstream stream(widget.content);
+    std::wstring line;
+    while (std::getline(stream, line)) lines.push_back(line);
+
+    if (widget.title == L"TIME" && lines.size() > 0) {
+        RectF timeRect;
+        timeRect.X = (REAL)(x + 20);
+        timeRect.Y = (REAL)(y + 44);
+        timeRect.Width = (REAL)(w - 40);
+        timeRect.Height = 55.0f;
+        g.DrawString(lines[0].c_str(), -1, &contentFont, timeRect, &format, &textBrush);
+
+        if (lines.size() > 1) {
+            RectF dateRect;
+            dateRect.X = (REAL)(x + 20);
+            dateRect.Y = (REAL)(y + 100);
+            dateRect.Width = (REAL)(w - 40);
+            dateRect.Height = 24.0f;
+            g.DrawString(lines[1].c_str(), -1, &smallFont, dateRect, &format, &titleBrush);
+        }
+    }
+    else {
+        REAL lineY = (REAL)(y + 44);
+        for (size_t j = 0; j < lines.size(); j++) {
+            RectF lineRect;
+            lineRect.X = (REAL)(x + 20);
+            lineRect.Y = lineY;
+            lineRect.Width = (REAL)(w - 40);
+            lineRect.Height = 24.0f;
+            g.DrawString(lines[j].c_str(), -1, &smallFont, lineRect, &format, &textBrush);
+            lineY += 26.0f;
+        }
+    }
+}
+
+void DrawDock(Graphics& g, int screenW, int screenH) {
+    int baseIconSize = 54;
+    int iconSpacing = 8;
+    int padding = 16;
+    int dockHeight = baseIconSize + padding * 2;
+    int totalWidth = (int)g_dockApps.size() * (baseIconSize + iconSpacing) - iconSpacing + padding * 2;
+    int dockX = (screenW - totalWidth) / 2;
+    int dockY = screenH - dockHeight - 12;
+
+    // Update scales
+    for (size_t i = 0; i < g_dockApps.size(); i++) {
+        float target = (g_hoveredDockIndex == (int)i) ? 1.4f : 1.0f;
+        g_dockApps[i].targetScale = target;
+        g_dockApps[i].currentScale += (g_dockApps[i].targetScale - g_dockApps[i].currentScale) * 0.2f;
+    }
+
+    // Glass dock background с акцентом VORTEX
+    int glassHeight = dockHeight + 24;
+    int glassY = screenH - glassHeight - 4;
+    int glassX = dockX - 30;
+    int glassW = totalWidth + 60;
+
+    GraphicsPath dockPath;
+    AddRoundedRect(dockPath, glassX, glassY, glassW, glassHeight, 22);
+
+    LinearGradientBrush dockBrush(
+        Rect(glassX, glassY, glassW, glassHeight),
+        Color(170, 30, 30, 45),
+        Color(150, 20, 20, 35),
+        LinearGradientModeVertical
+    );
+    g.FillPath(&dockBrush, &dockPath);
+
+    // Акцентная граница
+    Pen dockPen(VortexColors::Glow, 1.5f);
+    g.DrawPath(&dockPen, &dockPath);
+
+    // Draw icons
+    const wchar_t* letters[] = { L"F", L"S", L"M", L"@", L"Mu", L"P", L"N", L"Se" };
+    int iconX = dockX + padding;
+
+    for (size_t i = 0; i < g_dockApps.size(); i++) {
+        AppIcon& app = g_dockApps[i];
+        float scale = app.currentScale;
+        int scaledSize = (int)(baseIconSize * scale);
+
+        int px = iconX;
+        int py = dockY + padding + baseIconSize - scaledSize;
+
+        SetRect(&app.bounds, px, py, px + scaledSize, py + scaledSize);
+
+        DrawMacOSIcon(g, px, py, baseIconSize, app.color, letters[i], scale);
+
+        // Running indicator с акцентом VORTEX
+        if (app.running) {
+            int dotY = screenH - 16;
+            int dotX = iconX + baseIconSize / 2;
+
+            // Свечение
+            SolidBrush glowBrush(VortexColors::Glow);
+            g.FillEllipse(&glowBrush, dotX - 5, dotY - 2, 10, 10);
+
+            SolidBrush dotBrush(VortexColors::AccentLight);
+            g.FillEllipse(&dotBrush, dotX - 3, dotY, 6, 6);
+        }
+
+        iconX += baseIconSize + iconSpacing;
+    }
+}
+
+void DrawLauncher(Graphics& g, int screenW, int screenH) {
+    if (!g_showLauncher) return;
+
+    SolidBrush overlayBrush(Color(180, 0, 0, 0));
+    g.FillRectangle(&overlayBrush, 0, 0, screenW, screenH);
+
+    int launcherW = 720;
+    int launcherH = 520;
+    int launcherX = (screenW - launcherW) / 2;
+    int launcherY = (screenH - launcherH) / 2 - 60;
+
+    GraphicsPath panelPath;
+    AddRoundedRect(panelPath, launcherX, launcherY, launcherW, launcherH, 24);
+
+    LinearGradientBrush panelBrush(
+        Rect(launcherX, launcherY, launcherW, launcherH),
+        Color(210, 25, 25, 40),
+        Color(190, 20, 20, 35),
+        LinearGradientModeVertical
+    );
+    g.FillPath(&panelBrush, &panelPath);
+
+    Pen panelPen(VortexColors::Accent, 2.0f);
+    g.DrawPath(&panelPen, &panelPath);
+
+    int searchBarX = launcherX + 24;
+    int searchBarY = launcherY + 24;
+    int searchBarW = launcherW - 48;
+    int searchBarH = 44;
+
+    GraphicsPath searchPath;
+    AddRoundedRect(searchPath, searchBarX, searchBarY, searchBarW, searchBarH, 12);
+    SolidBrush searchBrush(Color(30, 255, 255, 255));
+    g.FillPath(&searchBrush, &searchPath);
+
+    FontFamily fontFamily(L"Segoe UI");
+    Font searchFont(&fontFamily, 15.0f, FontStyleRegular, UnitPixel);
+    SolidBrush placeholderBrush(Color(120, 0, 0, 0));
+
+    StringFormat format;
+    format.SetAlignment(StringAlignmentNear);
+    format.SetLineAlignment(StringAlignmentCenter);
+
+    RectF searchRect;
+    searchRect.X = (REAL)(searchBarX + 44);
+    searchRect.Y = (REAL)searchBarY;
+    searchRect.Width = (REAL)(searchBarW - 60);
+    searchRect.Height = (REAL)searchBarH;
+    g.DrawString(L"VORTEX Search...", -1, &searchFont, searchRect, &format, &placeholderBrush);
+
+    DrawSearchIcon(g, searchBarX + 14, searchBarY + 12, 20, VortexColors::Accent);
+
+    int gridX = launcherX + 24;
+    int gridY = launcherY + 100;
+    int cols = 5;
+    int cellW = 124;
+    int cellH = 110;
+    int spacing = 16;
+
+    const wchar_t* appNames[] = {
+        L"Finder", L"Safari", L"Mail", L"Messages", L"Music",
+        L"Photos", L"Notes", L"Calendar", L"Maps", L"News",
+        L"App Store", L"Settings", L"Terminal", L"VS Code", L"Files"
+    };
+
+    Color appColors[] = {
+        Color(255, 59, 130, 246), Color(255, 0, 122, 255), Color(255, 0, 122, 245),
+        Color(255, 52, 199, 89), Color(255, 252, 59, 97), Color(255, 255, 149, 0),
+        Color(255, 255, 204, 0), Color(255, 255, 59, 48), Color(255, 52, 199, 89),
+        Color(255, 255, 59, 48), Color(255, 0, 122, 245), Color(255, 142, 142, 147),
+        Color(255, 40, 40, 40), Color(255, 0, 122, 204), Color(255, 59, 130, 246)
+    };
+
+    for (int i = 0; i < 15; i++) {
+        int row = i / cols;
+        int col = i % cols;
+        int px = gridX + col * (cellW + spacing);
+        int py = gridY + row * (cellH + spacing);
+
+        DrawMacOSIcon(g, px + 26, py, 76, appColors[i], appNames[i], 1.0f);
+
+        Font nameFont(&fontFamily, 12.0f, FontStyleRegular, UnitPixel);
+        SolidBrush nameBrush(VortexColors::TextPrimary);
+
+        StringFormat centerFormat;
+        centerFormat.SetAlignment(StringAlignmentCenter);
+        centerFormat.SetLineAlignment(StringAlignmentCenter);
+
+        RectF nameRect;
+        nameRect.X = (REAL)px;
+        nameRect.Y = (REAL)(py + 86);
+        nameRect.Width = (REAL)cellW;
+        nameRect.Height = 20.0f;
+        g.DrawString(appNames[i], -1, &nameFont, nameRect, &centerFormat, &nameBrush);
+    }
+}
+
+void CreateDoubleBuffer(HWND hWnd, int w, int h) {
+    if (g_memDC && g_bufferW == w && g_bufferH == h) return;
+
+    HDC hdc = GetDC(hWnd);
+
+    if (g_memDC) {
+        SelectObject(g_memDC, g_oldBitmap);
+        DeleteObject(g_memBitmap);
+        DeleteDC(g_memDC);
+        g_bitmapBits = NULL;
+    }
+
+    BITMAPINFO bmi = { 0 };
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = w;
+    bmi.bmiHeader.biHeight = -h;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+    bmi.bmiHeader.biSizeImage = w * h * 4;
+
+    g_memDC = CreateCompatibleDC(hdc);
+    g_memBitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, &g_bitmapBits, NULL, 0);
+    g_oldBitmap = (HBITMAP)SelectObject(g_memDC, g_memBitmap);
+
+    g_bufferW = w;
+    g_bufferH = h;
+    ReleaseDC(hWnd, hdc);
+}
+
+void Render(HWND hWnd, HDC hdc, int screenW, int screenH) {
+    CreateDoubleBuffer(hWnd, screenW, screenH);
+
+    Graphics graphics(g_memDC);
+
+    graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    graphics.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
+    graphics.SetCompositingMode(CompositingModeSourceOver);
+    graphics.SetCompositingQuality(CompositingQualityHighQuality);
+    graphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+    graphics.SetPixelOffsetMode(PixelOffsetModeHighQuality);
+
+    DrawWallpaper(graphics, screenW, screenH);
+
+    graphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+    graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+
+    // VORTEX Menu Bar (уникальная)
+    DrawVortexMenuBar(graphics, screenW);
+
+    for (size_t i = 0; i < g_widgets.size(); i++) {
+        DrawWidget(graphics, g_widgets[i], g_hoveredWidget == (int)i);
+    }
+
+    DrawDock(graphics, screenW, screenH);
+    DrawLauncher(graphics, screenW, screenH);
+
+    // Уведомления
+    DrawNotification(graphics, screenW, 40);
+
+    BitBlt(hdc, 0, 0, screenW, screenH, g_memDC, 0, 0, SRCCOPY);
+}
+
+LRESULT CALLBACK DesktopProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+    case WM_CREATE:
+        InitDockApps();
+        UpdateWidgets();
+        StartWallpaperLoadAsync();
+        SetTimer(hWnd, 1, 1000, NULL);   // Time update
+        SetTimer(hWnd, 2, 16, NULL);     // Animation frame
+        SetTimer(hWnd, 3, 30000, NULL);  // Notification
+
+        // Начальное уведомление
+        {
+            Notification notif;
+            notif.title = L"Welcome to VORTEX";
+            notif.message = L"Your unique desktop experience";
+            notif.showTime = GetTickCount();
+            notif.alpha = 0.0f;
+            notif.yOffset = -30.0f;
+            notif.visible = true;
+            g_notifications.push_back(notif);
+        }
+        break;
+
+    case WM_TIMER:
+        g_animationTime = GetTickCount();
+
+        if (wParam == 1) {
+            UpdateWidgets();
+            InvalidateRect(hWnd, NULL, FALSE);
+        }
+        else if (wParam == 2) {
+            // Animate notifications
+            for (auto& notif : g_notifications) {
+                if (notif.visible) {
+                    if (notif.alpha < 1.0f) notif.alpha += 0.05f;
+                    if (notif.yOffset < 0) notif.yOffset += 2.0f;
+
+                    // Fade out after 5 seconds
+                    if (GetTickCount() - notif.showTime > 5000) {
+                        notif.alpha -= 0.02f;
+                        if (notif.alpha <= 0) {
+                            notif.visible = false;
+                        }
+                    }
+                }
+            }
+
+            // Remove hidden notifications
+            g_notifications.erase(
+                std::remove_if(g_notifications.begin(), g_notifications.end(),
+                    [](const Notification& n) { return !n.visible; }),
+                g_notifications.end()
+            );
+
+            InvalidateRect(hWnd, NULL, FALSE);
+        }
+        else if (wParam == 3) {
+            // Periodic notifications
+            if (g_notifications.empty()) {
+                Notification notif;
+                notif.title = L"VORTEX Desktop";
+                notif.message = L"System running smoothly";
+                notif.showTime = GetTickCount();
+                notif.alpha = 0.0f;
+                notif.yOffset = -30.0f;
+                notif.visible = true;
+                g_notifications.push_back(notif);
+            }
+        }
+        break;
+
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hWnd, &ps);
+        int screenW = GetScreenWidth();
+        int screenH = GetScreenHeight();
+        Render(hWnd, hdc, screenW, screenH);
+        EndPaint(hWnd, &ps);
+        break;
+    }
+
+    case WM_ERASEBKGND:
+        return 1;
+
+    case WM_MOUSEMOVE: {
+        int x = GET_X_LPARAM(lParam);
+        int y = GET_Y_LPARAM(lParam);
+
+        POINT pt;
+        pt.x = x;
+        pt.y = y;
+
+        // VORTEX menu hover
+        RECT vortexMenuRect;
+        SetRect(&vortexMenuRect, 36, 4, 106, 28);
+        g_vortexMenuHovered = (PtInRect(&vortexMenuRect, pt) != FALSE);
+
+        // Quick actions expand on hover
+        RECT quickActionsRect;
+        SetRect(&quickActionsRect, 660, 5, 800, 37);
+        g_quickActionsExpanded = (PtInRect(&quickActionsRect, pt) != FALSE);
+
+        // Dock hover
+        int baseIconSize = 54;
+        int iconSpacing = 8;
+        int padding = 16;
+        int dockHeight = baseIconSize + padding * 2;
+        int totalWidth = (int)g_dockApps.size() * (baseIconSize + iconSpacing) - iconSpacing + padding * 2;
+        int screenW = GetScreenWidth();
+        int screenH = GetScreenHeight();
+        int dockX = (screenW - totalWidth) / 2;
+        int dockY = screenH - dockHeight - 12;
+
+        int newHoveredIndex = -1;
+
+        if (y >= dockY - 50 && y <= screenH) {
+            int iconX = dockX + padding;
+            for (size_t i = 0; i < g_dockApps.size(); i++) {
+                int px = iconX;
+                int py = dockY + padding;
+
+                RECT expandedBounds;
+                SetRect(&expandedBounds, px - 15, py - 40, px + baseIconSize + 15, py + baseIconSize + 40);
+
+                if (PtInRect(&expandedBounds, pt)) {
+                    newHoveredIndex = (int)i;
+                    break;
+                }
+                iconX += baseIconSize + iconSpacing;
+            }
+        }
+
+        if (newHoveredIndex != g_hoveredDockIndex) {
+            g_hoveredDockIndex = newHoveredIndex;
+        }
+
+        for (size_t i = 0; i < g_widgets.size(); i++) {
+            bool wasHovered = (g_hoveredWidget == (int)i);
+            bool nowHovered = (PtInRect(&g_widgets[i].bounds, pt) != FALSE);
+            if (wasHovered != nowHovered) {
+                g_hoveredWidget = nowHovered ? (int)i : -1;
+            }
+        }
+        break;
+    }
+
+    case WM_LBUTTONDOWN: {
+        int x = GET_X_LPARAM(lParam);
+        int y = GET_Y_LPARAM(lParam);
+        POINT pt;
+        pt.x = x;
+        pt.y = y;
+
+        for (size_t i = 0; i < g_dockApps.size(); i++) {
+            if (PtInRect(&g_dockApps[i].bounds, pt)) {
+                ShellExecute(NULL, L"open", g_dockApps[i].executable.c_str(), NULL, NULL, SW_SHOW);
+                break;
+            }
+        }
+
+        // Music player toggle
+        RECT musicRect;
+        SetRect(&musicRect, 510, 3, 650, 29);
+        if (PtInRect(&musicRect, pt)) {
+            g_musicPlaying = !g_musicPlaying;
+        }
+
+        if (y > 32 && y < GetScreenHeight() - 100 && !g_showLauncher) {
+            g_showLauncher = true;
+        }
+        break;
+    }
+
+    case WM_RBUTTONDOWN:
+        if (g_showLauncher) {
+            g_showLauncher = false;
+        }
+        break;
 
     case WM_KEYDOWN:
-        if (wParam == VK_ESCAPE) DestroyWindow(hwnd);
-        return 0;
+        if (wParam == VK_ESCAPE) {
+            if (g_showLauncher) {
+                g_showLauncher = false;
+            }
+            else {
+                PostQuitMessage(0);
+            }
+        }
+        else if (wParam == 'M') {
+            g_musicPlaying = !g_musicPlaying;
+        }
+        break;
 
     case WM_DESTROY:
-        delete g_bg;
-        ShowWindow(FindWindow(L"Shell_TrayWnd", NULL), SW_SHOW); // возвращаем настоящую панель
+        KillTimer(hWnd, 1);
+        KillTimer(hWnd, 2);
+        KillTimer(hWnd, 3);
+        if (g_wallpaperBitmap) { delete g_wallpaperBitmap; g_wallpaperBitmap = NULL; }
+        if (g_memDC) {
+            SelectObject(g_memDC, g_oldBitmap);
+            DeleteObject(g_memBitmap);
+            DeleteDC(g_memDC);
+        }
         PostQuitMessage(0);
-        return 0;
+        break;
+
+    default:
+        return DefWindowProc(hWnd, msg, wParam, lParam);
     }
-    return DefWindowProc(hwnd, msg, wParam, lParam);
+    return 0;
 }
 
-int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int)
-{
-    GdiplusStartupInput gsi;
-    ULONG_PTR gdiToken;
-    GdiplusStartup(&gdiToken, &gsi, NULL);
+int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nShow) {
+    GdiplusStartupInput gdiplusStartupInput;
+    GdiplusStartup(&g_gdiplusToken, &gdiplusStartupInput, NULL);
 
-    g_w = GetSystemMetrics(SM_CXSCREEN);
-    g_h = GetSystemMetrics(SM_CYSCREEN);
-
-    g_bg = new Image(L"background.jpg");   // ← твоя фотка сюда
-
-    // Прячем настоящую панель Windows
-    HWND realTB = FindWindow(L"Shell_TrayWnd", NULL);
-    if (realTB) ShowWindow(realTB, SW_HIDE);
-
-    WNDCLASS wc = {};
-    wc.lpfnWndProc = WndProc;
+    WNDCLASSEXW wc;
+    memset(&wc, 0, sizeof(wc));
+    wc.cbSize = sizeof(wc);
+    wc.style = 0;
+    wc.lpfnWndProc = DesktopProc;
     wc.hInstance = hInst;
-    wc.lpszClassName = L"FakeOS2026";
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    RegisterClass(&wc);
+    wc.hbrBackground = NULL;
+    wc.lpszClassName = L"VORTEX_Desktop";
 
-    HWND hwnd = CreateWindowEx(WS_EX_TOPMOST, L"FakeOS2026", L"Grok OS 2026",
-        WS_POPUP, 0, 0, g_w, g_h, NULL, NULL, hInst, NULL);
+    RegisterClassExW(&wc);
 
-    ShowWindow(hwnd, SW_SHOWMAXIMIZED);
-    UpdateWindow(hwnd);
+    int screenW = GetScreenWidth();
+    int screenH = GetScreenHeight();
+
+    g_hDesktop = CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+        L"VORTEX_Desktop", L"VORTEX Desktop",
+        WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN,
+        0, 0, screenW, screenH,
+        NULL, NULL, hInst, NULL);
+
+    HWND hTaskbar = FindWindow(L"Shell_TrayWnd", NULL);
+    if (hTaskbar) ShowWindow(hTaskbar, SW_HIDE);
+
+    ShowWindow(g_hDesktop, nShow);
+    UpdateWindow(g_hDesktop);
 
     MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0))
-    {
+    while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
 
-    GdiplusShutdown(gdiToken);
-    return 0;
+    if (hTaskbar) ShowWindow(hTaskbar, SW_SHOW);
+
+    GdiplusShutdown(g_gdiplusToken);
+    return (int)msg.wParam;
+}
+
+int main() {
+    return wWinMain(GetModuleHandle(NULL), NULL, NULL, SW_SHOW);
 }
