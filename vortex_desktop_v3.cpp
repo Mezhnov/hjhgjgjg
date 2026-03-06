@@ -1997,7 +1997,6 @@ void DrawWifiPanel(Graphics& g, int sw, int sh) {
         FillRoundRectSolid(g, barX2, barY2, barW2, barH2, 3, Color((BYTE)(150 * a), 55, 55, 60));
         int fillW = (int)(barW2 * 0.7f);
         FillRoundRectSolid(g, barX2, barY2, fillW, barH2, 3, Color((BYTE)(230 * a), 76, 194, 255));
-        g.FillEllipse(&SolidBrush(Color((BYTE)(250 * a), 255, 255, 255)), barX2 + fillW - 6, barY2 - 3, 12, 12);
     }
 
     // Volume slider
@@ -2012,7 +2011,6 @@ void DrawWifiPanel(Graphics& g, int sw, int sh) {
         FillRoundRectSolid(g, barX2, barY2, barW2, barH2, 3, Color((BYTE)(150 * a), 55, 55, 60));
         int fillW = (int)(barW2 * 0.5f);
         FillRoundRectSolid(g, barX2, barY2, fillW, barH2, 3, Color((BYTE)(230 * a), 76, 194, 255));
-        g.FillEllipse(&SolidBrush(Color((BYTE)(250 * a), 255, 255, 255)), barX2 + fillW - 6, barY2 - 3, 12, 12);
     }
 
     // Separator
@@ -3340,13 +3338,3 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nShow) {
 int main() {
     return wWinMain(GetModuleHandle(NULL), NULL, NULL, SW_SHOW);
 }
-
-Сборка начата в 8:07...
-1>------ Сборка начата: проект: ConsoleApplication5, Конфигурация: Debug x64 ------
-1>ConsoleApplication5.cpp
-1>C:\Users\User\source\repos\ConsoleApplication5\ConsoleApplication5\ConsoleApplication5.cpp(2000,34): error C2102: для "&" требуется левостороннее значение
-1>C:\Users\User\source\repos\ConsoleApplication5\ConsoleApplication5\ConsoleApplication5.cpp(2015,34): error C2102: для "&" требуется левостороннее значение
-1>C:\Users\User\source\repos\ConsoleApplication5\ConsoleApplication5\ConsoleApplication5.cpp(2085,82): warning C4244: аргумент: преобразование "float" в "BYTE", возможна потеря данных
-1>Сборка проекта "ConsoleApplication5.vcxproj" завершена с ошибкой.
-========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
-========== Сборка завершено в 8:07 и заняло 01,016 с ==========
