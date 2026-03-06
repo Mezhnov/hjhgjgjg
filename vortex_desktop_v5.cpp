@@ -66,12 +66,13 @@ struct SpringValue {
     float velocity;
     float tension;
     float friction;
-    
+
     SpringValue(float init = 0.0f, float t = 180.0f, float f = 12.0f)
-        : current(init), target(init), velocity(0), tension(t), friction(f) {}
-    
+        : current(init), target(init), velocity(0), tension(t), friction(f) {
+    }
+
     void SetTarget(float t) { target = t; }
-    
+
     void Update(float dt = 0.016f) {
         float force = tension * (target - current);
         float damping = -friction * velocity;
@@ -83,11 +84,11 @@ struct SpringValue {
             velocity = 0;
         }
     }
-    
+
     bool IsSettled() const {
         return current == target && velocity == 0;
     }
-    
+
     operator float() const { return current; }
 };
 
@@ -937,7 +938,8 @@ void FillRoundRectGradient(Graphics& g, int x, int y, int w, int h, int r, Color
     if (vertical) {
         LinearGradientBrush br(Point(x, y), Point(x, y + h), c1, c2);
         g.FillPath(&br, &p);
-    } else {
+    }
+    else {
         LinearGradientBrush br(Point(x, y), Point(x + w, y), c1, c2);
         g.FillPath(&br, &p);
     }
@@ -983,26 +985,26 @@ std::wstring FormatSize(ULONGLONG bytes) {
 void DrawFolderIcon(Graphics& g, int x, int y, int size, Color color, float alpha = 1.0f) {
     BYTE a = (BYTE)(color.GetA() * alpha);
     int R = color.GetR(), G = color.GetG(), B = color.GetB();
-    
+
     // Shadow
     FillRoundRectSolid(g, x + 3, y + (int)(size * 0.15f) + 2, size - 4, (int)(size * 0.72f), 3,
         Color((BYTE)(40 * alpha), 0, 0, 0));
-    
+
     // Tab
     Color tabColor(a, (BYTE)(std::min)(255, R + 10), (BYTE)(std::min)(255, G + 10), (BYTE)(std::min)(255, B + 10));
     FillRoundRectSolid(g, x + 2, y + 2, (int)(size * 0.42f), (int)(size * 0.16f), 3, tabColor);
-    
+
     // Body back
     Color bodyBack(a, (BYTE)R, (BYTE)G, (BYTE)B);
     FillRoundRectSolid(g, x + 2, y + (int)(size * 0.13f), size - 4, (int)(size * 0.73f), 4, bodyBack);
-    
+
     // Front face - lighter with gradient
     Color frontTop((BYTE)(255 * alpha),
         (BYTE)(std::min)(255, R + 40), (BYTE)(std::min)(255, G + 40), (BYTE)(std::min)(255, B + 40));
     Color frontBot((BYTE)(255 * alpha),
         (BYTE)(std::min)(255, R + 20), (BYTE)(std::min)(255, G + 20), (BYTE)(std::min)(255, B + 20));
     FillRoundRectGradient(g, x + 2, y + (int)(size * 0.36f), size - 4, (int)(size * 0.50f), 4, frontTop, frontBot);
-    
+
     // Highlight line at top of front face
     Pen highlightPen(Color((BYTE)(50 * alpha), 255, 255, 255), 1.0f);
     g.DrawLine(&highlightPen, x + 5, y + (int)(size * 0.37f), x + size - 7, y + (int)(size * 0.37f));
@@ -1031,7 +1033,7 @@ void DrawFileIcon(Graphics& g, int x, int y, int size, const std::wstring& ext, 
     };
     SolidBrush foldBr(Color((BYTE)(200 * alpha), 195, 195, 208));
     g.FillPolygon(&foldBr, foldPts, 3);
-    
+
     // Fold edge highlight
     Pen foldEdge(Color((BYTE)(60 * alpha), 255, 255, 255), 0.5f);
     g.DrawLine(&foldEdge, Point(px + pw - foldSize, py), Point(px + pw, py + foldSize));
@@ -1066,7 +1068,7 @@ void DrawDriveIcon(Graphics& g, int x, int y, int size, float usedPercent, float
     // Shadow
     FillRoundRectSolid(g, x + 3, y + (int)(size * 0.18f) + 2, size - 4, (int)(size * 0.68f), 5,
         Color((BYTE)(30 * alpha), 0, 0, 0));
-    
+
     // Drive body - gradient
     FillRoundRectGradient(g, x + 2, y + (int)(size * 0.15f), size - 4, (int)(size * 0.68f), 5,
         Color((BYTE)(235 * alpha), 75, 75, 82),
@@ -1107,24 +1109,24 @@ void DrawPCIcon(Graphics& g, int x, int y, int size, float alpha = 1.0f) {
     int mh = (int)(size * 0.52f);
     int mx = x + (size - mw) / 2;
     int my = y + 2;
-    
+
     // Monitor shadow
     FillRoundRectSolid(g, mx + 2, my + 3, mw, mh, 4, Color((BYTE)(35 * alpha), 0, 0, 0));
-    
+
     // Monitor body
     FillRoundRectGradient(g, mx, my, mw, mh, 4,
         Color((BYTE)(235 * alpha), 50, 115, 195),
         Color((BYTE)(235 * alpha), 35, 85, 160));
-    
+
     // Screen
     FillRoundRectGradient(g, mx + 3, my + 3, mw - 6, mh - 7, 2,
         Color((BYTE)(235 * alpha), 100, 175, 240),
         Color((BYTE)(235 * alpha), 65, 140, 210));
-    
+
     // Screen shine
     FillRoundRectSolid(g, mx + 4, my + 4, (int)((mw - 8) * 0.4f), (int)((mh - 8) * 0.3f), 1,
         Color((BYTE)(30 * alpha), 255, 255, 255));
-    
+
     // Stand
     SolidBrush standBr(Color((BYTE)(210 * alpha), 105, 105, 115));
     g.FillRectangle(&standBr, x + size / 2 - 3, my + mh, 6, (int)(size * 0.12f));
@@ -1145,17 +1147,17 @@ void DrawRecycleBinIcon(Graphics& g, int x, int y, int size, float alpha = 1.0f)
     FillRoundRectGradient(g, bx, by, bw, bh, 4,
         Color((BYTE)(225 * alpha), 140, 140, 150),
         Color((BYTE)(225 * alpha), 110, 110, 120));
-    
+
     // Lid
     Pen lidPen(Color((BYTE)(235 * alpha), 160, 160, 170), 2.5f);
     g.DrawLine(&lidPen, bx - 3, by, bx + bw + 3, by);
-    
+
     // Handle
     GraphicsPath handlePath;
     handlePath.AddArc(x + size / 2 - 6, by - 8, 12, 10, 180, 180);
     Pen handlePen(Color((BYTE)(235 * alpha), 155, 155, 165), 2.0f);
     g.DrawPath(&handlePen, &handlePath);
-    
+
     // Lines
     Pen lp(Color((BYTE)(100 * alpha), 80, 80, 90), 1.2f);
     for (int li = 0; li < 3; li++) {
@@ -1185,7 +1187,7 @@ void DrawDesktopIconItem(Graphics& g, DesktopIcon& d, bool hovered, bool draggin
         BYTE bgB = (BYTE)(sa * 180 + (1 - sa) * 255);
         FillRoundRectSolid(g, x - 1, y - 1, DESKTOP_ICON_W + 2, DESKTOP_ICON_H + 2, 6,
             Color(bgA, bgR, bgG, bgB));
-        
+
         if (sa > 0.1f) {
             DrawRoundRect(g, x - 1, y - 1, DESKTOP_ICON_W + 2, DESKTOP_ICON_H + 2, 6,
                 Color((BYTE)(sa * 80), 96, 205, 255), 1.0f);
@@ -1215,7 +1217,7 @@ void DrawDesktopIconItem(Graphics& g, DesktopIcon& d, bool hovered, bool draggin
     SolidBrush shadowBr(Color(180, 0, 0, 0));
     RectF shadowRc((REAL)(x - 3), (REAL)(y + DESKTOP_ICON_H - 28 + 1), (REAL)(DESKTOP_ICON_W + 6), 28.0f);
     g.DrawString(d.name.c_str(), -1, &nameFont, shadowRc, &cfmt, &shadowBr);
-    
+
     SolidBrush textBr(W11::TextPrimary);
     RectF textRc((REAL)(x - 3), (REAL)(y + DESKTOP_ICON_H - 28), (REAL)(DESKTOP_ICON_W + 6), 28.0f);
     g.DrawString(d.name.c_str(), -1, &nameFont, textRc, &cfmt, &textBr);
@@ -1330,14 +1332,16 @@ void DrawExplorerWindow(Graphics& g, ExplorerWindow& win) {
         if (type == 0) { // Back
             g.DrawLine(&p, cx2 + 3, cy2 - 5, cx2 - 3, cy2);
             g.DrawLine(&p, cx2 - 3, cy2, cx2 + 3, cy2 + 5);
-        } else if (type == 1) { // Forward
+        }
+        else if (type == 1) { // Forward
             g.DrawLine(&p, cx2 - 3, cy2 - 5, cx2 + 3, cy2);
             g.DrawLine(&p, cx2 + 3, cy2, cx2 - 3, cy2 + 5);
-        } else { // Up
+        }
+        else { // Up
             g.DrawLine(&p, cx2 - 5, cy2 + 2, cx2, cy2 - 4);
             g.DrawLine(&p, cx2, cy2 - 4, cx2 + 5, cy2 + 2);
         }
-    };
+        };
 
     drawNavBtn(win.historyIndex > 0, 0);
     navX += navBtnSize + 4;
@@ -1410,7 +1414,8 @@ void DrawExplorerWindow(Graphics& g, ExplorerWindow& win) {
             else if (i == 4) fc = Color(255, 255, 110, 140);
             else if (i == 5) fc = Color(255, 100, 200, 130);
             DrawFolderIcon(g, wx + 16, sideY + 3, 22, fc, a);
-        } else {
+        }
+        else {
             DrawPCIcon(g, wx + 16, sideY + 3, 22, a);
         }
 
@@ -1427,7 +1432,8 @@ void DrawExplorerWindow(Graphics& g, ExplorerWindow& win) {
             RectF hdr2Rc((REAL)(wx + 16), (REAL)sideY, (REAL)(sidebarW - 24), 18.0f);
             g.DrawString(L"This PC", -1, &headerFont, hdr2Rc, &lfmt, &hdr2);
             sideY += 26;
-        } else {
+        }
+        else {
             sideY += itemH;
         }
     }
@@ -1542,7 +1548,8 @@ void DrawExplorerWindow(Graphics& g, ExplorerWindow& win) {
             if (sel) {
                 FillRoundRectSolid(g, contentX + 4, iy, contentW - 8, itemH - 1, 4,
                     Color((BYTE)(225 * a), 0, 65, 135));
-            } else if (hov) {
+            }
+            else if (hov) {
                 FillRoundRectSolid(g, contentX + 4, iy, contentW - 8, itemH - 1, 4,
                     Color((BYTE)(200 * a), 46, 46, 50));
             }
@@ -1554,10 +1561,12 @@ void DrawExplorerWindow(Graphics& g, ExplorerWindow& win) {
                     g.DrawLine(&upPen, cx2, cy2 + 4, cx2, cy2 - 4);
                     g.DrawLine(&upPen, cx2 - 4, cy2, cx2, cy2 - 4);
                     g.DrawLine(&upPen, cx2 + 4, cy2, cx2, cy2 - 4);
-                } else {
+                }
+                else {
                     DrawFolderIcon(g, contentX + 16, iy + 3, 24, Color(255, 255, 213, 79), a);
                 }
-            } else {
+            }
+            else {
                 std::wstring ext;
                 size_t dotPos = fi.name.find_last_of(L'.');
                 if (dotPos != std::wstring::npos) ext = fi.name.substr(dotPos);
@@ -1583,7 +1592,8 @@ void DrawExplorerWindow(Graphics& g, ExplorerWindow& win) {
                     std::wstring ext2 = fi.name.substr(dotPos);
                     for (auto& ch : ext2) ch = towupper(ch);
                     typeStr = ext2.substr(1) + L" File";
-                } else typeStr = L"File";
+                }
+                else typeStr = L"File";
             }
             SolidBrush typeBr(Color((BYTE)(120 * a), 150, 150, 160));
             RectF typeRc((REAL)(contentX + contentW - 140), (REAL)iy, 120.0f, (REAL)itemH);
@@ -1621,7 +1631,7 @@ void DrawExplorerWindow(Graphics& g, ExplorerWindow& win) {
     }
 
     g.ResetClip();
-    
+
     // Reset transform
     if (fabsf(sc - 1.0f) > 0.002f) {
         g.ResetTransform();
@@ -1638,7 +1648,7 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
     // Base layer
     SolidBrush baseBr(Color(240, 20, 20, 22));
     g.FillRectangle(&baseBr, 0, barY, sw, TASKBAR_HEIGHT);
-    
+
     // Glassmorphism gradient overlay
     LinearGradientBrush glassBg(Point(0, barY), Point(0, sh),
         Color(20, 60, 60, 65), Color(8, 30, 30, 32));
@@ -1649,7 +1659,7 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
         Color(0, 255, 255, 255), Color(50, 255, 255, 255));
     Pen topLine(Color(40, 255, 255, 255), 1.0f);
     g.DrawLine(&topLine, 0, barY, sw, barY);
-    
+
     // Accent glow under top edge (centered, subtle)
     for (int i = 0; i < 3; i++) {
         int gw = 300 - i * 60;
@@ -1686,17 +1696,17 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
         int lx = bx + (TASKBAR_ICON_SIZE - logoSize) / 2;
         int ly = by + (TASKBAR_ICON_SIZE - logoSize) / 2;
         int gap = 2, sq = (logoSize - gap) / 2;
-        
-        Color logoColor = g_startMenuOpen ? Color(255, 255, 255, 255) : 
+
+        Color logoColor = g_startMenuOpen ? Color(255, 255, 255, 255) :
             Color(255, 96, 205, 255);
         SolidBrush logoBr(logoColor);
-        
+
         // Rounded squares for logo
         FillRoundRectSolid(g, lx, ly, sq, sq, 2, logoColor);
         FillRoundRectSolid(g, lx + sq + gap, ly, sq, sq, 2, logoColor);
         FillRoundRectSolid(g, lx, ly + sq + gap, sq, sq, 2, logoColor);
         FillRoundRectSolid(g, lx + sq + gap, ly + sq + gap, sq, sq, 2, logoColor);
-        
+
         // Subtle glow when open
         if (g_startMenuOpen) {
             int gcx = bx + TASKBAR_ICON_SIZE / 2;
@@ -1711,7 +1721,7 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
         int by = iconY;
         bool hov = (g_hoveredTaskbarIcon == -11);
         if (hov) FillRoundRectSolid(g, bx, by, TASKBAR_ICON_SIZE, TASKBAR_ICON_SIZE, 8, Color(80, 55, 55, 58));
-        
+
         Pen sp(Color(200, 190, 190, 200), 1.6f);
         int cx2 = bx + TASKBAR_ICON_SIZE / 2 - 2, cy2 = by + TASKBAR_ICON_SIZE / 2 - 2;
         g.DrawEllipse(&sp, cx2 - 6, cy2 - 6, 12, 12);
@@ -1724,7 +1734,7 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
         int by = iconY;
         bool hov = (g_hoveredTaskbarIcon == -12);
         if (hov) FillRoundRectSolid(g, bx, by, TASKBAR_ICON_SIZE, TASKBAR_ICON_SIZE, 8, Color(80, 55, 55, 58));
-        
+
         Pen tp(Color(200, 190, 190, 200), 1.2f);
         g.DrawRectangle(&tp, bx + 11, by + 12, 9, 7);
         g.DrawRectangle(&tp, bx + 19, by + 19, 9, 7);
@@ -1749,14 +1759,14 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
         int icoInner = 26;
         int icoX = ix + (TASKBAR_ICON_SIZE - icoInner) / 2;
         int icoY = iconY + (TASKBAR_ICON_SIZE - icoInner) / 2;
-        
+
         Color c1 = g_taskApps[i].accentColor;
-        Color c2(255, 
+        Color c2(255,
             (BYTE)(std::max)(0, (int)c1.GetR() - 25),
             (BYTE)(std::max)(0, (int)c1.GetG() - 25),
             (BYTE)(std::max)(0, (int)c1.GetB() - 25));
         FillRoundRectGradient(g, icoX, icoY, icoInner, icoInner, 7, c1, c2);
-        
+
         // Subtle top highlight on icon
         Pen icoHL(Color(35, 255, 255, 255), 0.8f);
         g.DrawLine(&icoHL, icoX + 4, icoY + 1, icoX + icoInner - 4, icoY + 1);
@@ -1774,7 +1784,7 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
             int dotH = 3;
             int dotX = ix + (TASKBAR_ICON_SIZE - dotW) / 2;
             int dotY = iconY + TASKBAR_ICON_SIZE + 1;
-            
+
             // Glow under indicator
             for (int gl = 0; gl < 3; gl++) {
                 int glW = dotW + gl * 4;
@@ -1782,7 +1792,7 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
                 SolidBrush glBr(Color((BYTE)(20 - gl * 6), 96, 205, 255));
                 g.FillRectangle(&glBr, glX, dotY - gl, glW, dotH + gl * 2);
             }
-            
+
             FillRoundRectSolid(g, dotX, dotY, dotW, dotH, 1, W11::TaskbarIndicator);
         }
 
@@ -1831,13 +1841,13 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
             // Animated subtle pulse
             float pulse = 1.0f + 0.03f * sinf(g_time * 2.5f + arc * 0.8f);
             int pr = (int)(r * pulse);
-            
+
             Pen wPen(Color((BYTE)(210 * waveAlpha), 200, 220, 255), 2.0f);
             wPen.SetStartCap(LineCapRound);
             wPen.SetEndCap(LineCapRound);
             g.DrawArc(&wPen, wcx - pr, wcy - pr, pr * 2, pr * 2, 225, 90);
         }
-        
+
         // Center dot with glow
         SolidBrush dotGlow(Color(40, 96, 205, 255));
         g.FillEllipse(&dotGlow, wcx - 4, wcy - 4, 8, 8);
@@ -1849,12 +1859,12 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
     {
         int vx = trayX + 68;
         int vy = barY + (TASKBAR_HEIGHT - 20) / 2;
-        
+
         // Speaker body
         Pen vPen(Color(200, 195, 200, 215), 1.5f);
         vPen.SetStartCap(LineCapRound);
         vPen.SetEndCap(LineCapRound);
-        
+
         // Speaker shape
         Point speaker[6] = {
             Point(vx + 3, vy + 7), Point(vx + 6, vy + 7),
@@ -1862,7 +1872,7 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
             Point(vx + 6, vy + 13), Point(vx + 3, vy + 13)
         };
         g.DrawPolygon(&vPen, speaker, 6);
-        
+
         // Sound waves
         for (int w = 0; w < 2; w++) {
             int wr = 4 + w * 4;
@@ -1878,20 +1888,20 @@ void DrawTaskbar(Graphics& g, int sw, int sh) {
     {
         int bx = trayX + 104;
         int by = barY + (TASKBAR_HEIGHT - 14) / 2;
-        
+
         // Battery outline
         Pen bPen(Color(190, 195, 200, 215), 1.2f);
         DrawRoundRect(g, bx, by, 24, 14, 3, Color(190, 195, 200, 215), 1.2f);
-        
+
         // Battery tip
         FillRoundRectSolid(g, bx + 24, by + 3, 3, 8, 1, Color(190, 195, 200, 215));
-        
+
         // Fill with gradient
         int fillW = (int)(18 * 0.82f); // 82% battery
         Color battC1(255, 108, 210, 100);
         Color battC2(255, 80, 180, 70);
         FillRoundRectGradient(g, bx + 3, by + 3, fillW, 8, 1, battC1, battC2, false);
-        
+
         // Subtle shine
         SolidBrush shine(Color(25, 255, 255, 255));
         g.FillRectangle(&shine, bx + 3, by + 3, fillW, 3);
@@ -2012,19 +2022,19 @@ void DrawStartMenu(Graphics& g, int sw, int sh) {
         int aicoSize = 36;
         int aicoX = ix + (cellW - aicoSize) / 2;
         int aicoY = iy + 6;
-        
+
         // Icon shadow
         FillRoundRectSolid(g, aicoX + 1, aicoY + 2, aicoSize, aicoSize, 8,
             Color((BYTE)(30 * itemA), 0, 0, 0));
-        
+
         Color appC = g_startApps[i].color;
         FillRoundRectGradient(g, aicoX, aicoY, aicoSize, aicoSize, 8,
             Color((BYTE)(245 * itemA), appC.GetR(), appC.GetG(), appC.GetB()),
-            Color((BYTE)(245 * itemA), 
+            Color((BYTE)(245 * itemA),
                 (BYTE)(std::max)(0, (int)appC.GetR() - 20),
                 (BYTE)(std::max)(0, (int)appC.GetG() - 20),
                 (BYTE)(std::max)(0, (int)appC.GetB() - 20)));
-        
+
         // Highlight
         Pen icoHL(Color((BYTE)(25 * itemA), 255, 255, 255), 0.5f);
         g.DrawLine(&icoHL, aicoX + 5, aicoY + 1, aicoX + aicoSize - 5, aicoY + 1);
@@ -2055,13 +2065,13 @@ void DrawStartMenu(Graphics& g, int sw, int sh) {
     for (int i = 0; i < 3; i++) {
         int ry = sepY + 46 + i * 42;
         int rx = menuX + 32;
-        
+
         FillRoundRectSolid(g, rx, ry + 3, 30, 30, 6, Color((BYTE)(180 * a), 55, 55, 62));
         Font fIcon(&ff, 10.0f, FontStyleRegular, UnitPixel);
         SolidBrush fIcoBr(Color((BYTE)(190 * a), 170, 175, 195));
         RectF fIcoRc((REAL)rx, (REAL)(ry + 3), 30.0f, 30.0f);
         g.DrawString(L"\xD83D\xDCC4", -1, &fIcon, fIcoRc, &cfmt, &fIcoBr);
-        
+
         Font recFont(&ff, 12.0f, FontStyleRegular, UnitPixel);
         SolidBrush recBr(Color((BYTE)(215 * a), 215, 215, 225));
         RectF recNameRc((REAL)(rx + 38), (REAL)(ry + 2), 220.0f, 18.0f);
@@ -2084,7 +2094,7 @@ void DrawStartMenu(Graphics& g, int sw, int sh) {
     FillRoundRectGradient(g, menuX + 32, bottomY + 12, 30, 30, 15,
         Color((BYTE)(200 * a), 90, 90, 105),
         Color((BYTE)(200 * a), 65, 65, 78));
-    
+
     Font userIcon(&ff, 14.0f, FontStyleBold, UnitPixel);
     SolidBrush userBr(Color((BYTE)(240 * a), 200, 205, 220));
     RectF userRc((REAL)(menuX + 32), (REAL)(bottomY + 12), 30.0f, 30.0f);
@@ -2205,19 +2215,20 @@ void DrawWifiPanel(Graphics& g, int sw, int sh) {
 
     for (int i = 0; i < 3; i++) {
         int tx = panelX + 18 + i * (toggleW + 8);
-        
+
         if (toggles[i].active) {
             FillRoundRectGradient(g, tx, toggleY, toggleW, toggleH, 10,
                 Color((BYTE)(255 * a), toggles[i].color.GetR(), toggles[i].color.GetG(), toggles[i].color.GetB()),
-                Color((BYTE)(255 * a), 
+                Color((BYTE)(255 * a),
                     (BYTE)(std::max)(0, (int)toggles[i].color.GetR() - 30),
                     (BYTE)(std::max)(0, (int)toggles[i].color.GetG() - 30),
                     (BYTE)(std::max)(0, (int)toggles[i].color.GetB() - 30)));
-        } else {
+        }
+        else {
             FillRoundRectSolid(g, tx, toggleY, toggleW, toggleH, 10,
                 Color((BYTE)(200 * a), 50, 50, 54));
         }
-        
+
         // Top highlight
         Pen thl(Color((BYTE)(toggles[i].active ? 35 : 15) * a / 255.0f * 255, 255, 255, 255), 0.5f);
         g.DrawLine(&thl, tx + 8, toggleY + 1, tx + toggleW - 8, toggleY + 1);
@@ -2242,24 +2253,24 @@ void DrawWifiPanel(Graphics& g, int sw, int sh) {
 
     // ---- Sliders with beautiful design ----
     int sliderY = toggleY + toggleH + 18;
-    
+
     auto drawSlider = [&](int sy, const std::wstring& label, const std::wstring& icon, float value, Color accentC) {
         Font lbl(&ff, 11.0f, FontStyleRegular, UnitPixel);
         SolidBrush lblBr(Color((BYTE)(155 * a), 175, 175, 185));
         lfmt.SetLineAlignment(StringAlignmentNear);
-        
+
         // Icon
         Font icoFont(&ff, 13.0f, FontStyleRegular, UnitPixel);
         SolidBrush icoBr(Color((BYTE)(180 * a), 200, 200, 210));
         RectF icoRc((REAL)(panelX + 18), (REAL)sy, 20.0f, 18.0f);
         g.DrawString(icon.c_str(), -1, &icoFont, icoRc, &lfmt, &icoBr);
-        
+
         RectF lblRc((REAL)(panelX + 40), (REAL)sy, 100.0f, 18.0f);
         g.DrawString(label.c_str(), -1, &lbl, lblRc, &lfmt, &lblBr);
 
         int barX2 = panelX + 20, barY2 = sy + 24, barW2 = panelW - 40, barH2 = 6;
         FillRoundRectSolid(g, barX2, barY2, barW2, barH2, 3, Color((BYTE)(140 * a), 48, 48, 52));
-        
+
         int fillW = (int)(barW2 * value);
         if (fillW > 0) {
             Color c1(255, accentC.GetR(), accentC.GetG(), accentC.GetB());
@@ -2271,7 +2282,7 @@ void DrawWifiPanel(Graphics& g, int sw, int sh) {
                 Color((BYTE)(235 * a), c1.GetR(), c1.GetG(), c1.GetB()),
                 Color((BYTE)(235 * a), c2.GetR(), c2.GetG(), c2.GetB()), false);
         }
-        
+
         // Thumb
         int thumbX = barX2 + fillW - 7;
         if (thumbX < barX2) thumbX = barX2;
@@ -2279,7 +2290,7 @@ void DrawWifiPanel(Graphics& g, int sw, int sh) {
             Color((BYTE)(240 * a), 255, 255, 255));
         FillRoundRectSolid(g, thumbX + 2, barY2 - 1, 10, 8, 4,
             Color((BYTE)(240 * a), accentC.GetR(), accentC.GetG(), accentC.GetB()));
-    };
+        };
 
     drawSlider(sliderY, L"Brightness", L"\x2600", g_brightnessLevel, Color(255, 255, 210, 70));
     sliderY += 44;
@@ -2334,8 +2345,8 @@ void DrawWifiPanel(Graphics& g, int sw, int sh) {
         for (int bar = 0; bar < 4; bar++) {
             int bH = 4 + bar * 4;
             bool filled = net.signal >= (bar + 1) * 25;
-            Color barCol = filled ? 
-                Color((BYTE)(225 * a), 200, 220, 255) : 
+            Color barCol = filled ?
+                Color((BYTE)(225 * a), 200, 220, 255) :
                 Color((BYTE)(35 * a), 200, 200, 210);
             FillRoundRectSolid(g, sigX + bar * 7, sigBaseY - bH, 5, bH, 1, barCol);
         }
@@ -2386,7 +2397,7 @@ void DrawNotifications(Graphics& g, int sw, int sh) {
         if (!n.alive) continue;
         float a = n.alpha.current;
         if (a <= 0.01f) continue;
-        
+
         int idx = (int)g_notifs.size() - 1 - i;
         int nx = sw - NOTIF_W - 14;
         int ny = (int)(baseY - idx * (NOTIF_H + 10) + n.offsetY.current);
@@ -2575,7 +2586,7 @@ void DrawBackground(Graphics& g, int sw, int sh) {
         LinearGradientBrush bg(Point(0, 0), Point(sw, sh),
             Color(255, 15, 32, 72), Color(255, 48, 18, 58));
         g.FillRectangle(&bg, 0, 0, sw, sh);
-        
+
         // Ambient light blobs
         for (int i = 0; i < 5; i++) {
             float t = g_time * 0.1f + i * 1.5f;
@@ -2703,7 +2714,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_TIMER:
         g_tick = GetTickCount();
         g_time = (float)g_tick / 1000.0f;
-        
+
         if (wParam == 1) {
             UpdateWidgets();
         }
@@ -2713,13 +2724,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             // Spring physics updates
             g_startMenuAnim.SetTarget(g_startMenuOpen ? 1.0f : 0.0f);
             g_startMenuAnim.Update(dt);
-            
+
             g_widgetsAnim.SetTarget(g_widgetsVisible ? 1.0f : 0.0f);
             g_widgetsAnim.Update(dt);
-            
+
             g_wifiPanelAnim.SetTarget(g_wifiPanelOpen ? 1.0f : 0.0f);
             g_wifiPanelAnim.Update(dt);
-            
+
             g_contextMenuAnim.SetTarget(g_contextMenuOpen ? 1.0f : 0.0f);
             g_contextMenuAnim.Update(dt);
 
@@ -3148,7 +3159,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                             win.maximized = true;
                             win.x = 0; win.y = 0;
                             win.w = ScreenW(); win.h = ScreenH() - TASKBAR_HEIGHT;
-                        } else {
+                        }
+                        else {
                             win.maximized = false;
                             win.x = (ScreenW() - 920) / 2; win.y = (ScreenH() - 620) / 2;
                             win.w = 920; win.h = 620;
@@ -3553,3 +3565,16 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nShow) {
 int main() {
     return wWinMain(GetModuleHandle(NULL), NULL, NULL, SW_SHOW);
 }
+Сборка начата в 9:27...
+1>------ Сборка начата: проект: ConsoleApplication5, Конфигурация: Debug x64 ------
+1>ConsoleApplication5.cpp
+1>C:\Users\User\source\repos\ConsoleApplication5\ConsoleApplication5\ConsoleApplication5.cpp(1918,32): error C2065: FontStyleSemiBold: необъявленный идентификатор
+1>C:\Users\User\source\repos\ConsoleApplication5\ConsoleApplication5\ConsoleApplication5.cpp(1990,34): error C2065: FontStyleSemiBold: необъявленный идентификатор
+1>C:\Users\User\source\repos\ConsoleApplication5\ConsoleApplication5\ConsoleApplication5.cpp(2233,72): warning C4244: аргумент: преобразование "float" в "BYTE", возможна потеря данных
+1>C:\Users\User\source\repos\ConsoleApplication5\ConsoleApplication5\ConsoleApplication5.cpp(2305,32): error C2065: FontStyleSemiBold: необъявленный идентификатор
+1>C:\Users\User\source\repos\ConsoleApplication5\ConsoleApplication5\ConsoleApplication5.cpp(2427,36): error C2065: FontStyleSemiBold: необъявленный идентификатор
+1>C:\Users\User\source\repos\ConsoleApplication5\ConsoleApplication5\ConsoleApplication5.cpp(2515,36): error C2065: FontStyleSemiBold: необъявленный идентификатор
+1>Сборка проекта "ConsoleApplication5.vcxproj" завершена с ошибкой.
+========== Сборка: успешно выполнено — 0 , со сбоем — 1, в актуальном состоянии — 0, пропущено — 0 ==========
+========== Сборка завершено в 9:27 и заняло 01,144 с ==========
+
