@@ -1,3 +1,710 @@
-#define UNICODE #define _UNICODE #include <windows.h> #include <commctrl.h> #include <string>  #pragma comment(lib, "comctl32.lib") #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")  // Цвета #define COLOR_BG_GRAY RGB(229, 229, 229) #define COLOR_WHITE RGB(255, 255, 255) #define COLOR_RED RGB(200, 50, 50) #define COLOR_DARK_GRAY RGB(100, 100, 100) #define COLOR_STATUS_BAR RGB(240, 240, 240) #define COLOR_BORDER_LIGHT RGB(200, 200, 200)  // Глобальные переменные HINSTANCE g_hInst; HWND g_hWnd; HWND g_hStatusBar; HWND g_hZoomSlider;  // Размеры int g_thumbnailWidth = 180; int g_slideMargin = 50; int g_statusBarHeight = 28;  // Прототипы функций LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM); void DrawThumbnailPanel(HDC hdc, RECT* rect); void DrawSlideArea(HDC hdc, RECT* rect); void DrawStatusBar(HDC hdc, RECT* rect); void DrawDashedRect(HDC hdc, int x, int y, int width, int height);  int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {     g_hInst = hInstance;          // Инициализация Common Controls     INITCOMMONCONTROLSEX icex;     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);     icex.dwICC = ICC_BAR_CLASSES;     InitCommonControlsEx(&icex);          // Регистрация класса окна     WNDCLASSEX wcex = {0};     wcex.cbSize = sizeof(WNDCLASSEX);     wcex.style = CS_HREDRAW | CS_VREDRAW;     wcex.lpfnWndProc = WndProc;     wcex.hInstance = hInstance;     wcex.hCursor = LoadCursor(NULL, IDC_ARROW);     wcex.hbrBackground = CreateSolidBrush(COLOR_BG_GRAY);     wcex.lpszClassName = L"PowerPointClone";     wcex.hIcon = LoadIcon(NULL, IDI_APPLICATION);          if (!RegisterClassEx(&wcex)) {         MessageBox(NULL, L"Ошибка регистрации класса окна!", L"Ошибка", MB_ICONERROR);         return 1;     }          // Создание главного окна     g_hWnd = CreateWindowEx(         0,         L"PowerPointClone",         L"PowerPoint Clone - Презентация",         WS_OVERLAPPEDWINDOW,         CW_USEDEFAULT, CW_USEDEFAULT,         1200, 750,         NULL, NULL, hInstance, NULL     );          if (!g_hWnd) {         MessageBox(NULL, L"Ошибка создания окна!", L"Ошибка", MB_ICONERROR);         return 1;     }          ShowWindow(g_hWnd, nCmdShow);     UpdateWindow(g_hWnd);          // Цикл сообщений     MSG msg;     while (GetMessage(&msg, NULL, 0, 0)) {         TranslateMessage(&msg);         DispatchMessage(&msg);     }          return (int)msg.wParam; }  void DrawDashedRect(HDC hdc, int x, int y, int width, int height) {     HPEN hPen = CreatePen(PS_DASH, 1, RGB(180, 180, 180));     HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);     HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));          Rectangle(hdc, x, y, x + width, y + height);          SelectObject(hdc, hOldPen);     SelectObject(hdc, hOldBrush);     DeleteObject(hPen); }  void DrawThumbnailPanel(HDC hdc, RECT* clientRect) {     // Фон панели миниатюр     RECT thumbPanel;     thumbPanel.left = 0;     thumbPanel.top = 0;     thumbPanel.right = g_thumbnailWidth;     thumbPanel.bottom = clientRect->bottom - g_statusBarHeight;          HBRUSH hBrushBg = CreateSolidBrush(COLOR_BG_GRAY);     FillRect(hdc, &thumbPanel, hBrushBg);     DeleteObject(hBrushBg);          // Разделительная линия     HPEN hPenBorder = CreatePen(PS_SOLID, 1, COLOR_BORDER_LIGHT);     HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);     MoveToEx(hdc, g_thumbnailWidth, 0, NULL);     LineTo(hdc, g_thumbnailWidth, clientRect->bottom - g_statusBarHeight);     SelectObject(hdc, hOldPen);     DeleteObject(hPenBorder);          // Миниатюра слайда     int thumbMargin = 15;     int thumbSlideWidth = g_thumbnailWidth - thumbMargin * 2;     int thumbSlideHeight = (int)(thumbSlideWidth * 0.5625); // 16:9 ratio     int thumbX = thumbMargin;     int thumbY = thumbMargin + 20;          // Номер слайда     HFONT hFontNum = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");     HFONT hOldFont = (HFONT)SelectObject(hdc, hFontNum);     SetTextColor(hdc, COLOR_RED);     SetBkMode(hdc, TRANSPARENT);     TextOut(hdc, thumbX - 2, thumbY - 18, L"1", 1);          // Белый фон миниатюры     RECT thumbRect;     thumbRect.left = thumbX;     thumbRect.top = thumbY;     thumbRect.right = thumbX + thumbSlideWidth;     thumbRect.bottom = thumbY + thumbSlideHeight;          HBRUSH hBrushWhite = CreateSolidBrush(COLOR_WHITE);     FillRect(hdc, &thumbRect, hBrushWhite);     DeleteObject(hBrushWhite);          // Красная рамка выделения     HPEN hPenRed = CreatePen(PS_SOLID, 3, COLOR_RED);     SelectObject(hdc, hPenRed);     SelectObject(hdc, GetStockObject(NULL_BRUSH));     Rectangle(hdc, thumbX - 2, thumbY - 2, thumbX + thumbSlideWidth + 2, thumbY + thumbSlideHeight + 2);     DeleteObject(hPenRed);          // Мини-текст на миниатюре     HFONT hFontMini = CreateFont(9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");     SelectObject(hdc, hFontMini);     SetTextColor(hdc, RGB(100, 100, 100));          RECT miniTitleRect;     miniTitleRect.left = thumbX + 5;     miniTitleRect.top = thumbY + thumbSlideHeight / 3;     miniTitleRect.right = thumbX + thumbSlideWidth - 5;     miniTitleRect.bottom = thumbY + thumbSlideHeight / 2;     DrawText(hdc, L"Заголовок слайда", -1, &miniTitleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);          SelectObject(hdc, hOldFont);     DeleteObject(hFontNum);     DeleteObject(hFontMini); }  void DrawSlideArea(HDC hdc, RECT* clientRect) {     // Область слайда     int slideAreaLeft = g_thumbnailWidth + 1;     int slideAreaTop = 0;     int slideAreaWidth = clientRect->right - g_thumbnailWidth - 1;     int slideAreaHeight = clientRect->bottom - g_statusBarHeight;          // Серый фон области редактирования     RECT slideAreaRect;     slideAreaRect.left = slideAreaLeft;     slideAreaRect.top = slideAreaTop;     slideAreaRect.right = clientRect->right;     slideAreaRect.bottom = slideAreaHeight;          HBRUSH hBrushArea = CreateSolidBrush(RGB(218, 218, 218));     FillRect(hdc, &slideAreaRect, hBrushArea);     DeleteObject(hBrushArea);          // Размеры слайда (16:9)     int maxSlideWidth = slideAreaWidth - g_slideMargin * 2;     int maxSlideHeight = slideAreaHeight - g_slideMargin * 2;          int slideWidth, slideHeight;     if (maxSlideWidth * 9 / 16 < maxSlideHeight) {         slideWidth = maxSlideWidth;         slideHeight = slideWidth * 9 / 16;     } else {         slideHeight = maxSlideHeight;         slideWidth = slideHeight * 16 / 9;     }          int slideX = slideAreaLeft + (slideAreaWidth - slideWidth) / 2;     int slideY = slideAreaTop + (slideAreaHeight - slideHeight) / 2;          // Тень слайда     RECT shadowRect;     shadowRect.left = slideX + 4;     shadowRect.top = slideY + 4;     shadowRect.right = slideX + slideWidth + 4;     shadowRect.bottom = slideY + slideHeight + 4;     HBRUSH hBrushShadow = CreateSolidBrush(RGB(180, 180, 180));     FillRect(hdc, &shadowRect, hBrushShadow);     DeleteObject(hBrushShadow);          // Белый слайд     RECT slideRect;     slideRect.left = slideX;     slideRect.top = slideY;     slideRect.right = slideX + slideWidth;     slideRect.bottom = slideY + slideHeight;          HBRUSH hBrushWhite = CreateSolidBrush(COLOR_WHITE);     FillRect(hdc, &slideRect, hBrushWhite);     DeleteObject(hBrushWhite);          // Граница слайда     HPEN hPenBorder = CreatePen(PS_SOLID, 1, RGB(200, 200, 200));     HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);     SelectObject(hdc, GetStockObject(NULL_BRUSH));     Rectangle(hdc, slideX, slideY, slideX + slideWidth, slideY + slideHeight);     SelectObject(hdc, hOldPen);     DeleteObject(hPenBorder);          // Пунктирный прямоугольник для заголовка     int titleBoxWidth = (int)(slideWidth * 0.8);     int titleBoxHeight = (int)(slideHeight * 0.15);     int titleBoxX = slideX + (slideWidth - titleBoxWidth) / 2;     int titleBoxY = slideY + (int)(slideHeight * 0.25);          DrawDashedRect(hdc, titleBoxX, titleBoxY, titleBoxWidth, titleBoxHeight);          // Пунктирный прямоугольник для подзаголовка     int subtitleBoxWidth = (int)(slideWidth * 0.6);     int subtitleBoxHeight = (int)(slideHeight * 0.1);     int subtitleBoxX = slideX + (slideWidth - subtitleBoxWidth) / 2;     int subtitleBoxY = slideY + (int)(slideHeight * 0.50);          DrawDashedRect(hdc, subtitleBoxX, subtitleBoxY, subtitleBoxWidth, subtitleBoxHeight);          // Текст "Заголовок слайда"     HFONT hFontTitle = CreateFont(         max(slideHeight / 10, 28), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI Light"     );     HFONT hOldFont = (HFONT)SelectObject(hdc, hFontTitle);     SetTextColor(hdc, RGB(80, 80, 80));     SetBkMode(hdc, TRANSPARENT);          RECT titleTextRect;     titleTextRect.left = titleBoxX;     titleTextRect.top = titleBoxY;     titleTextRect.right = titleBoxX + titleBoxWidth;     titleTextRect.bottom = titleBoxY + titleBoxHeight;     DrawText(hdc, L"Заголовок слайда", -1, &titleTextRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);          // Текст "Подзаголовок слайда"     HFONT hFontSubtitle = CreateFont(         max(slideHeight / 18, 16), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI"     );     SelectObject(hdc, hFontSubtitle);     SetTextColor(hdc, RGB(120, 120, 120));          RECT subtitleTextRect;     subtitleTextRect.left = subtitleBoxX;     subtitleTextRect.top = subtitleBoxY;     subtitleTextRect.right = subtitleBoxX + subtitleBoxWidth;     subtitleTextRect.bottom = subtitleBoxY + subtitleBoxHeight;     DrawText(hdc, L"Подзаголовок слайда", -1, &subtitleTextRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);          SelectObject(hdc, hOldFont);     DeleteObject(hFontTitle);     DeleteObject(hFontSubtitle); }  void DrawStatusBar(HDC hdc, RECT* clientRect) {     // Фон статус-бара     RECT statusRect;     statusRect.left = 0;     statusRect.top = clientRect->bottom - g_statusBarHeight;     statusRect.right = clientRect->right;     statusRect.bottom = clientRect->bottom;          HBRUSH hBrushStatus = CreateSolidBrush(COLOR_STATUS_BAR);     FillRect(hdc, &statusRect, hBrushStatus);     DeleteObject(hBrushStatus);          // Верхняя линия статус-бара     HPEN hPenBorder = CreatePen(PS_SOLID, 1, RGB(210, 210, 210));     HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);     MoveToEx(hdc, 0, clientRect->bottom - g_statusBarHeight, NULL);     LineTo(hdc, clientRect->right, clientRect->bottom - g_statusBarHeight);     SelectObject(hdc, hOldPen);     DeleteObject(hPenBorder);          // Шрифт для статус-бара     HFONT hFontStatus = CreateFont(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");     HFONT hOldFont = (HFONT)SelectObject(hdc, hFontStatus);     SetTextColor(hdc, RGB(80, 80, 80));     SetBkMode(hdc, TRANSPARENT);          int yText = clientRect->bottom - g_statusBarHeight + 6;     int xPos = 10;          // "Слайд 1 из 1"     TextOut(hdc, xPos, yText, L"Слайд 1 из 1", 12);     xPos += 90;          // Разделитель     HPEN hPenSep = CreatePen(PS_SOLID, 1, RGB(200, 200, 200));     SelectObject(hdc, hPenSep);     MoveToEx(hdc, xPos, clientRect->bottom - g_statusBarHeight + 4, NULL);     LineTo(hdc, xPos, clientRect->bottom - 4);     xPos += 10;          // "русский"     TextOut(hdc, xPos, yText, L"русский", 7);     xPos += 60;          // Разделитель     MoveToEx(hdc, xPos, clientRect->bottom - g_statusBarHeight + 4, NULL);     LineTo(hdc, xPos, clientRect->bottom - 4);     xPos += 10;          // "Специальные возможности: не поддерживаются"     TextOut(hdc, xPos, yText, L"Специальные возможности: не поддерживаются", 42);     xPos += 280;          // Разделитель     MoveToEx(hdc, xPos, clientRect->bottom - g_statusBarHeight + 4, NULL);     LineTo(hdc, xPos, clientRect->bottom - 4);     xPos += 10;          // "Щёлкните, чтобы добавить заметки"     TextOut(hdc, xPos, yText, L"Щёлкните, чтобы добавить заметки", 32);          // Правая часть - масштаб     int rightX = clientRect->right - 150;          // Разделитель перед масштабом     MoveToEx(hdc, rightX - 10, clientRect->bottom - g_statusBarHeight + 4, NULL);     LineTo(hdc, rightX - 10, clientRect->bottom - 4);          // Иконки просмотра (простые прямоугольники)     HBRUSH hBrushIcon = CreateSolidBrush(RGB(150, 150, 150));          // Иконка обычного вида     RECT iconRect1 = {rightX, yText + 1, rightX + 14, yText + 11};     FrameRect(hdc, &iconRect1, hBrushIcon);          // Иконка сортировщика     RECT iconRect2 = {rightX + 20, yText + 1, rightX + 34, yText + 11};     FrameRect(hdc, &iconRect2, hBrushIcon);          // Иконка чтения     RECT iconRect3 = {rightX + 40, yText + 1, rightX + 54, yText + 11};     FrameRect(hdc, &iconRect3, hBrushIcon);          DeleteObject(hBrushIcon);          // Масштаб "68%"     TextOut(hdc, rightX + 70, yText, L"68%", 3);          // Ползунок масштаба (упрощённый)     HPEN hPenSlider = CreatePen(PS_SOLID, 2, RGB(180, 180, 180));     SelectObject(hdc, hPenSlider);     int sliderX = rightX + 100;     int sliderY = yText + 5;     MoveToEx(hdc, sliderX, sliderY, NULL);     LineTo(hdc, sliderX + 40, sliderY);          // Индикатор ползунка     Ellipse(hdc, sliderX + 15, sliderY - 4, sliderX + 23, sliderY + 4);          SelectObject(hdc, hOldPen);     DeleteObject(hPenSep);     DeleteObject(hPenSlider);     SelectObject(hdc, hOldFont);     DeleteObject(hFontStatus); }  LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {     switch (message) {         case WM_PAINT: {             PAINTSTRUCT ps;             HDC hdc = BeginPaint(hWnd, &ps);                          RECT clientRect;             GetClientRect(hWnd, &clientRect);                          // Двойная буферизация для устранения мерцания             HDC hdcMem = CreateCompatibleDC(hdc);             HBITMAP hbmMem = CreateCompatibleBitmap(hdc, clientRect.right, clientRect.bottom);             HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);                          // Очистка фона             HBRUSH hBrushBg = CreateSolidBrush(COLOR_BG_GRAY);             FillRect(hdcMem, &clientRect, hBrushBg);             DeleteObject(hBrushBg);                          // Отрисовка всех элементов             DrawThumbnailPanel(hdcMem, &clientRect);             DrawSlideArea(hdcMem, &clientRect);             DrawStatusBar(hdcMem, &clientRect);                          // Копирование буфера на экран             BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, hdcMem, 0, 0, SRCCOPY);                          // Освобождение ресурсов             SelectObject(hdcMem, hbmOld);             DeleteObject(hbmMem);             DeleteDC(hdcMem);                          EndPaint(hWnd, &ps);             return 0;         }                  case WM_SIZE:             InvalidateRect(hWnd, NULL, TRUE);             return 0;                      case WM_ERASEBKGND:             return 1; // Предотвращаем мерцание                      case WM_DESTROY:             PostQuitMessage(0);             return 0;                      default:             return DefWindowProc(hWnd, message, wParam, lParam);     } }
 
-улучшши сперва дизайн, добавь возможность создать слайды и верху сделай панель с картинка картиники если что можно из инета через ссылку загружать и весь код в одном файле, строк кода больше 2000
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniSchedule - Расписание ВУЗа</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0a1628 0%, #1a365d 50%, #0d2137 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        /* Анимированный фон */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+
+        .bg-animation span {
+            position: absolute;
+            display: block;
+            width: 20px;
+            height: 20px;
+            background: rgba(59, 130, 246, 0.1);
+            animation: float 25s linear infinite;
+            border-radius: 50%;
+        }
+
+        .bg-animation span:nth-child(1) { left: 25%; width: 80px; height: 80px; animation-delay: 0s; }
+        .bg-animation span:nth-child(2) { left: 10%; width: 20px; height: 20px; animation-delay: 2s; animation-duration: 12s; }
+        .bg-animation span:nth-child(3) { left: 70%; width: 20px; height: 20px; animation-delay: 4s; }
+        .bg-animation span:nth-child(4) { left: 40%; width: 60px; height: 60px; animation-delay: 0s; animation-duration: 18s; }
+        .bg-animation span:nth-child(5) { left: 65%; width: 20px; height: 20px; animation-delay: 0s; }
+        .bg-animation span:nth-child(6) { left: 75%; width: 110px; height: 110px; animation-delay: 3s; }
+        .bg-animation span:nth-child(7) { left: 35%; width: 150px; height: 150px; animation-delay: 7s; }
+        .bg-animation span:nth-child(8) { left: 50%; width: 25px; height: 25px; animation-delay: 15s; animation-duration: 45s; }
+        .bg-animation span:nth-child(9) { left: 20%; width: 15px; height: 15px; animation-delay: 2s; animation-duration: 35s; }
+        .bg-animation span:nth-child(10) { left: 85%; width: 150px; height: 150px; animation-delay: 0s; animation-duration: 11s; }
+
+        @keyframes float {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* Шапка */
+        .header {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+            padding: 20px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .logo-text h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #60a5fa, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo-text span {
+            font-size: 12px;
+            color: #94a3b8;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-avatar {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .user-avatar:hover {
+            transform: scale(1.1);
+        }
+
+        /* Основной контент */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Панель управления */
+        .control-panel {
+            background: rgba(30, 58, 138, 0.3);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px 35px;
+            margin-bottom: 40px;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .week-navigation {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .nav-btn {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .nav-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+        }
+
+        .week-info {
+            text-align: center;
+        }
+
+        .week-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: #60a5fa;
+        }
+
+        .week-dates {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        .group-selector {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .group-selector label {
+            font-size: 14px;
+            color: #94a3b8;
+        }
+
+        .group-select {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 10px;
+            padding: 12px 20px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .group-select:hover, .group-select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Сетка расписания */
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .schedule-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Карточка дня */
+        .day-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .day-card:hover {
+            border-color: rgba(59, 130, 246, 0.5);
+            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.2);
+        }
+
+        .day-card.active {
+            border-color: #3b82f6;
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+        }
+
+        .day-card.today {
+            border-color: #10b981;
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.3);
+        }
+
+        .day-header {
+            padding: 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            background: linear-gradient(90deg, rgba(30, 58, 138, 0.5), transparent);
+            transition: background 0.3s;
+        }
+
+        .day-header:hover {
+            background: linear-gradient(90deg, rgba(30, 58, 138, 0.8), rgba(30, 58, 138, 0.2));
+        }
+
+        .day-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .day-icon {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .day-card.today .day-icon {
+            background: linear-gradient(135deg, #059669, #10b981);
+        }
+
+        .day-text h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+
+        .day-text span {
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .toggle-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 10px;
+            color: #3b82f6;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toggle-btn:hover {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .toggle-btn.active {
+            background: #3b82f6;
+            color: white;
+            transform: rotate(45deg);
+        }
+
+        /* Контент дня */
+        .day-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-out;
+        }
+
+        .day-content.show {
+            max-height: 1000px;
+        }
+
+        .lessons-list {
+            padding: 0 25px 25px;
+        }
+
+        .lesson-item {
+            display: flex;
+            gap: 15px;
+            padding: 18px;
+            background: rgba(30, 58, 138, 0.2);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            border-left: 4px solid #3b82f6;
+            transition: all 0.3s;
+        }
+
+        .lesson-item:hover {
+            background: rgba(30, 58, 138, 0.4);
+            transform: translateX(5px);
+        }
+
+        .lesson-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .lesson-time {
+            min-width: 70px;
+            text-align: center;
+        }
+
+        .lesson-time .start {
+            font-size: 16px;
+            font-weight: 600;
+            color: #60a5fa;
+        }
+
+        .lesson-time .end {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .lesson-divider {
+            width: 2px;
+            background: linear-gradient(to bottom, #3b82f6, transparent);
+            border-radius: 2px;
+        }
+
+        .lesson-details {
+            flex: 1;
+        }
+
+        .lesson-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #f1f5f9;
+            margin-bottom: 8px;
+        }
+
+        .lesson-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        .lesson-meta span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .lesson-meta i {
+            color: #3b82f6;
+        }
+
+        .lesson-type {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .type-lecture {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+
+        .type-practice {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+        }
+
+        .type-lab {
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+        }
+
+        .type-seminar {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+
+        .no-lessons {
+            text-align: center;
+            padding: 30px;
+            color: #64748b;
+        }
+
+        .no-lessons i {
+            font-size: 40px;
+            margin-bottom: 15px;
+            color: #3b82f6;
+            opacity: 0.5;
+        }
+
+        /* Футер */
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+
+        /* Анимации */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .day-card {
+            animation: slideIn 0.5s ease forwards;
+        }
+
+        .day-card:nth-child(1) { animation-delay: 0.1s; }
+        .day-card:nth-child(2) { animation-delay: 0.15s; }
+        .day-card:nth-child(3) { animation-delay: 0.2s; }
+        .day-card:nth-child(4) { animation-delay: 0.25s; }
+        .day-card:nth-child(5) { animation-delay: 0.3s; }
+        .day-card:nth-child(6) { animation-delay: 0.35s; }
+        .day-card:nth-child(7) { animation-delay: 0.4s; }
+    </style>
+</head>
+<body>
+    <div class="bg-animation">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>UniSchedule</h1>
+                    <span>Система расписания</span>
+                </div>
+            </div>
+            <div class="user-info">
+                <div class="user-avatar">АС</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="control-panel">
+            <div class="week-navigation">
+                <button class="nav-btn" onclick="changeWeek(-1)">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="week-info">
+                    <div class="week-number">Неделя <span id="weekNum">5</span></div>
+                    <div class="week-dates" id="weekDates">26 января - 1 февраля 2026</div>
+                </div>
+                <button class="nav-btn" onclick="changeWeek(1)">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <div class="group-selector">
+                <label>Группа:</label>
+                <select class="group-select" id="groupSelect">
+                    <option value="ИС-3-24">ИС-3-24</option>
+                    <option value="ИС-3-23">ИС-3-23</option>
+                    <option value="ПИ-2-24">ПИ-2-24</option>
+                    <option value="ПИ-1-24">ПИ-1-24</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="schedule-grid" id="scheduleGrid">
+            <!-- Дни будут добавлены через JS -->
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>© 2026 UniSchedule. Разработано с <i class="fas fa-heart" style="color: #ef4444;"></i> для студентов</p>
+    </footer>
+
+    <script>
+        // Данные расписания
+        const scheduleData = {
+            'Понедельник': [
+                { time: ['09:00', '10:30'], name: 'Математический анализ', teacher: 'Иванов А.П.', room: '305', type: 'lecture' },
+                { time: ['10:45', '12:15'], name: 'Программирование на Python', teacher: 'Петрова М.С.', room: '412', type: 'practice' },
+                { time: ['13:00', '14:30'], name: 'Базы данных', teacher: 'Сидоров К.В.', room: '201', type: 'lab' }
+            ],
+            'Вторник': [
+                { time: ['09:00', '10:30'], name: 'Физика', teacher: 'Козлов Д.И.', room: '108', type: 'lecture' },
+                { time: ['10:45', '12:15'], name: 'Иностранный язык', teacher: 'Смирнова Е.А.', room: '220', type: 'seminar' }
+            ],
+            'Среда': [
+                { time: ['10:45', '12:15'], name: 'Веб-разработка', teacher: 'Николаев П.Р.', room: '415', type: 'lab' },
+                { time: ['13:00', '14:30'], name: 'Алгоритмы и структуры данных', teacher: 'Федоров А.М.', room: '302', type: 'lecture' },
+                { time: ['14:45', '16:15'], name: 'Дискретная математика', teacher: 'Волков И.С.', room: '305', type: 'practice' }
+            ],
+            'Четверг': [
+                { time: ['09:00', '10:30'], name: 'Операционные системы', teacher: 'Кузнецов В.В.', room: '410', type: 'lecture' },
+                { time: ['10:45', '12:15'], name: 'Компьютерные сети', teacher: 'Морозов С.П.', room: '208', type: 'lab' }
+            ],
+            'Пятница': [
+                { time: ['09:00', '10:30'], name: 'Математический анализ', teacher: 'Иванов А.П.', room: '305', type: 'seminar' },
+                { time: ['13:00', '14:30'], name: 'Физическая культура', teacher: 'Соколов Р.А.', room: 'Спортзал', type: 'practice' }
+            ],
+            'Суббота': [],
+            'Воскресенье': []
+        };
+
+        const typeLabels = {
+            'lecture': 'Лекция',
+            'practice': 'Практика',
+            'lab': 'Лаб. работа',
+            'seminar': 'Семинар'
+        };
+
+        const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+        const dayIcons = ['fa-calendar-day', 'fa-calendar-day', 'fa-calendar-day', 'fa-calendar-day', 'fa-calendar-day', 'fa-couch', 'fa-couch'];
+        
+        let currentWeek = 5;
+        const today = new Date();
+        const todayDay = today.getDay(); // 0 = Воскресенье
+
+        function getWeekDates(weekNum) {
+            const startDate = new Date(2026, 0, 26 + (weekNum - 5) * 7);
+            const dates = [];
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(startDate);
+                date.setDate(startDate.getDate() + i);
+                dates.push(date);
+            }
+            return dates;
+        }
+
+        function formatDate(date) {
+            return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+        }
+
+        function renderSchedule() {
+            const grid = document.getElementById('scheduleGrid');
+            grid.innerHTML = '';
+            
+            const weekDates = getWeekDates(currentWeek);
+            
+            days.forEach((day, index) => {
+                const lessons = scheduleData[day] || [];
+                const date = weekDates[index];
+                const isToday = currentWeek === 5 && (index + 1) === todayDay;
+                
+                const card = document.createElement('div');
+                card.className = `day-card ${isToday ? 'today' : ''}`;
+                card.innerHTML = `
+                    <div class="day-header" onclick="toggleDay(this)">
+                        <div class="day-info">
+                            <div class="day-icon">
+                                <i class="fas ${dayIcons[index]}"></i>
+                            </div>
+                            <div class="day-text">
+                                <h3>${day}${isToday ? ' <span style="color: #10b981; font-size: 12px;">(Сегодня)</span>' : ''}</h3>
+                                <span>${formatDate(date)}</span>
+                            </div>
+                        </div>
+                        <button class="toggle-btn">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    <div class="day-content">
+                        <div class="lessons-list">
+                            ${lessons.length > 0 ? lessons.map(lesson => `
+                                <div class="lesson-item">
+                                    <div class="lesson-time">
+                                        <div class="start">${lesson.time[0]}</div>
+                                        <div class="end">${lesson.time[1]}</div>
+                                    </div>
+                                    <div class="lesson-divider"></div>
+                                    <div class="lesson-details">
+                                        <div class="lesson-name">${lesson.name}</div>
+                                        <div class="lesson-meta">
+                                            <span><i class="fas fa-user"></i> ${lesson.teacher}</span>
+                                            <span><i class="fas fa-door-open"></i> ${lesson.room}</span>
+                                            <span class="lesson-type type-${lesson.type}">${typeLabels[lesson.type]}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('') : `
+                                <div class="no-lessons">
+                                    <i class="fas fa-umbrella-beach"></i>
+                                    <p>Занятий нет</p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+            
+            // Обновляем информацию о неделе
+            document.getElementById('weekNum').textContent = currentWeek;
+            const firstDate = weekDates[0];
+            const lastDate = weekDates[6];
+            document.getElementById('weekDates').textContent = 
+                `${formatDate(firstDate)} - ${formatDate(lastDate)} ${lastDate.getFullYear()}`;
+        }
+
+        function toggleDay(header) {
+            const card = header.closest('.day-card');
+            const content = card.querySelector('.day-content');
+            const btn = header.querySelector('.toggle-btn');
+            
+            content.classList.toggle('show');
+            btn.classList.toggle('active');
+            card.classList.toggle('active');
+        }
+
+        function changeWeek(delta) {
+            currentWeek += delta;
+            if (currentWeek < 1) currentWeek = 1;
+            if (currentWeek > 20) currentWeek = 20;
+            renderSchedule();
+        }
+
+        // Инициализация
+        renderSchedule();
+    </script>
+</body>
+</html>
